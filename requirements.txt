@@ -1,0 +1,7 @@
+hydroloader >= 0.1.9
+apscheduler >= 3.10
+pystray >= 0.19.4
+pytz >= 2023.3
+Pillow >= 9.5.0
+appdirs >= 1.4.4
+customtkinter >= 5.2.0
