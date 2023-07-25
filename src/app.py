@@ -43,11 +43,13 @@ class HydroLoaderApp:
         webbrowser.open(f'{self.hydroserver_url}/data-sources')
 
     def get_settings(self):
-        with open(os.path.join(self.app_dir, 'settings.json'), 'r') as settings_file:
-            settings = json.loads(settings_file.read() or 'null') or {}
-            self.hydroloader_instance = settings.get('instance')
-            self.hydroserver_username = settings.get('username')
-            self.hydroserver_password = settings.get('password')
+        settings_path = os.path.join(self.app_dir, 'settings.json')
+        if os.path.exists(settings_path):
+            with open(settings_path, 'r') as settings_file:
+                settings = json.loads(settings_file.read() or 'null') or {}
+                self.hydroloader_instance = settings.get('instance')
+                self.hydroserver_username = settings.get('username')
+                self.hydroserver_password = settings.get('password')
 
     def launch_background(self):
         self.get_settings()
@@ -86,6 +88,10 @@ if __name__ == '__main__':
     scheduler_logger.addHandler(stream_handler)
 
     user_dir = user_data_dir('HydroLoader', 'CIROH')
+
+    if not os.path.exists(user_dir):
+        os.makedirs(user_dir)
+
     log_path = os.path.join(user_dir, 'hydroloader.log')
 
     log_handler = RotatingFileHandler(
