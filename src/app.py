@@ -6,6 +6,7 @@ import scheduler
 import logging
 import setup
 import webbrowser
+import subprocess
 from PIL import Image
 from appdirs import user_data_dir
 from logging.handlers import RotatingFileHandler
@@ -22,8 +23,7 @@ class HydroLoaderApp:
             pystray.MenuItem('HydroLoader is running', lambda: None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem('Data Sources Dashboard', self.open_data_sources_dashboard),
-            pystray.MenuItem('HydroLoader Settings', lambda: None),
-            pystray.MenuItem('HydroLoader Logs', lambda: None),
+            pystray.MenuItem('HydroLoader Logs', self.open_logs),
             pystray.MenuItem('Quit HydroLoader', self.close_app)
         )
 
@@ -50,6 +50,9 @@ class HydroLoaderApp:
                 self.hydroloader_instance = settings.get('instance')
                 self.hydroserver_username = settings.get('username')
                 self.hydroserver_password = settings.get('password')
+
+    def open_logs(self):
+        subprocess.call(['open', os.path.join(self.app_dir, 'hydroloader.log')])
 
     def launch_background(self):
         self.get_settings()
