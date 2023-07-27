@@ -50,4 +50,4 @@ jobs:
           aws-region: 'us-east-1'
 
       - name: Upload App DMG to AWS S3
-        run: aws s3 cp HydroLoader.dmg s3://sdl-dist/${{ github.event.workflow_run.head_sha }}/macos/HydroLoader.dmg
+        run: aws s3 cp HydroLoader.dmg s3://sdl-dist/${{ github.event.release.tag_name }}/macos/HydroLoader.dmg
