@@ -76,7 +76,10 @@ class HydroLoaderApp:
         self.setup.mainloop()
 
     def close_app(self):
-        self.setup.destroy()
+        self.tray.stop()
+        # self.setup.destroy()
+        # sys.exit(0)
+        os._exit(0)  # There's a Windows ctk bug causing the app to not shutdown with normal methods.
 
 
 if __name__ == '__main__':
