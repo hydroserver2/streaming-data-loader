@@ -69,14 +69,14 @@ jobs:
           pip install pyinstaller
 
       - name: Build App
-        run: |
-          pyinstaller ^
-          --name HydroLoader ^
-          --icon src\assets\app_icon.png ^
-          --windowed ^
-          --onedir ^
-          --add-data ^
-          src\assets\setup_icon.png;. ^
-          --add-data src\assets\app_icon.png;. ^
-          --add-data src\assets\tray_icon.png;. ^
+        run: >
+          pyinstaller
+          --name HydroLoader
+          --icon src\assets\app_icon.png
+          --windowed
+          --onedir
+          --add-data
+          src\assets\setup_icon.png;.
+          --add-data src\assets\app_icon.png;.
+          --add-data src\assets\tray_icon.png;.
           src\app.py
