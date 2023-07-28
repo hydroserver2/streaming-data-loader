@@ -76,10 +76,9 @@ jobs:
           --icon src\assets\app_icon.png
           --windowed
           --onedir
-          --add-data
-          src\assets\setup_icon.png;.
-          --add-data src\assets\app_icon.png;.
-          --add-data src\assets\tray_icon.png;.
+          --add-data "src\assets\setup_icon.png;."
+          --add-data "src\assets\app_icon.png;."
+          --add-data "src\assets\tray_icon.png;."
           src\app.py
 
       - name: Zip App
