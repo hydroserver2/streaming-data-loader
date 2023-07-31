@@ -21,8 +21,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pyinstaller
-          pip install dmgbuild
+          pip install pyinstaller==5.13.0
+          pip install dmgbuild==1.6.1
 
       - name: Build App
         run: |
@@ -67,7 +67,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          pip install pyinstaller
+          pip install pyinstaller==5.13.0
 
       - name: Build App
         run: >
