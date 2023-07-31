@@ -41,7 +41,7 @@ jobs:
           dmgbuild \
           -s src/package/macos/settings.py \
           "Install Streaming Data Loader" \
-          StreamingDataLoader.dmg
+          "Streaming Data Loader.dmg"
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -51,7 +51,7 @@ jobs:
           aws-region: 'us-east-1'
 
       - name: Upload App DMG to AWS S3
-        run: aws s3 cp StreamingDataLoader.dmg s3://sdl-dist/${{ github.event.release.tag_name }}/macos/StreamingDataLoader.dmg
+        run: aws s3 cp "Streaming Data Loader.dmg" "s3://sdl-dist/${{ github.event.release.tag_name }}/macos/Streaming Data Loader.dmg"
 
   build-windows:
     runs-on: windows-latest
@@ -72,7 +72,7 @@ jobs:
       - name: Build App
         run: >
           pyinstaller
-          --name StreamingDataLoader
+          --name Streaming Data Loader
           --icon src\assets\app_icon.png
           --windowed
           --onedir
@@ -82,7 +82,7 @@ jobs:
           src\app.py
 
       - name: Zip App
-        run: tar.exe -a -c -f StreamingDataLoader.zip dist/StreamingDataLoader
+        run: tar.exe -a -c -f "Streaming Data Loader.zip" "dist/Streaming Data Loader"
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v1
@@ -92,4 +92,4 @@ jobs:
           aws-region: 'us-east-1'
 
       - name: Upload Zipped App to AWS S3
-        run: aws s3 cp StreamingDataLoader.zip s3://sdl-dist/${{ github.event.release.tag_name }}/windows/StreamingDataLoader.zip
+        run: aws s3 cp "Streaming Data Loader.zip" "s3://sdl-dist/${{ github.event.release.tag_name }}/windows/Streaming Data Loader.zip"
