@@ -72,7 +72,7 @@ jobs:
       - name: Build App
         run: >
           pyinstaller
-          --name Streaming Data Loader
+          --name "Streaming Data Loader"
           --icon src\assets\app_icon.png
           --windowed
           --onedir
