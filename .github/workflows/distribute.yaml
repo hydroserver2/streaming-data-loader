@@ -1,5 +1,5 @@
-name: HydroLoader Build and AWS Distribution
-run-name: ${{ github.actor }} is building HydroLoader on ${{ github.ref }}
+name: Streaming Data Loader Build and AWS Distribution
+run-name: ${{ github.actor }} is building Streaming Data Loader on ${{ github.ref }}
 
 on:
   release:
