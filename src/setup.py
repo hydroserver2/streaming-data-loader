@@ -1,7 +1,7 @@
 import os
-import requests
 import sys
 import json
+import utils
 import customtkinter as ctk
 from tkinter import messagebox
 from PIL import Image
@@ -17,7 +17,7 @@ class AppSetup(ctk.CTk):
     def __init__(self, service_url):
         super().__init__()
 
-        self.title('Register HydroLoader Instance')
+        self.title('Register Streaming Data Loader')
 
         base_path = getattr(sys, '_MEIPASS', 'assets')
 
@@ -100,39 +100,17 @@ class AppSetup(ctk.CTk):
         username = self.entry_username.get()
         password = self.entry_password.get()
 
-        request_url = f'{self.hydroserver_url}/api/data-loaders'
-        response = requests.get(request_url, auth=(username, password))
+        success, message = utils.sync_data_loader(
+            url=self.hydroserver_url,
+            name=instance,
+            username=username,
+            password=password
+        )
 
-        if response.status_code == 401:
-            return self.display_setup_error(
-                'Failed to login with given username and password.'
-            )
-        elif response.status_code == 403:
-            return self.display_setup_error(
-                'The given account does not have permission to access this resource.'
-            )
-        elif response.status_code != 200:
-            return self.display_setup_error(
-                'Failed to retrieve account HydroLoader instances.'
-            )
+        if success is False:
+            return self.display_setup_error(message)
 
-        data_loaders = json.loads(response.content)
-
-        if instance not in [
-            data_loader['name'] for data_loader in data_loaders
-        ]:
-            response = requests.post(
-                request_url,
-                auth=(username, password),
-                json={'name': instance}
-            )
-
-            if response.status_code != 201:
-                return self.display_setup_error(
-                    'Failed to register HydroLoader instance.'
-                )
-
-        app_dir = user_data_dir('HydroLoader', 'CIROH')
+        app_dir = user_data_dir('Streaming Data Loader', 'CIROH')
 
         try:
             if not os.path.exists(app_dir):
@@ -155,7 +133,7 @@ class AppSetup(ctk.CTk):
         messagebox.showinfo(
             title='Setup Complete',
             message=(
-                'HydroLoader has been successfully registered and is now running.'
+                'The Streaming Data Loader has been successfully registered and is now running.'
             )
         )
         self.callback()

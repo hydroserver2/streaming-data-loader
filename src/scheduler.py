@@ -2,6 +2,7 @@ import traceback
 import json
 import requests
 import logging
+import utils
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -45,6 +46,19 @@ class HydroLoaderScheduler:
         """
 
         logging.info('Syncing data sources with HydroServer.')
+
+        try:
+            success, message = utils.sync_data_loader(
+                url=self.service,
+                name=self.instance,
+                username=self.auth[0],
+                password=self.auth[1]
+            )
+            if success is False:
+                logging.error(message)
+        except Exception as e:
+            logging.error(traceback.format_exc())
+            logging.error(e)
 
         try:
             data_sources = self.get_data_sources()

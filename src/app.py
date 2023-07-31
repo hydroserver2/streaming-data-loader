@@ -20,16 +20,16 @@ class HydroLoaderApp:
         image = Image.open(os.path.join(base_path, 'tray_icon.png'))
 
         menu = (
-            pystray.MenuItem('HydroLoader is running', lambda: None, enabled=False),
+            pystray.MenuItem('Streaming Data Loader is running', lambda: None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem('Data Sources Dashboard', self.open_data_sources_dashboard),
-            pystray.MenuItem('HydroLoader Logs', self.open_logs),
-            pystray.MenuItem('Quit HydroLoader', self.close_app)
+            pystray.MenuItem('View Log Output', self.open_logs),
+            pystray.MenuItem('Quit Application', self.close_app)
         )
 
-        self.tray = pystray.Icon('hydroloader', image, 'HydroServer Data Loader', menu)
+        self.tray = pystray.Icon('hydroloader', image, 'Streaming Data Loader', menu)
         self.setup = setup_window
-        self.app_dir = user_data_dir('HydroLoader', 'CIROH')
+        self.app_dir = user_data_dir('Streaming Data Loader', 'CIROH')
 
         if not os.path.exists(self.app_dir):
             os.makedirs(self.app_dir)
@@ -52,7 +52,7 @@ class HydroLoaderApp:
                 self.hydroserver_password = settings.get('password')
 
     def open_logs(self):
-        subprocess.call(['open', os.path.join(self.app_dir, 'hydroloader.log')])
+        subprocess.call(['open', os.path.join(self.app_dir, 'sdl.log')])
 
     def launch_background(self):
         self.get_settings()
@@ -93,12 +93,12 @@ if __name__ == '__main__':
     hydroloader_logger.addHandler(stream_handler)
     scheduler_logger.addHandler(stream_handler)
 
-    user_dir = user_data_dir('HydroLoader', 'CIROH')
+    user_dir = user_data_dir('Streaming Data Loader', 'CIROH')
 
     if not os.path.exists(user_dir):
         os.makedirs(user_dir)
 
-    log_path = os.path.join(user_dir, 'hydroloader.log')
+    log_path = os.path.join(user_dir, 'sdl.log')
 
     log_handler = RotatingFileHandler(
         filename=log_path,
