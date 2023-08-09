@@ -6,3 +6,4 @@ Pillow == 9.5.0
 appdirs >= 1.4.4
 customtkinter == 5.2.0
 requests >= 2.27.1
+tkinter-tooltip == 2.1.0

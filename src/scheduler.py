@@ -29,6 +29,9 @@ class HydroLoaderScheduler:
             seconds=30,
             next_run_time=datetime.utcnow()
         )
+
+        logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
+
         self.auth = auth
         self.service = service
         self.instance = instance
@@ -45,7 +48,7 @@ class HydroLoaderScheduler:
         :return: None
         """
 
-        logging.info('Syncing data sources with HydroServer.')
+        # logging.info('Syncing data sources with HydroServer.')
 
         try:
             success, message = utils.sync_data_loader(

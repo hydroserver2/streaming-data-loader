@@ -6,6 +6,7 @@ import customtkinter as ctk
 from tkinter import messagebox
 from PIL import Image
 from appdirs import user_data_dir
+from tktooltip import ToolTip
 
 
 ctk.set_appearance_mode('System')
@@ -52,21 +53,27 @@ class AppSetup(ctk.CTk):
         self.label_loader_name.grid(row=0, column=0, padx=10, pady=20, sticky='w')
 
         self.entry_loader_name = ctk.CTkEntry(
-            self.setup_frame, placeholder_text='Enter a name for this data loader instance.', width=300, height=30,
-            border_width=2, corner_radius=10,
+            self.setup_frame, placeholder_text='Enter a name for this data loader.', width=300, height=30,
+            border_width=2, corner_radius=10
         )
-        self.entry_loader_name.grid(row=0, column=1, padx=10, columnspan=2)
+        self.entry_loader_name.grid(row=0, column=1, padx=10, columnspan=2, sticky='w')
+        ToolTip(
+            self.entry_loader_name,
+            msg='This is the name you will use to identify this Data Loader instance on HydroServer while setting ' +
+                'up data sources.',
+            delay=0.2
+        )
 
         self.label_username = ctk.CTkLabel(
-            self.setup_frame, text='HydroServer Username:', width=30, height=25, corner_radius=7
+            self.setup_frame, text='HydroServer Email:', width=30, height=25, corner_radius=7
         )
-        self.label_username.grid(row=1, column=0, padx=10, pady=20)
+        self.label_username.grid(row=1, column=0, padx=10, pady=20, sticky='w')
 
         self.entry_username = ctk.CTkEntry(
-            self.setup_frame, placeholder_text='Enter your HydroServer username.', width=300, height=30, border_width=2,
+            self.setup_frame, placeholder_text='Enter your HydroServer email.', width=300, height=30, border_width=2,
             corner_radius=10
         )
-        self.entry_username.grid(row=1, column=1, padx=10, columnspan=2)
+        self.entry_username.grid(row=1, column=1, padx=10, columnspan=3, sticky='w')
 
         self.label_password = ctk.CTkLabel(
             self.setup_frame, text='HydroServer Password:', width=30, height=25, corner_radius=7
@@ -77,7 +84,7 @@ class AppSetup(ctk.CTk):
             self.setup_frame, placeholder_text='Enter your HydroServer password.', width=300, height=30, border_width=2,
             corner_radius=10, show='•'
         )
-        self.entry_password.grid(row=2, column=1, padx=10, columnspan=2)
+        self.entry_password.grid(row=2, column=1, padx=10, columnspan=3, sticky='w')
 
         self.button_confirm = ctk.CTkButton(self, text='Confirm', width=70, command=self.confirm_setup)
         self.button_confirm.grid(row=2, column=0, padx=100, sticky='e')

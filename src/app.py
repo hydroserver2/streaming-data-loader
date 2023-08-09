@@ -17,7 +17,7 @@ class HydroLoaderApp:
     def __init__(self, service_url, setup_window):
         base_path = getattr(sys, '_MEIPASS', 'assets')
 
-        image = Image.open(os.path.join(base_path, 'tray_icon.png'))
+        image = Image.open(os.path.join(base_path, 'app_icon.png'))
 
         menu = (
             pystray.MenuItem('Streaming Data Loader is running', lambda: None, enabled=False),
