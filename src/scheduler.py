@@ -35,8 +35,8 @@ class HydroLoaderScheduler:
         self.auth = auth
         self.service = service
         self.instance = instance
-        self.session = requests.Session()
-        self.session.auth = self.auth
+        # self.session = requests.Session()
+        # self.session.auth = self.auth
         self.scheduler.start()
 
     def update_data_sources(self):
@@ -47,8 +47,6 @@ class HydroLoaderScheduler:
         :param self: Represent the instance of the class
         :return: None
         """
-
-        # logging.info('Syncing data sources with HydroServer.')
 
         try:
             success, message = utils.sync_data_loader(
@@ -105,7 +103,7 @@ class HydroLoaderScheduler:
         """
 
         request_url = f'{self.service}/api/data-sources/{data_source_id}'
-        response = self.session.get(request_url)
+        response = requests.get(request_url, auth=self.auth)
 
         if response.status_code != 200:
             raise requests.RequestException(
@@ -126,7 +124,7 @@ class HydroLoaderScheduler:
         """
 
         request_url = f'{self.service}/api/data-sources'
-        response = self.session.get(request_url)
+        response = requests.get(request_url, auth=self.auth)
 
         if response.status_code != 200:
             raise requests.RequestException(f'Failed to retrieve data sources from HydroServer: {str(response)}')
@@ -150,7 +148,7 @@ class HydroLoaderScheduler:
         """
 
         request_url = f'{self.service}/api/data-sources/{data_source_id}'
-        response = self.session.patch(request_url, json=data_source_status)
+        response = requests.patch(request_url, json=data_source_status, auth=self.auth)
 
         if response.status_code != 204:
             raise requests.RequestException(
@@ -279,6 +277,8 @@ class HydroLoaderScheduler:
                 'last_synced': str(datetime.utcnow()),
                 'next_sync': str(self.scheduler.get_job(data_source_id).next_run_time)
             }
+
+            logging.info(f'Finished loading data source {data_source_id}')
 
         except Exception as e:
             logging.error(traceback.format_exc())
