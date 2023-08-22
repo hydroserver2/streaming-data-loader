@@ -34,9 +34,8 @@ class HydroLoaderScheduler:
 
         self.auth = auth
         self.service = service
+        self.timeout = 60
         self.instance = instance
-        # self.session = requests.Session()
-        # self.session.auth = self.auth
         self.scheduler.start()
 
     def update_data_sources(self):
@@ -103,7 +102,7 @@ class HydroLoaderScheduler:
         """
 
         request_url = f'{self.service}/api/data-sources/{data_source_id}'
-        response = requests.get(request_url, auth=self.auth)
+        response = requests.get(request_url, auth=self.auth, timeout=self.timeout)
 
         if response.status_code != 200:
             raise requests.RequestException(
@@ -124,7 +123,7 @@ class HydroLoaderScheduler:
         """
 
         request_url = f'{self.service}/api/data-sources'
-        response = requests.get(request_url, auth=self.auth)
+        response = requests.get(request_url, auth=self.auth, timeout=self.timeout)
 
         if response.status_code != 200:
             raise requests.RequestException(f'Failed to retrieve data sources from HydroServer: {str(response)}')
@@ -148,7 +147,7 @@ class HydroLoaderScheduler:
         """
 
         request_url = f'{self.service}/api/data-sources/{data_source_id}'
-        response = requests.patch(request_url, json=data_source_status, auth=self.auth)
+        response = requests.patch(request_url, json=data_source_status, auth=self.auth, timeout=self.timeout)
 
         if response.status_code != 204:
             raise requests.RequestException(

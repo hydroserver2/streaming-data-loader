@@ -14,7 +14,7 @@ def sync_data_loader(url, name, username, password):
     """
 
     request_url = f'{url}/api/data-loaders'
-    response = requests.get(request_url, auth=(username, password))
+    response = requests.get(request_url, auth=(username, password), timeout=60)
 
     if response.status_code == 401:
         return False, 'Failed to login with given username and password.'
