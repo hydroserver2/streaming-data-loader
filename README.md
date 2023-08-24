@@ -1,4 +1,4 @@
-# hydroloader-desktop
+# HydroServer HydroLoader Desktop
 A desktop application for loading streaming data to a HydroServer instance
 
 ## Funding and Acknowledgements
