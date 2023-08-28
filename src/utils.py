@@ -13,7 +13,7 @@ def sync_data_loader(url, name, username, password):
     :return: A tuple of two values; success, and a status message
     """
 
-    request_url = f'{url}/api/data-loaders'
+    request_url = f'{url}/api/data/data-loaders'
     response = requests.get(request_url, auth=(username, password), timeout=60)
 
     if response.status_code == 401:

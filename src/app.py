@@ -84,7 +84,7 @@ class HydroLoaderApp:
 
 if __name__ == '__main__':
 
-    hydroserver_url = 'http://hydroserver-dev.ciroh.org'
+    hydroserver_url = 'https://dev.hydroserver2.org'
 
     hydroloader_logger = logging.getLogger('hydroloader')
     scheduler_logger = logging.getLogger('scheduler')

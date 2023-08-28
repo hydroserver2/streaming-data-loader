@@ -101,7 +101,7 @@ class HydroLoaderScheduler:
         :return: A datasource object
         """
 
-        request_url = f'{self.service}/api/data-sources/{data_source_id}'
+        request_url = f'{self.service}/api/data/data-sources/{data_source_id}'
         response = requests.get(request_url, auth=self.auth, timeout=self.timeout)
 
         if response.status_code != 200:
@@ -122,7 +122,7 @@ class HydroLoaderScheduler:
         :return: A list of datasource objects
         """
 
-        request_url = f'{self.service}/api/data-sources'
+        request_url = f'{self.service}/api/data/data-sources'
         response = requests.get(request_url, auth=self.auth, timeout=self.timeout)
 
         if response.status_code != 200:
@@ -146,7 +146,7 @@ class HydroLoaderScheduler:
         :return: None
         """
 
-        request_url = f'{self.service}/api/data-sources/{data_source_id}'
+        request_url = f'{self.service}/api/data/data-sources/{data_source_id}'
         response = requests.patch(request_url, json=data_source_status, auth=self.auth, timeout=self.timeout)
 
         if response.status_code != 204:
@@ -264,7 +264,7 @@ class HydroLoaderScheduler:
             loader = HydroLoader(
                 conf=data_source,
                 auth=self.auth,
-                service=f'{self.service}/sensorthings/v1.1'
+                service=f'{self.service}/api/sensorthings/v1.1'
             )
 
             results = loader.sync_datastreams()
