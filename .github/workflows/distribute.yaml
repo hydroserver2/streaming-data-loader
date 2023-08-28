@@ -51,7 +51,7 @@ jobs:
           aws-region: 'us-east-1'
 
       - name: Upload App DMG to AWS S3
-        run: aws s3 cp "Streaming Data Loader.dmg" "s3://hydroloader-dist/${{ github.event.release.tag_name }}/macos/Streaming Data Loader.dmg"
+        run: aws s3 cp "Streaming Data Loader.dmg" "s3://hydroloader-dist/data-loader/${{ github.event.release.tag_name }}/macos/Streaming Data Loader.dmg"
 
   build-windows:
     runs-on: windows-latest
@@ -92,4 +92,4 @@ jobs:
           aws-region: 'us-east-1'
 
       - name: Upload Zipped App to AWS S3
-        run: aws s3 cp "Streaming Data Loader.zip" "s3://hydroloader-dist/${{ github.event.release.tag_name }}/windows/Streaming Data Loader.zip"
+        run: aws s3 cp "Streaming Data Loader.zip" "s3://hydroloader-dist/data-loader/${{ github.event.release.tag_name }}/windows/Streaming Data Loader.zip"
