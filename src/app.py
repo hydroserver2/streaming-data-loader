@@ -14,7 +14,7 @@ from logging.handlers import RotatingFileHandler
 
 class HydroLoaderApp:
 
-    def __init__(self, service_url, setup_window):
+    def __init__(self, setup_window):
         base_path = getattr(sys, '_MEIPASS', 'assets')
 
         image = Image.open(os.path.join(base_path, 'app_icon.png'))
@@ -23,6 +23,7 @@ class HydroLoaderApp:
             pystray.MenuItem('Streaming Data Loader is running', lambda: None, enabled=False),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem('Data Sources Dashboard', self.open_data_sources_dashboard),
+            # pystray.MenuItem('Update Settings', self.update_settings),
             pystray.MenuItem('View Log Output', self.open_logs),
             pystray.MenuItem('Quit Application', self.close_app)
         )
@@ -37,7 +38,7 @@ class HydroLoaderApp:
         self.hydroloader_instance = None
         self.hydroserver_username = None
         self.hydroserver_password = None
-        self.hydroserver_url = service_url
+        self.hydroserver_url = None
 
     def open_data_sources_dashboard(self):
         webbrowser.open(f'{self.hydroserver_url}/data-sources')
@@ -47,9 +48,13 @@ class HydroLoaderApp:
         if os.path.exists(settings_path):
             with open(settings_path, 'r') as settings_file:
                 settings = json.loads(settings_file.read() or 'null') or {}
+                self.hydroserver_url = settings.get('url')
                 self.hydroloader_instance = settings.get('instance')
                 self.hydroserver_username = settings.get('username')
                 self.hydroserver_password = settings.get('password')
+
+    def update_settings(self):
+        pass
 
     def open_logs(self):
         subprocess.call(['open', os.path.join(self.app_dir, 'sdl.log')])
@@ -84,8 +89,6 @@ class HydroLoaderApp:
 
 if __name__ == '__main__':
 
-    hydroserver_url = 'https://dev.hydroserver2.org'
-
     hydroloader_logger = logging.getLogger('hydroloader')
     scheduler_logger = logging.getLogger('scheduler')
 
@@ -119,7 +122,9 @@ if __name__ == '__main__':
         ]
     )
 
-    hydroloader_setup = setup.AppSetup(service_url=hydroserver_url)
-    hydroloader = HydroLoaderApp(service_url=hydroserver_url, setup_window=hydroloader_setup)
+    default_hydroserver_url = 'https://www.hydroserver.org'
+
+    hydroloader_setup = setup.AppSetup(default_hydroserver_url=default_hydroserver_url)
+    hydroloader = HydroLoaderApp(setup_window=hydroloader_setup)
     hydroloader_setup.callback = hydroloader.launch_background
     hydroloader.launch_app()
