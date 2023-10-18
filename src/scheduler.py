@@ -2,7 +2,6 @@ import traceback
 import json
 import requests
 import logging
-import utils
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -37,6 +36,53 @@ class HydroLoaderScheduler:
         self.timeout = 60
         self.instance = instance
         self.scheduler.start()
+        self.data_loader = None
+
+    def sync_data_loader(self, url, name, username, password):
+        """
+        The sync_data_loader function is used to register a HydroLoader instance with a HydroShare account.
+
+        :param url: Specify the url of the hydroshare instance to which you want to connect
+        :param name: The name of the data loader instance
+        :param username: The account username
+        :param password: The user's password
+        :return: A tuple of two values; success, and a status message
+        """
+
+        request_url = f'{url}/api/data/data-loaders'
+        response = requests.get(request_url, auth=(username, password), timeout=60)
+
+        if response.status_code == 401:
+            return False, 'Failed to login with given username and password.'
+
+        elif response.status_code == 403:
+            return False, 'The given account does not have permission to access this resource.'
+
+        elif response.status_code != 200:
+            return False, 'Failed to retrieve account HydroLoader instances.'
+
+        data_loaders = json.loads(response.content)
+
+        if name not in [
+            data_loader['name'] for data_loader in data_loaders
+        ]:
+            response = requests.post(
+                request_url,
+                auth=(username, password),
+                json={'name': name}
+            )
+
+            if response.status_code != 201:
+                return False, 'Failed to register HydroLoader instance.'
+
+            self.data_loader = json.loads(response.content)
+
+        else:
+            self.data_loader = next(iter([
+                data_loader for data_loader in data_loaders if data_loader['name'] == name
+            ]))
+
+        return True, ''
 
     def update_data_sources(self):
         """
@@ -48,7 +94,7 @@ class HydroLoaderScheduler:
         """
 
         try:
-            success, message = utils.sync_data_loader(
+            success, message = self.sync_data_loader(
                 url=self.service,
                 name=self.instance,
                 username=self.auth[0],
@@ -92,6 +138,50 @@ class HydroLoaderScheduler:
 
         return True
 
+    def parse_data_source(self, data_source):
+        """"""
+
+        request_url = f'{self.service}/api/data/data-sources/{data_source["id"]}/datastreams'
+        response = requests.get(request_url, auth=self.auth, timeout=self.timeout)
+
+        if response.status_code != 200:
+            raise requests.RequestException(
+                f'Failed to retrieve data source {data_source["id"]} from HydroServer: {str(response)}'
+            )
+
+        datastreams = json.loads(response.content)
+
+        return {
+            'id': data_source['id'],
+            'schedule': {
+                'crontab': data_source['crontab'],
+                'interval_units': data_source['intervalUnits'],
+                'interval': data_source['interval'],
+                'start_time': data_source['startTime'],
+                'end_time': data_source['endTime'],
+                'paused': data_source['paused']
+            },
+            'file_access': {
+                'path': data_source['path'],
+                'url': data_source['url'],
+                'header_row': data_source['headerRow'],
+                'data_start_row': data_source['dataStartRow'],
+                'delimiter': data_source['delimiter'],
+                'quote_char': data_source['quoteChar']
+            },
+            'file_timestamp': {
+                'column': data_source['timestampColumn'],
+                'format': data_source['timestampFormat'],
+                'offset': data_source['timestampOffset']
+            },
+            'datastreams': [
+                {
+                    'id': datastream['id'],
+                    'column': datastream['dataSourceColumn']
+                } for datastream in datastreams
+            ]
+        }
+
     def get_data_source(self, data_source_id):
         """
         The get_data_source function retrieves a data source from the HydroServer.
@@ -110,7 +200,7 @@ class HydroLoaderScheduler:
             )
 
         data_source = json.loads(response.content)
-        data_source = DataSource(**data_source)
+        data_source = DataSource(**self.parse_data_source(data_source))
 
         return data_source
 
@@ -130,8 +220,8 @@ class HydroLoaderScheduler:
 
         data_sources = json.loads(response.content)
         data_sources = [
-            DataSource(**data_source) for data_source in data_sources
-            if not self.instance or data_source.get('data_loader', {}).get('name') == self.instance
+            DataSource(**self.parse_data_source(data_source)) for data_source in data_sources
+            if not self.instance or self.data_loader.get('name') == self.instance
         ]
 
         return data_sources
@@ -149,7 +239,7 @@ class HydroLoaderScheduler:
         request_url = f'{self.service}/api/data/data-sources/{data_source_id}'
         response = requests.patch(request_url, json=data_source_status, auth=self.auth, timeout=self.timeout)
 
-        if response.status_code != 204:
+        if response.status_code != 203:
             raise requests.RequestException(
                 f'Failed to update data source status for data source {data_source_id}: {str(response)}'
             )
@@ -270,11 +360,11 @@ class HydroLoaderScheduler:
             results = loader.sync_datastreams()
 
             data_source_status = {
-                'data_source_thru': str(results.get('data_thru')) if results.get('data_thru') else None,
-                'last_sync_successful': results.get('success'),
-                'last_sync_message': results.get('message'),
-                'last_synced': str(datetime.utcnow()),
-                'next_sync': str(self.scheduler.get_job(data_source_id).next_run_time)
+                'dataSourceThru': str(results.get('data_thru')) if results.get('data_thru') else None,
+                'lastSyncSuccessful': results.get('success'),
+                'lastSyncMessage': results.get('message'),
+                'lastSynced': str(datetime.utcnow()),
+                'nextSync': str(self.scheduler.get_job(data_source_id).next_run_time)
             }
 
             logging.info(f'Finished loading data source {data_source_id}')
@@ -283,11 +373,11 @@ class HydroLoaderScheduler:
             logging.error(traceback.format_exc())
             logging.error(e)
             data_source_status = {
-                'data_source_thru': None,
-                'last_sync_successful': False,
-                'last_sync_message': str(e),
-                'last_synced': str(datetime.utcnow()),
-                'next_sync': str(self.scheduler.get_job(data_source_id).next_run_time)
+                'dataSourceThru': None,
+                'lastSyncSuccessful': False,
+                'lastSyncMessage': str(e),
+                'lastSynced': str(datetime.utcnow()),
+                'nextSync': str(self.scheduler.get_job(data_source_id).next_run_time)
             }
 
         try:
