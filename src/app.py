@@ -7,6 +7,7 @@ import logging
 import setup
 import webbrowser
 import subprocess
+from hydroserverpy import HydroServer
 from PIL import Image
 from appdirs import user_data_dir
 from logging.handlers import RotatingFileHandler
@@ -66,13 +67,16 @@ class HydroLoaderApp:
             self.hydroloader_instance, self.hydroserver_username, self.hydroserver_password
         ]):
             self.setup.withdraw()
-            scheduler.HydroLoaderScheduler(
-                service=self.hydroserver_url,
-                instance=self.hydroloader_instance,
+            service = HydroServer(
+                host=self.hydroserver_url,
                 auth=(
                     self.hydroserver_username,
                     self.hydroserver_password
                 )
+            )
+            scheduler.HydroLoaderScheduler(
+                service=service,
+                instance=self.hydroloader_instance,
             )
             self.tray.run_detached()
 

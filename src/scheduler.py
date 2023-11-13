@@ -1,28 +1,23 @@
 import traceback
-import json
-import requests
 import logging
+from hydroserverpy.schemas.data_loaders import DataLoaderPostBody
+from hydroserverpy.schemas.data_sources import DataSourceGetResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 from datetime import datetime
 from pytz import utc
-from hydroloader import HydroLoader, HydroLoaderConf
 
 
 logger = logging.getLogger('scheduler')
 
 
-class DataSource(HydroLoaderConf):
-    id: str
-
-
 class HydroLoaderScheduler:
 
-    def __init__(self, service, auth, instance=None):
+    def __init__(self, service, instance=None):
         self.scheduler = BackgroundScheduler(timezone=utc)
         self.scheduler.add_job(
-            lambda: self.update_data_sources(),
+            lambda: self.check_data_sources(),
             id='hydroloader-scheduler',
             trigger='interval',
             seconds=30,
@@ -31,26 +26,50 @@ class HydroLoaderScheduler:
 
         logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
 
-        self.auth = auth
         self.service = service
-        self.timeout = 60
         self.instance = instance
+        self.timeout = 60
         self.scheduler.start()
         self.data_loader = None
 
-    def sync_data_loader(self, url, name, username, password):
+    def check_data_sources(self):
         """
-        The sync_data_loader function is used to register a HydroLoader instance with a HydroShare account.
+        The check_data_sources function is used to check the status of all data sources associated with a given
+        instance. It will iterate through each data source and call the update_data_source function for each one.
 
-        :param url: Specify the url of the hydroshare instance to which you want to connect
-        :param name: The name of the data loader instance
-        :param username: The account username
-        :param password: The user's password
-        :return: A tuple of two values; success, and a status message
+        :param self
+        :return: The data_sources
         """
 
-        request_url = f'{url}/api/data/data-loaders'
-        response = requests.get(request_url, auth=(username, password), timeout=60)
+        try:
+            success, message = self.check_data_loader(data_loader_name=self.instance)
+            if success is False:
+                logging.error(message)
+        except Exception as e:
+            logging.error(traceback.format_exc())
+            logging.error(e)
+
+        try:
+            data_sources = self.service.data_loaders.list_data_sources(data_loader_id=self.data_loader.id)
+            if data_sources.data:
+                for data_source in data_sources.data:
+                    self.update_data_source(data_source)
+        except Exception as e:
+            logging.error(traceback.format_exc())
+            logging.error(e)
+
+    def check_data_loader(self, data_loader_name):
+        """
+        The check_data_loader function checks to see if the data loader name provided by the user exists. If it does
+        not, it creates a new data loader with that name. If it does exist, then it sets self.data_loader to that
+        existing data loader.
+
+        :param self
+        :param data_loader_name: Identify the data loader instance
+        :return: A tuple containing a boolean and a string
+        """
+
+        response = self.service.data_loaders.list()
 
         if response.status_code == 401:
             return False, 'Failed to login with given username and password.'
@@ -61,68 +80,36 @@ class HydroLoaderScheduler:
         elif response.status_code != 200:
             return False, 'Failed to retrieve account HydroLoader instances.'
 
-        data_loaders = json.loads(response.content)
+        data_loaders = response.data
 
-        if name not in [
-            data_loader['name'] for data_loader in data_loaders
+        if data_loader_name not in [
+            data_loader.name for data_loader in data_loaders
         ]:
-            response = requests.post(
-                request_url,
-                auth=(username, password),
-                json={'name': name}
+            response = self.service.data_loaders.create(
+                data_loader_body=DataLoaderPostBody(name=data_loader_name)
             )
 
             if response.status_code != 201:
                 return False, 'Failed to register HydroLoader instance.'
 
-            self.data_loader = json.loads(response.content)
+            self.data_loader = response.data
 
         else:
             self.data_loader = next(iter([
-                data_loader for data_loader in data_loaders if data_loader['name'] == name
+                data_loader for data_loader in data_loaders if data_loader.name == data_loader_name
             ]))
 
         return True, ''
 
-    def update_data_sources(self):
-        """
-        The update_data_sources function is used to sync local scheduled jobs with data sources registered on
-        HydroServer. It first gets a list of all the data sources from HydroServer, then updates each one individually.
-
-        :param self: Represent the instance of the class
-        :return: None
-        """
-
-        try:
-            success, message = self.sync_data_loader(
-                url=self.service,
-                name=self.instance,
-                username=self.auth[0],
-                password=self.auth[1]
-            )
-            if success is False:
-                logging.error(message)
-        except Exception as e:
-            logging.error(traceback.format_exc())
-            logging.error(e)
-
-        try:
-            data_sources = self.get_data_sources()
-            for data_source in data_sources:
-                self.update_data_source(data_source)
-        except Exception as e:
-            logging.error(traceback.format_exc())
-            logging.error(e)
-
     def update_data_source(self, data_source):
         """
-        The update_data_source function is called when a data source needs to be updated. It checks if the data source
-        has an associated scheduled job, and if it does not, it adds one. If it does have an associated scheduled job,
-        then the function updates the schedule for that job.
+        The update_data_source function is called when a user updates the schedule of an existing data source.
+        It checks to see if the data source has a scheduled job, and if it does not, it adds one. If there is already
+        a scheduled job for that data source, then update_data_source calls update_schedule to change the schedule.
 
-        :param self: Represent the instance of a class
-        :param data_source: The data source to update
-        :return: True
+        :param self
+        :param data_source: Identify the data source that is being updated
+        :return: bool
         """
 
         scheduled_jobs = {
@@ -131,183 +118,73 @@ class HydroLoaderScheduler:
             if scheduled_job.id != 'hydroloader-scheduler'
         }
 
-        if data_source.id not in scheduled_jobs.keys():
+        if str(data_source.id) not in scheduled_jobs.keys():
             self.add_schedule(data_source)
         else:
-            self.update_schedule(data_source, scheduled_jobs[data_source.id])
+            self.update_schedule(data_source, scheduled_jobs[str(data_source.id)])
 
         return True
 
-    def parse_data_source(self, data_source):
-        """"""
-
-        request_url = f'{self.service}/api/data/data-sources/{data_source["id"]}/datastreams'
-        response = requests.get(request_url, auth=self.auth, timeout=self.timeout)
-
-        if response.status_code != 200:
-            raise requests.RequestException(
-                f'Failed to retrieve data source {data_source["id"]} from HydroServer: {str(response)}'
-            )
-
-        datastreams = json.loads(response.content)
-
-        return {
-            'id': data_source['id'],
-            'schedule': {
-                'crontab': data_source['crontab'],
-                'interval_units': data_source['intervalUnits'],
-                'interval': data_source['interval'],
-                'start_time': data_source['startTime'],
-                'end_time': data_source['endTime'],
-                'paused': data_source['paused']
-            },
-            'file_access': {
-                'path': data_source['path'],
-                'url': data_source['url'],
-                'header_row': data_source['headerRow'],
-                'data_start_row': data_source['dataStartRow'],
-                'delimiter': data_source['delimiter'],
-                'quote_char': data_source['quoteChar']
-            },
-            'file_timestamp': {
-                'column': data_source['timestampColumn'],
-                'format': data_source['timestampFormat'],
-                'offset': data_source['timestampOffset']
-            },
-            'datastreams': [
-                {
-                    'id': datastream['id'],
-                    'column': datastream['dataSourceColumn']
-                } for datastream in datastreams
-            ]
-        }
-
-    def get_data_source(self, data_source_id):
+    def add_schedule(self, data_source: DataSourceGetResponse):
         """
-        The get_data_source function retrieves a data source from the HydroServer.
+        The add_schedule function is used to add a schedule for the data source. The function takes in a
+        DataSourceGetResponse object as an argument, which contains all the information needed to create and run
+        scheduled data loading tasks.
 
-        :param self: Represent the instance of the class
-        :param data_source_id: Identify the data source that is being requested
-        :return: A datasource object
-        """
-
-        request_url = f'{self.service}/api/data/data-sources/{data_source_id}'
-        response = requests.get(request_url, auth=self.auth, timeout=self.timeout)
-
-        if response.status_code != 200:
-            raise requests.RequestException(
-                f'Failed to retrieve data source {data_source_id} from HydroServer: {str(response)}'
-            )
-
-        data_source = json.loads(response.content)
-        data_source = DataSource(**self.parse_data_source(data_source))
-
-        return data_source
-
-    def get_data_sources(self):
-        """
-        The get_data_sources function retrieves a list of data sources from the HydroServer.
-
-        :param self: Represent the instance of the class
-        :return: A list of datasource objects
-        """
-
-        request_url = f'{self.service}/api/data/data-sources'
-        response = requests.get(request_url, auth=self.auth, timeout=self.timeout)
-
-        if response.status_code != 200:
-            raise requests.RequestException(f'Failed to retrieve data sources from HydroServer: {str(response)}')
-
-        data_sources = json.loads(response.content)
-        data_sources = [
-            DataSource(**self.parse_data_source(data_source)) for data_source in data_sources
-            if not self.instance or self.data_loader.get('name') == self.instance
-        ]
-
-        return data_sources
-
-    def update_data_source_status(self, data_source_id, data_source_status):
-        """
-        The update_data_source_status function updates the status of a data source on HydroServer.
-
-        :param self: Represent the instance of the class
-        :param data_source_id: The ID of the data source whose status will be updated
-        :param data_source_status: The data source status
+        :param self
+        :param data_source: DataSourceGetResponse: Pass the data source object to the function
         :return: None
         """
-
-        request_url = f'{self.service}/api/data/data-sources/{data_source_id}'
-        response = requests.patch(request_url, json=data_source_status, auth=self.auth, timeout=self.timeout)
-
-        if response.status_code != 203:
-            raise requests.RequestException(
-                f'Failed to update data source status for data source {data_source_id}: {str(response)}'
-            )
-
-    def add_schedule(self, data_source):
-        """
-        The add_schedule function is used to add a job to the scheduler. The function takes in a data_source object as
-        an argument and uses its schedule attribute to determine how often the load_data function should be called.
-        The load_data function is  called with the id of the data source as an argument so that it knows which data
-        source's load method to call when it runs.
-
-        :param self: Refer to the current instance of a class
-        :param data_source: The data source to be scheduled locally.
-        :return: None
-        """
-
         schedule_range = {}
-        if data_source.schedule.start_time:
-            schedule_range['start_time'] = data_source.schedule.start_time
-        if data_source.schedule.end_time:
-            schedule_range['end_time'] = data_source.schedule.end_time
+        if data_source.start_time:
+            schedule_range['start_time'] = data_source.start_time
+        if data_source.end_time:
+            schedule_range['end_time'] = data_source.end_time
 
-        if data_source.schedule and data_source.schedule.interval and data_source.schedule.interval_units:
+        if data_source.interval and data_source.interval_units:
             self.scheduler.add_job(
-                lambda: self.load_data(data_source.id),
+                lambda: self.load_data(data_source=data_source),
                 IntervalTrigger(
                     timezone='UTC',
-                    **{data_source.schedule.interval_units: data_source.schedule.interval}
+                    **{data_source.interval_units: data_source.interval}
                 ),
-                id=data_source.id,
+                id=str(data_source.id),
                 **schedule_range
             )
-        elif data_source.schedule and data_source.schedule.crontab:
+        elif data_source.crontab:
             self.scheduler.add_job(
-                lambda: self.load_data(data_source.id),
-                CronTrigger.from_crontab(data_source.schedule.crontab, timezone='UTC'),
-                id=data_source.id,
+                lambda: self.load_data(data_source=data_source),
+                CronTrigger.from_crontab(data_source.crontab, timezone='UTC'),
+                id=str(data_source.id),
                 **schedule_range
             )
 
-    def update_schedule(self, data_source, scheduled_job):
+    def update_schedule(self, data_source: DataSourceGetResponse, scheduled_job):
         """
-        The update_schedule function is called when a data source's schedule is updated. It checks to see if the new
-        schedule has been set, and if so, it removes the old job from the scheduler and adds a new one with the updated
-        parameters. If no schedule has been set for this data source, then it simply removes any existing jobs from the
-        scheduler.
+        The update_schedule function is called when a data source is updated.
+        It checks if the crontab or interval has changed, and if so, removes the old job from the scheduler and adds a
+        new one. If neither have changed, it does nothing.
 
-        :param self: Refer to the object itself
-        :param data_source: The data source object
-        :param scheduled_job: The scheduler object for the data source
+        :param self
+        :param data_source: DataSourceGetResponse: Get the data source information
+        :param scheduled_job: Get the job id and trigger
         :return: None
         """
 
         if (
-            not data_source.schedule or
-            (isinstance(scheduled_job.trigger, CronTrigger) and not data_source.schedule.crontab) or
-            (isinstance(scheduled_job.trigger, IntervalTrigger) and not data_source.schedule.interval)
+            (isinstance(scheduled_job.trigger, CronTrigger) and not data_source.crontab) or
+            (isinstance(scheduled_job.trigger, IntervalTrigger) and not data_source.interval)
         ):
             self.scheduler.remove_job(scheduled_job.id)
 
         if isinstance(scheduled_job.trigger, CronTrigger):
-            data_source_trigger = CronTrigger.from_crontab(data_source.schedule.crontab, timezone='UTC')
+            data_source_trigger = CronTrigger.from_crontab(data_source.crontab, timezone='UTC')
             data_source_trigger_value = str(data_source_trigger)
             scheduled_job_trigger_value = str(scheduled_job.trigger)
         elif isinstance(scheduled_job.trigger, IntervalTrigger):
             data_source_trigger = IntervalTrigger(
                 timezone='UTC',
-                **{data_source.schedule.interval_units: data_source.schedule.interval}
+                **{data_source.interval_units: data_source.interval}
             )
             data_source_trigger_value = data_source_trigger.interval_length
             scheduled_job_trigger_value = scheduled_job.trigger.interval_length
@@ -318,73 +195,33 @@ class HydroLoaderScheduler:
         if data_source_trigger_value != scheduled_job_trigger_value:
             self.scheduler.remove_job(scheduled_job.id)
 
-        if not self.scheduler.get_job(scheduled_job.id) and data_source.schedule and \
-                (data_source.schedule.crontab or data_source.schedule.interval):
+        if not self.scheduler.get_job(scheduled_job.id) and \
+                (data_source.crontab or data_source.interval):
             self.add_schedule(data_source)
 
-    def load_data(self, data_source_id):
+    def load_data(self, data_source):
         """
-        The load_data function is the main function of the HydroLoader class.
-        It takes a data_source_id as an argument and uses it to retrieve a data source from
-        the database. It then checks if that data source has been paused, and if not, it
-        continues loading by calling the sync_datastreams method of HydroLoader. The results
-        of this call are used to update the status of this particular data source in our database.
+        The load_data function is used to load data from a data source into the
+        data warehouse. The function takes in a single argument, which is an object
+        representing the data source that you want to load. This function will then
+        call on the service's 'load_data' method, passing in the ID of your desired
+        data source as an argument.
 
-        :param self: Represent the instance of the class
-        :param data_source_id: Identify the data source to be loaded
-        :return: A dictionary of data source status
+        :param self
+        :param data_source: Identify the data source that you want to load
+        :return: None
         """
 
-        logging.info(f'Loading data source {data_source_id}')
+        logging.info(f'Loading data source {data_source.name}')
 
         try:
-            data_source = self.get_data_source(data_source_id)
-
-            if not data_source:
+            if data_source.paused:
                 return None
 
-            continue_loading = self.update_data_source(data_source)
+            self.service.data_sources.load_data(data_source_id=data_source.id)
 
-            if not continue_loading:
-                return None
+            logging.info(f'Finished loading data source {data_source.name}')
 
-            if data_source.schedule.paused:
-                return None
-
-            loader = HydroLoader(
-                conf=data_source,
-                auth=self.auth,
-                service=f'{self.service}/api/sensorthings/v1.1'
-            )
-
-            results = loader.sync_datastreams()
-
-            data_source_status = {
-                'dataSourceThru': str(results.get('data_thru')) if results.get('data_thru') else None,
-                'lastSyncSuccessful': results.get('success'),
-                'lastSyncMessage': results.get('message'),
-                'lastSynced': str(datetime.utcnow()),
-                'nextSync': str(self.scheduler.get_job(data_source_id).next_run_time)
-            }
-
-            logging.info(f'Finished loading data source {data_source_id}')
-
-        except Exception as e:
-            logging.error(traceback.format_exc())
-            logging.error(e)
-            data_source_status = {
-                'dataSourceThru': None,
-                'lastSyncSuccessful': False,
-                'lastSyncMessage': str(e),
-                'lastSynced': str(datetime.utcnow()),
-                'nextSync': str(self.scheduler.get_job(data_source_id).next_run_time)
-            }
-
-        try:
-            self.update_data_source_status(
-                data_source_id=data_source_id,
-                data_source_status=data_source_status
-            )
         except Exception as e:
             logging.error(traceback.format_exc())
             logging.error(e)
