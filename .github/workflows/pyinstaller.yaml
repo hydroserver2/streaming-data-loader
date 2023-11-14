@@ -1,0 +1,25 @@
+name: Streaming Data Loader Build and AWS Distribution
+run-name: ${{ github.actor }} is building Streaming Data Loader on ${{ github.ref }}
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build-ubuntu:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: Package Application
+      uses: JackMcKew/pyinstaller-action-linux@tkinter
+      with:
+        path: src
+        spec: ubuntu-dist.spec
+
+    - uses: actions/upload-artifact@v2
+      with:
+        name: sdl-ubuntu
+        path: src/dist/linux
