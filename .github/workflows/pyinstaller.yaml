@@ -1,4 +1,4 @@
-name: Streaming Data Loader Build and AWS Distribution
+name: Streaming Data Loader Build and AWS Distribution - Updated
 run-name: ${{ github.actor }} is building Streaming Data Loader on ${{ github.ref }}
 
 on: workflow_dispatch
@@ -33,7 +33,7 @@ jobs:
           --add-data 'src/assets/tray_icon.png:.' \
           src/app.py
 
-    - uses: actions/upload-artifact@v2
-      with:
-        name: sdl-ubuntu
-        path: src/dist/linux
+      - uses: actions/upload-artifact@v2
+        with:
+          name: sdl-ubuntu
+          path: src/dist/linux
