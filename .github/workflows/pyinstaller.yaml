@@ -1,9 +1,7 @@
 name: Streaming Data Loader Build and AWS Distribution
 run-name: ${{ github.actor }} is building Streaming Data Loader on ${{ github.ref }}
 
-on:
-  release:
-    types: [created]
+on: workflow_dispatch
 
 jobs:
   build-ubuntu:
