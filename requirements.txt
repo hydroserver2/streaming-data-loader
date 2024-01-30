@@ -1,11 +1,6 @@
-hydroserverpy >= 0.2.0
-APScheduler == 3.10.1
-pystray >= 0.19.4
-pytz >= 2023.3
-Pillow == 9.5.0
-appdirs >= 1.4.4
-customtkinter == 5.2.0
+PySide6==6.6.1
+appdirs==1.4.4
+hydroserverpy==0.2.0
+APScheduler==3.10.1
+pytz>=2023.3
 requests >= 2.27.1
-tkinter-tooltip == 2.1.0
-orderedmultidict==1.0.1
-demjson3==3.0.6
