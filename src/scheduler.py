@@ -5,16 +5,19 @@ from hydroserverpy.schemas.data_sources import DataSourceGetResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
-from datetime import datetime
 from pytz import utc
+from datetime import datetime
+from PySide6.QtCore import QObject
 
 
 logger = logging.getLogger('scheduler')
 
 
-class HydroLoaderScheduler:
+class DataLoaderScheduler(QObject):
 
-    def __init__(self, service, instance=None):
+    def __init__(self, hs_api, instance_name=None):
+        super().__init__()
+
         self.scheduler = BackgroundScheduler(timezone=utc)
         self.scheduler.add_job(
             lambda: self.check_data_sources(),
@@ -26,11 +29,23 @@ class HydroLoaderScheduler:
 
         logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
 
-        self.service = service
-        self.instance = instance
+        self.hs_api = hs_api
+        self.instance_name = instance_name
         self.timeout = 60
+
         self.scheduler.start()
         self.data_loader = None
+        self.job = None
+
+    def terminate(self):
+        self.scheduler.shutdown(wait=True)
+
+    def pause(self):
+        if self.scheduler.running:
+            self.scheduler.pause()
+
+    def resume(self):
+        self.scheduler.resume()
 
     def check_data_sources(self):
         """
@@ -42,7 +57,7 @@ class HydroLoaderScheduler:
         """
 
         try:
-            success, message = self.check_data_loader(data_loader_name=self.instance)
+            success, message = self.check_data_loader(data_loader_name=self.instance_name)
             if success is False:
                 logging.error(message)
         except Exception as e:
@@ -50,7 +65,7 @@ class HydroLoaderScheduler:
             logging.error(e)
 
         try:
-            data_sources = self.service.data_loaders.list_data_sources(data_loader_id=self.data_loader.id)
+            data_sources = self.hs_api.data_loaders.list_data_sources(data_loader_id=self.data_loader.id)
             if data_sources.data:
                 for data_source in data_sources.data:
                     self.update_data_source(data_source)
@@ -69,7 +84,7 @@ class HydroLoaderScheduler:
         :return: A tuple containing a boolean and a string
         """
 
-        response = self.service.data_loaders.list()
+        response = self.hs_api.data_loaders.list()
 
         if response.status_code == 401:
             return False, 'Failed to login with given username and password.'
@@ -85,7 +100,7 @@ class HydroLoaderScheduler:
         if data_loader_name not in [
             data_loader.name for data_loader in data_loaders
         ]:
-            response = self.service.data_loaders.create(
+            response = self.hs_api.data_loaders.create(
                 data_loader_body=DataLoaderPostBody(name=data_loader_name)
             )
 
@@ -218,7 +233,7 @@ class HydroLoaderScheduler:
             if data_source.paused:
                 return None
 
-            self.service.data_sources.load_data(data_source_id=data_source.id)
+            self.hs_api.data_sources.load_data(data_source_id=data_source.id)
 
             logging.info(f'Finished loading data source {data_source.name}')
 
