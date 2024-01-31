@@ -33,7 +33,13 @@ jobs:
           --onedir \
           --add-data 'src/assets/setup_icon.png:.' \
           --add-data 'src/assets/app_icon.png:.' \
-          --add-data 'src/assets/tray_icon.png:.' \
+          --add-data 'src/assets/connected.png:.' \
+          --add-data 'src/assets/database.png:.' \
+          --add-data 'src/assets/description.png:.' \
+          --add-data 'src/assets/disconnected.png:.' \
+          --add-data 'src/assets/exit.png:.' \
+          --add-data 'src/assets/pause.png:.' \
+          --add-data 'src/assets/resume.png:.' \
           --hidden-import 'demjson3' \
           --additional-hooks-dir 'pyi-hooks' \
           src/app.py
@@ -80,7 +86,13 @@ jobs:
           --onedir
           --add-data "src\assets\setup_icon.png;."
           --add-data "src\assets\app_icon.png;."
-          --add-data "src\assets\tray_icon.png;."
+          --add-data "src\assets\connected.png;."
+          --add-data "src\assets\database.png;."
+          --add-data "src\assets\description.png;."
+          --add-data "src\assets\disconnected.png;."
+          --add-data "src\assets\exit.png;."
+          --add-data "src\assets\pause.png;."
+          --add-data "src\assets\resume.png;."
           --hidden-import "demjson3"
           --additional-hooks-dir "pyi-hooks"
           src\app.py

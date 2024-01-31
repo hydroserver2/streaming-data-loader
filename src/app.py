@@ -63,6 +63,7 @@ class StreamingDataLoader(QMainWindow):
             self.show()
 
     def init_ui(self):
+        """Builds the app UI including system tray menu and connection window"""
 
         # System Tray Icon
         tray_icon = QSystemTrayIcon(self)
@@ -90,15 +91,22 @@ class StreamingDataLoader(QMainWindow):
         self.setup_connection_dialog(layout)
 
     def setup_tray_menu_status(self, tray_menu):
+        """Components to build menu status"""
+
+        # System Tray Menu Status
         self.status_action = QAction(self)
         self.status_action.setEnabled(False)
         tray_menu.addAction(self.status_action)
 
     def setup_tray_menu_actions(self, tray_menu):
+        """Components to build menu actions"""
+
+        # System Tray Menu Open Connection Window
         self.connection_action = QAction('HydroServer Connection', self)
         self.connection_action.triggered.connect(lambda: self.show())
         tray_menu.addAction(self.connection_action)
 
+        # System Tray Menu View Data Sources
         self.dashboard_action = QAction('View Data Sources', self)
         dashboard_icon = QIcon(os.path.join(self.assets_path, 'database.png'))
         dashboard_icon.setIsMask(True)
@@ -106,6 +114,7 @@ class StreamingDataLoader(QMainWindow):
         self.dashboard_action.triggered.connect(self.open_data_sources_dashboard)
         tray_menu.addAction(self.dashboard_action)
 
+        # System Tray Menu View Logs
         self.logging_action = QAction('View Log Output', self)
         logging_icon = QIcon(os.path.join(self.assets_path, 'description.png'))
         logging_icon.setIsMask(True)
@@ -114,10 +123,14 @@ class StreamingDataLoader(QMainWindow):
         tray_menu.addAction(self.logging_action)
 
     def setup_tray_menu_controls(self, tray_menu):
+        """Components to build menu controls"""
+
+        # System Tray Menu Pause/Resume App
         self.pause_action = QAction('Pause', self)
         self.pause_action.triggered.connect(self.toggle_paused)
         tray_menu.addAction(self.pause_action)
 
+        # System Tray Menu Shut Down App
         self.quit_action = QAction('Shut Down', self)
         quit_icon = QIcon(os.path.join(self.assets_path, 'exit.png'))
         quit_icon.setIsMask(True)
@@ -126,6 +139,9 @@ class StreamingDataLoader(QMainWindow):
         tray_menu.addAction(self.quit_action)
 
     def setup_connection_dialog(self, layout):
+        """Components to build connection window"""
+
+        # HydroServer Logo
         logo_label = QLabel(self)
         logo_label.setPixmap(
             QPixmap(os.path.join(self.assets_path, 'setup_icon.png')).scaledToWidth(500, Qt.SmoothTransformation)
@@ -135,9 +151,10 @@ class StreamingDataLoader(QMainWindow):
         logo_layout.setContentsMargins(10, 10, 10, 10)
         layout.addLayout(logo_layout)
 
+        # Window Settings
         label_width = 150
-
         input_layout = QVBoxLayout()
+        input_layout.setContentsMargins(20, 20, 20, 20)
 
         # HydroServer URL Input
         url_box_layout = QHBoxLayout()
@@ -184,10 +201,11 @@ class StreamingDataLoader(QMainWindow):
         password_box_layout.addWidget(self.password_input)
         layout.addLayout(password_box_layout)
 
-        input_layout.setContentsMargins(20, 20, 20, 20)
         layout.addLayout(input_layout)
 
+        # Window Actions Settings
         actions_layout = QHBoxLayout()
+        actions_layout.setContentsMargins(0, 0, 20, 20)
         actions_layout.addStretch(1)
 
         # Confirm Button
@@ -212,16 +230,21 @@ class StreamingDataLoader(QMainWindow):
         cancel_button.setFixedSize(80, 30)
         actions_layout.addWidget(cancel_button)
 
-        actions_layout.setContentsMargins(0, 0, 20, 20)
         layout.addLayout(actions_layout)
 
     def open_data_sources_dashboard(self):
+        """Opens user's Data Sources Dashboard in a browser window"""
+
         webbrowser.open(f'{self.hydroserver_url}/data-sources')
 
     def open_logs(self):
+        """Opens app log file in a text viewer"""
+
         subprocess.call(['open', os.path.join(self.app_dir, 'streaming_data_loader.log')])
 
     def toggle_paused(self):
+        """Toggles whether the app is paused or not"""
+
         self.paused = not self.paused
         if self.connected and self.paused is True:
             self.scheduler.pause()
@@ -230,6 +253,8 @@ class StreamingDataLoader(QMainWindow):
         self.update_gui()
 
     def connect_to_hydroserver(self):
+        """Uses connection settings to register app on HydroServer"""
+
         if not all([
             self.hydroserver_url, self.instance_name, self.hydroserver_username, self.hydroserver_password
         ]):
@@ -273,6 +298,8 @@ class StreamingDataLoader(QMainWindow):
         self.connected = True
 
     def get_settings(self):
+        """Get settings from settings file"""
+
         settings_path = os.path.join(self.app_dir, 'settings.json')
         if os.path.exists(settings_path):
             with open(settings_path, 'r') as settings_file:
@@ -291,6 +318,8 @@ class StreamingDataLoader(QMainWindow):
             hydroserver_password=None,
             paused=None
     ):
+        """Update settings file with new settings"""
+
         settings_path = os.path.join(self.app_dir, 'settings.json')
         with open(settings_path, 'w') as settings_file:
             settings_file.write(json.dumps({
@@ -303,6 +332,8 @@ class StreamingDataLoader(QMainWindow):
         self.get_settings()
 
     def confirm_settings(self):
+        """Handle the user updating connection settings"""
+
         if not all([
             self.url_input.text(), self.instance_input.text(), self.email_input.text(), self.password_input.text()
         ]):
@@ -347,12 +378,16 @@ class StreamingDataLoader(QMainWindow):
 
     @staticmethod
     def show_message(title, message):
+        """Show a message window to the user"""
+
         message_box = QMessageBox()
         message_box.setWindowTitle(title)
         message_box.setText(message)
         message_box.exec_()
 
     def update_gui(self):
+        """Update UI elements when settings/state changes"""
+
         if self.paused:
             pause_action_text = 'Resume'
             pause_action_icon = 'resume.png'
