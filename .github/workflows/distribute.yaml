@@ -7,6 +7,55 @@ on:
 
 
 jobs:
+  build-ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v3
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pyinstaller==5.13.0
+
+      - name: Build App
+        run: |
+          pyinstaller \
+          --name 'Streaming Data Loader' \
+          --icon 'src/assets/app_icon.png' \
+          --windowed \
+          --onedir \
+          --add-data 'src/assets/setup_icon.png:.' \
+          --add-data 'src/assets/app_icon.png:.' \
+          --add-data 'src/assets/connected.png:.' \
+          --add-data 'src/assets/database.png:.' \
+          --add-data 'src/assets/description.png:.' \
+          --add-data 'src/assets/disconnected.png:.' \
+          --add-data 'src/assets/exit.png:.' \
+          --add-data 'src/assets/pause.png:.' \
+          --add-data 'src/assets/resume.png:.' \
+          --hidden-import 'demjson3' \
+          --additional-hooks-dir 'pyi-hooks' \
+          src/app.py
+
+      - name: Zip App
+        run: zip -r "Streaming Data Loader.zip" "dist/Streaming Data Loader"
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: 'us-east-1'
+
+      - name: Upload Zipped App to AWS S3
+        run: aws s3 cp "Streaming Data Loader.zip" "s3://hydroloader-dist/data-loader/${{ github.event.release.tag_name }}/ubuntu/Streaming Data Loader.zip"
+    
   build-macos:
     runs-on: macos-latest
 
