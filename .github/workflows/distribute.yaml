@@ -47,7 +47,7 @@ jobs:
         run: zip -r "Streaming Data Loader.zip" "dist/Streaming Data Loader"
 
       - name: Upload Build
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: Streaming Data Loader Ubuntu
           path: "Streaming Data Loader.zip"
@@ -97,7 +97,7 @@ jobs:
           "Streaming Data Loader.dmg"
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: Streaming Data Loader MacOS
           path: "Streaming Data Loader.dmg"
@@ -142,7 +142,7 @@ jobs:
         run: tar.exe -a -c -f "Streaming Data Loader.zip" "dist/Streaming Data Loader"
 
       - name: Upload build artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: Streaming Data Loader Windows
           path: "Streaming Data Loader.zip"
@@ -156,19 +156,19 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Download build artifact (Ubuntu)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: Streaming Data Loader Ubuntu
           path: release/ubuntu
 
       - name: Download build artifact (MacOS)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: Streaming Data Loader MacOS
           path: release/macos
 
       - name: Download build artifact (Windows)
-        uses: actions/download-artifact@v2
+        uses: actions/download-artifact@v3
         with:
           name: Streaming Data Loader Windows
           path: release/windows
