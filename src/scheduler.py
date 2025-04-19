@@ -1,7 +1,5 @@
 import traceback
 import logging
-from hydroserverpy.schemas.data_loaders import DataLoaderPostBody
-from hydroserverpy.schemas.data_sources import DataSourceGetResponse
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
@@ -10,31 +8,31 @@ from datetime import datetime
 from PySide6.QtCore import QObject
 
 
-logger = logging.getLogger('scheduler')
+logger = logging.getLogger("scheduler")
 
 
 class DataLoaderScheduler(QObject):
 
-    def __init__(self, hs_api, instance_name=None):
+    def __init__(self, hs_api, data_loader=None):
         super().__init__()
+
+        self.data_loader = data_loader
 
         self.scheduler = BackgroundScheduler(timezone=utc)
         self.scheduler.add_job(
             lambda: self.check_data_sources(),
-            id='hydroloader-scheduler',
-            trigger='interval',
-            seconds=30,
+            id="sdl-scheduler",
+            trigger="interval",
+            seconds=60,
             next_run_time=datetime.utcnow()
         )
 
-        logging.getLogger('apscheduler.executors.default').setLevel(logging.WARNING)
+        logging.getLogger("apscheduler.executors.default").setLevel(logging.WARNING)
 
         self.hs_api = hs_api
-        self.instance_name = instance_name
         self.timeout = 60
 
         self.scheduler.start()
-        self.data_loader = None
         self.job = None
 
     def terminate(self):
@@ -57,7 +55,7 @@ class DataLoaderScheduler(QObject):
         """
 
         try:
-            success, message = self.check_data_loader(data_loader_name=self.instance_name)
+            success, message = self.check_data_loader()
             if success is False:
                 logging.error(message)
         except Exception as e:
@@ -65,54 +63,29 @@ class DataLoaderScheduler(QObject):
             logging.error(e)
 
         try:
-            data_sources = self.hs_api.data_loaders.list_data_sources(data_loader_id=self.data_loader.id)
-            if data_sources.data:
-                for data_source in data_sources.data:
-                    self.update_data_source(data_source)
+            data_sources = self.hs_api.datasources.list(orchestration_system=self.data_loader)
+            for data_source in data_sources:
+                self.update_data_source(data_source)
         except Exception as e:
             logging.error(traceback.format_exc())
             logging.error(e)
 
-    def check_data_loader(self, data_loader_name):
+    def check_data_loader(self):
         """
         The check_data_loader function checks to see if the data loader name provided by the user exists. If it does
         not, it creates a new data loader with that name. If it does exist, then it sets self.data_loader to that
         existing data loader.
 
         :param self
-        :param data_loader_name: Identify the data loader instance
         :return: A tuple containing a boolean and a string
         """
 
-        response = self.hs_api.data_loaders.list()
+        try:
+            data_loader = self.hs_api.orchestrationsystems.get(uid=self.data_loader.uid)
+        except (Exception,) as e:
+            return False, str(e)
 
-        if response.status_code == 401:
-            return False, 'Failed to login with given username and password.'
-
-        elif response.status_code == 403:
-            return False, 'The given account does not have permission to access this resource.'
-
-        elif response.status_code != 200:
-            return False, 'Failed to retrieve account HydroLoader instances.'
-
-        data_loaders = response.data
-
-        if data_loader_name not in [
-            data_loader.name for data_loader in data_loaders
-        ]:
-            response = self.hs_api.data_loaders.create(
-                data_loader_body=DataLoaderPostBody(name=data_loader_name)
-            )
-
-            if response.status_code != 201:
-                return False, 'Failed to register HydroLoader instance.'
-
-            self.data_loader = response.data
-
-        else:
-            self.data_loader = next(iter([
-                data_loader for data_loader in data_loaders if data_loader.name == data_loader_name
-            ]))
+        self.data_loader = data_loader
 
         return True, ''
 
@@ -133,14 +106,14 @@ class DataLoaderScheduler(QObject):
             if scheduled_job.id != 'hydroloader-scheduler'
         }
 
-        if str(data_source.id) not in scheduled_jobs.keys():
+        if str(data_source.uid) not in scheduled_jobs.keys():
             self.add_schedule(data_source)
         else:
-            self.update_schedule(data_source, scheduled_jobs[str(data_source.id)])
+            self.update_schedule(data_source, scheduled_jobs[str(data_source.uid)])
 
         return True
 
-    def add_schedule(self, data_source: DataSourceGetResponse):
+    def add_schedule(self, data_source):
         """
         The add_schedule function is used to add a schedule for the data source. The function takes in a
         DataSourceGetResponse object as an argument, which contains all the information needed to create and run
@@ -163,18 +136,18 @@ class DataLoaderScheduler(QObject):
                     timezone='UTC',
                     **{data_source.interval_units: data_source.interval}
                 ),
-                id=str(data_source.id),
+                id=str(data_source.uid),
                 **schedule_range
             )
         elif data_source.crontab:
             self.scheduler.add_job(
                 lambda: self.load_data(data_source=data_source),
                 CronTrigger.from_crontab(data_source.crontab, timezone='UTC'),
-                id=str(data_source.id),
+                id=str(data_source.uid),
                 **schedule_range
             )
 
-    def update_schedule(self, data_source: DataSourceGetResponse, scheduled_job):
+    def update_schedule(self, data_source, scheduled_job):
         """
         The update_schedule function is called when a data source is updated.
         It checks if the crontab or interval has changed, and if so, removes the old job from the scheduler and adds a
@@ -230,11 +203,8 @@ class DataLoaderScheduler(QObject):
         logging.info(f'Loading data source {data_source.name}')
 
         try:
-            if data_source.paused:
-                return None
-
-            self.hs_api.data_sources.load_data(data_source_id=data_source.id)
-
+            data_source.load_data()
+            data_source.refresh()
             logging.info(f'Finished loading data source {data_source.name}')
 
         except Exception as e:

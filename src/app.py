@@ -6,7 +6,6 @@ import webbrowser
 import subprocess
 import hydroserverpy
 from scheduler import DataLoaderScheduler
-from hydroserverpy.schemas.data_loaders import DataLoaderPostBody
 from logging.handlers import RotatingFileHandler
 from appdirs import user_data_dir
 from PySide6.QtCore import Qt
@@ -24,6 +23,7 @@ class StreamingDataLoader(QMainWindow):
         self.scheduler = None
 
         self.instance_name = None
+        self.workspace_name = None
         self.hydroserver_url = None
         self.hydroserver_username = None
         self.hydroserver_password = None
@@ -38,6 +38,7 @@ class StreamingDataLoader(QMainWindow):
         self.quit_action = None
 
         self.url_input = None
+        self.workspace_input = None
         self.instance_input = None
         self.email_input = None
         self.password_input = None
@@ -50,13 +51,15 @@ class StreamingDataLoader(QMainWindow):
 
         self.init_ui()
         self.get_settings()
-        self.connect_to_hydroserver()
+
+        data_loader = self.connect_to_hydroserver()
+
         self.update_gui()
 
         if self.connected:
             self.scheduler = DataLoaderScheduler(
                 hs_api=self.service,
-                instance_name=self.instance_name
+                data_loader=data_loader
             )
 
         if not self.connected:
@@ -67,7 +70,7 @@ class StreamingDataLoader(QMainWindow):
 
         # System Tray Icon
         tray_icon = QSystemTrayIcon(self)
-        tray_icon_image = QIcon(os.path.join(self.assets_path, 'app_icon.png'))
+        tray_icon_image = QIcon(os.path.join(self.assets_path, "app_icon.png"))
         tray_icon_image.setIsMask(True)
         tray_icon.setIcon(tray_icon_image)
 
@@ -167,6 +170,17 @@ class StreamingDataLoader(QMainWindow):
         url_box_layout.addWidget(self.url_input)
         layout.addLayout(url_box_layout)
 
+        # Workspace Name Input
+        workspace_box_layout = QHBoxLayout()
+        workspace_label = QLabel(f'Workspace Name:', self)
+        workspace_label.setFixedWidth(label_width)
+        workspace_box_layout.addWidget(workspace_label, alignment=Qt.AlignRight)
+        self.workspace_input = QLineEdit(self)
+        self.workspace_input.setStyleSheet('padding: 5px;')
+        self.workspace_input.setPlaceholderText('Enter the name of the workspace to use.')
+        workspace_box_layout.addWidget(self.workspace_input)
+        layout.addLayout(workspace_box_layout)
+
         # Instance Name Input
         instance_box_layout = QHBoxLayout()
         instance_label = QLabel(f'Instance Name:', self)
@@ -235,7 +249,7 @@ class StreamingDataLoader(QMainWindow):
     def open_data_sources_dashboard(self):
         """Opens user's Data Sources Dashboard in a browser window"""
 
-        webbrowser.open(f'{self.hydroserver_url}/data-sources')
+        webbrowser.open(f'{self.hydroserver_url}/orchestration')
 
     def open_logs(self):
         """Opens app log file in a text viewer"""
@@ -256,46 +270,49 @@ class StreamingDataLoader(QMainWindow):
         """Uses connection settings to register app on HydroServer"""
 
         if not all([
-            self.hydroserver_url, self.instance_name, self.hydroserver_username, self.hydroserver_password
+            self.hydroserver_url, self.workspace_name, self.instance_name, self.hydroserver_username,
+            self.hydroserver_password
         ]):
             self.connected = False
             return 'Missing required connection parameters.'
 
-        self.service = hydroserverpy.HydroServer(
-            host=self.hydroserver_url,
-            auth=(self.hydroserver_username, self.hydroserver_password)
-        )
-
-        response = self.service.data_loaders.list()
-
-        if response.status_code == 401:
-            self.connected = False
-            return 'Failed to login with given username and password.'
-
-        elif response.status_code == 403:
-            self.connected = False
-            return 'The given account does not have permission to access this resource.'
-
-        elif response.status_code != 200:
-            self.connected = False
-            return 'Failed to retrieve account Streaming Data Loader instances.'
-
-        data_loaders = response.data
-
-        if self.instance_name not in [
-            data_loader.name for data_loader in data_loaders
-        ]:
-            response = self.service.data_loaders.create(
-                DataLoaderPostBody(
-                    name=self.instance_name
-                )
+        try:
+            self.service = hydroserverpy.HydroServer(
+                host=self.hydroserver_url,
+                email=self.hydroserver_username,
+                password=self.hydroserver_password
             )
+        except:
+            self.connected = False
+            return 'Failed to connect to HydroServer.'
 
-            if response.status_code != 201:
-                self.connected = False
+        workspaces = self.service.workspaces.list(associated_only=True)
+        workspace = next((workspace for workspace in workspaces if workspace.name == self.workspace_name), None)
+
+        orchestration_systems = self.service.orchestrationsystems.list(workspace=workspace)
+        orchestration_system = next((
+            orchestration_system for orchestration_system in orchestration_systems
+            if orchestration_system.name == self.instance_name
+        ), None)
+
+        if not workspace:
+            self.connected = False
+            return 'The provided workspace was not found.'
+
+        if not orchestration_system:
+            try:
+                orchestration_system = self.service.orchestrationsystems.create(
+                    name=self.instance_name,
+                    workspace=workspace,
+                    orchestration_system_type="SDL"
+                )
+            except (Exception,) as e:
+                print(e)
                 return 'Failed to register Streaming Data Loader instance.'
 
         self.connected = True
+
+        return orchestration_system
 
     def get_settings(self):
         """Get settings from settings file"""
@@ -307,6 +324,7 @@ class StreamingDataLoader(QMainWindow):
                 self.hydroserver_url = settings.get('url')
                 self.hydroserver_username = settings.get('username')
                 self.hydroserver_password = settings.get('password')
+                self.workspace_name = settings.get('workspace')
                 self.instance_name = settings.get('name')
                 self.paused = settings.get('paused')
 
@@ -314,6 +332,7 @@ class StreamingDataLoader(QMainWindow):
             self,
             hydroserver_url=None,
             instance_name=None,
+            workspace_name=None,
             hydroserver_username=None,
             hydroserver_password=None,
             paused=None
@@ -325,6 +344,7 @@ class StreamingDataLoader(QMainWindow):
             settings_file.write(json.dumps({
                 'url': hydroserver_url if hydroserver_url is not None else self.hydroserver_url,
                 'name': instance_name if instance_name is not None else self.instance_name,
+                'workspace': workspace_name if workspace_name is not None else self.workspace_name,
                 'username': hydroserver_username if hydroserver_username is not None else self.hydroserver_username,
                 'password': hydroserver_password if hydroserver_password is not None else self.hydroserver_password,
                 'paused': paused if paused is not None else self.paused
@@ -335,7 +355,8 @@ class StreamingDataLoader(QMainWindow):
         """Handle the user updating connection settings"""
 
         if not all([
-            self.url_input.text(), self.instance_input.text(), self.email_input.text(), self.password_input.text()
+            self.url_input.text(), self.workspace_input.text(), self.instance_input.text(), self.email_input.text(),
+            self.password_input.text()
         ]):
             return self.show_message(
                 title='Missing Required Fields',
@@ -345,6 +366,7 @@ class StreamingDataLoader(QMainWindow):
         self.update_settings(
             hydroserver_url=self.url_input.text(),
             instance_name=self.instance_input.text(),
+            workspace_name=self.workspace_input.text(),
             hydroserver_username=self.email_input.text(),
             hydroserver_password=self.password_input.text()
         )
@@ -363,7 +385,7 @@ class StreamingDataLoader(QMainWindow):
 
         self.scheduler = DataLoaderScheduler(
             hs_api=self.service,
-            instance_name=self.instance_name
+            data_loader=connection_message
         )
 
         if self.paused is True:
@@ -423,6 +445,7 @@ class StreamingDataLoader(QMainWindow):
         if self.isHidden():
             self.url_input.setText(self.hydroserver_url if self.hydroserver_url else 'https://www.hydroserver.org')
             self.instance_input.setText(self.instance_name if self.instance_name else '')
+            self.workspace_input.setText(self.workspace_name if self.workspace_name else '')
             self.email_input.setText(self.hydroserver_username if self.hydroserver_username else '')
             self.password_input.setText(self.hydroserver_password if self.hydroserver_password else '')
 
