@@ -133,7 +133,8 @@ class DataLoaderScheduler(QObject):
             self.scheduler.add_job(
                 lambda: self.load_data(data_source=data_source),
                 IntervalTrigger(
-                    timezone='UTC',
+                    start_date=data_source.start_time,
+                    end_date=data_source.end_time,
                     **{data_source.interval_units: data_source.interval}
                 ),
                 id=str(data_source.uid),
@@ -171,7 +172,8 @@ class DataLoaderScheduler(QObject):
             scheduled_job_trigger_value = str(scheduled_job.trigger)
         elif isinstance(scheduled_job.trigger, IntervalTrigger):
             data_source_trigger = IntervalTrigger(
-                timezone='UTC',
+                start_date=data_source.start_time,
+                end_date=data_source.end_time,
                 **{data_source.interval_units: data_source.interval}
             )
             data_source_trigger_value = data_source_trigger.interval_length
@@ -200,11 +202,16 @@ class DataLoaderScheduler(QObject):
         :return: None
         """
 
+        data_source.refresh()
+
+        if data_source.paused is True:
+            logging.info(f'Data source {data_source.name} is paused: Skipping')
+            return
+
         logging.info(f'Loading data source {data_source.name}')
 
         try:
             data_source.load_data()
-            data_source.refresh()
             logging.info(f'Finished loading data source {data_source.name}')
 
         except Exception as e:
