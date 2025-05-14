@@ -11,7 +11,7 @@ from appdirs import user_data_dir
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import QApplication, QMainWindow, QSystemTrayIcon, QMenu, QWidget, QVBoxLayout, QLabel, \
-     QLineEdit, QHBoxLayout, QPushButton, QMessageBox
+     QLineEdit, QHBoxLayout, QPushButton, QMessageBox, QCheckBox
 
 
 class StreamingDataLoader(QMainWindow):
@@ -25,6 +25,7 @@ class StreamingDataLoader(QMainWindow):
         self.instance_name = None
         self.workspace_name = None
         self.hydroserver_url = None
+        self.hydroserver_api_key = None
         self.hydroserver_username = None
         self.hydroserver_password = None
         self.connected = False
@@ -40,8 +41,13 @@ class StreamingDataLoader(QMainWindow):
         self.url_input = None
         self.workspace_input = None
         self.instance_input = None
+        self.api_key_input = None
         self.email_input = None
         self.password_input = None
+        self.auth_toggle_checkbox = None
+
+        self.api_key_input_widget = None
+        self.basic_auth_input_widget = None
 
         self.assets_path = getattr(sys, '_MEIPASS', 'assets')
         self.app_dir = user_data_dir('Streaming Data Loader', 'CIROH')
@@ -192,30 +198,59 @@ class StreamingDataLoader(QMainWindow):
         instance_box_layout.addWidget(self.instance_input)
         layout.addLayout(instance_box_layout)
 
-        # HydroServer Email Input
+        # API Key Authentication Input
+        self.api_key_input_widget = QWidget(self)
+        api_key_input_layout = QVBoxLayout()
+        self.api_key_input_widget.setLayout(api_key_input_layout)
+        api_key_input_layout.setContentsMargins(0, 0, 0, 0)
+
+        api_key_box_layout = QHBoxLayout()
+        api_key_label = QLabel('HydroServer API Key:', self)
+        api_key_label.setFixedWidth(label_width)
+        api_key_box_layout.addWidget(api_key_label, alignment=Qt.AlignRight)
+        self.api_key_input = QLineEdit(self)
+        self.api_key_input.setStyleSheet('padding: 5px;')
+        self.api_key_input.setEchoMode(getattr(QLineEdit, 'Password'))
+        self.api_key_input.setPlaceholderText('Enter your HydroServer API key.')
+        api_key_box_layout.addWidget(self.api_key_input)
+        api_key_input_layout.addLayout(api_key_box_layout)
+
+        layout.addWidget(self.api_key_input_widget, alignment=Qt.AlignTop)
+
+        # Basic Authentication Input
+        self.basic_auth_input_widget = QWidget(self)
+        basic_auth_input_layout = QVBoxLayout()
+        self.basic_auth_input_widget.setLayout(basic_auth_input_layout)
+        basic_auth_input_layout.setContentsMargins(0, 0, 0, 0)
+
         email_box_layout = QHBoxLayout()
-        email_label = QLabel(f'HydroServer Email:', self)
+        email_label = QLabel('HydroServer Email:', self)
         email_label.setFixedWidth(label_width)
         email_box_layout.addWidget(email_label, alignment=Qt.AlignRight)
         self.email_input = QLineEdit(self)
         self.email_input.setStyleSheet('padding: 5px;')
-        self.email_input.setPlaceholderText('Enter your HydroServer email.')
+        self.email_input.setPlaceholderText('Enter your HydroServer Email.')
         email_box_layout.addWidget(self.email_input)
-        layout.addLayout(email_box_layout)
+        basic_auth_input_layout.addLayout(email_box_layout)
 
-        # HydroServer Password Input
         password_box_layout = QHBoxLayout()
-        password_label = QLabel(f'HydroServer Password:', self)
+        password_label = QLabel('HydroServer Password:', self)
         password_label.setFixedWidth(label_width)
         password_box_layout.addWidget(password_label, alignment=Qt.AlignRight)
         self.password_input = QLineEdit(self)
-        self.password_input.setEchoMode(getattr(QLineEdit, 'Password'))
         self.password_input.setStyleSheet('padding: 5px;')
-        self.password_input.setPlaceholderText('Enter your HydroServer password.')
+        self.password_input.setEchoMode(getattr(QLineEdit, 'Password'))
+        self.password_input.setPlaceholderText('Enter your HydroServer Password.')
         password_box_layout.addWidget(self.password_input)
-        layout.addLayout(password_box_layout)
+        basic_auth_input_layout.addLayout(password_box_layout)
 
-        layout.addLayout(input_layout)
+        layout.addWidget(self.basic_auth_input_widget)
+
+        # Authentication Mode Toggle
+        self.auth_toggle_checkbox = QCheckBox("Authenticate with username and password", self)
+        self.auth_toggle_checkbox.setStyleSheet('padding: 5px;')
+        self.auth_toggle_checkbox.stateChanged.connect(lambda: self.toggle_auth_input())
+        layout.addWidget(self.auth_toggle_checkbox)
 
         # Window Actions Settings
         actions_layout = QHBoxLayout()
@@ -246,6 +281,16 @@ class StreamingDataLoader(QMainWindow):
 
         layout.addLayout(actions_layout)
 
+    def toggle_auth_input(self):
+        """Switches between API key and email/password authentication inputs."""
+
+        if self.auth_toggle_checkbox.isChecked():
+            self.api_key_input_widget.setVisible(False)
+            self.basic_auth_input_widget.setVisible(True)
+        else:
+            self.basic_auth_input_widget.setVisible(False)
+            self.api_key_input_widget.setVisible(True)
+
     def open_data_sources_dashboard(self):
         """Opens user's Data Sources Dashboard in a browser window"""
 
@@ -270,18 +315,25 @@ class StreamingDataLoader(QMainWindow):
         """Uses connection settings to register app on HydroServer"""
 
         if not all([
-            self.hydroserver_url, self.workspace_name, self.instance_name, self.hydroserver_username,
-            self.hydroserver_password
-        ]):
+            self.hydroserver_url, self.workspace_name, self.instance_name
+        ]) or (
+            not (self.hydroserver_username and self.hydroserver_password) and not self.hydroserver_api_key
+        ):
             self.connected = False
             return 'Missing required connection parameters.'
 
         try:
-            self.service = hydroserverpy.HydroServer(
-                host=self.hydroserver_url,
-                email=self.hydroserver_username,
-                password=self.hydroserver_password
-            )
+            if self.hydroserver_api_key:
+                self.service = hydroserverpy.HydroServer(
+                    host=self.hydroserver_url,
+                    apikey=self.hydroserver_api_key
+                )
+            else:
+                self.service = hydroserverpy.HydroServer(
+                    host=self.hydroserver_url,
+                    email=self.hydroserver_username,
+                    password=self.hydroserver_password
+                )
         except:
             self.connected = False
             return 'Failed to connect to HydroServer.'
@@ -322,6 +374,7 @@ class StreamingDataLoader(QMainWindow):
             with open(settings_path, 'r') as settings_file:
                 settings = json.loads(settings_file.read() or 'null') or {}
                 self.hydroserver_url = settings.get('url')
+                self.hydroserver_api_key = settings.get('apikey')
                 self.hydroserver_username = settings.get('username')
                 self.hydroserver_password = settings.get('password')
                 self.workspace_name = settings.get('workspace')
@@ -333,11 +386,22 @@ class StreamingDataLoader(QMainWindow):
             hydroserver_url=None,
             instance_name=None,
             workspace_name=None,
+            hydroserver_api_key=None,
             hydroserver_username=None,
             hydroserver_password=None,
+            use_api_key=True,
             paused=None
     ):
         """Update settings file with new settings"""
+
+        if use_api_key is True:
+            api_key = hydroserver_api_key if hydroserver_api_key is not None else self.hydroserver_api_key
+            username = None
+            password = None
+        else:
+            api_key = None
+            username = hydroserver_username if hydroserver_username is not None else self.hydroserver_username
+            password = hydroserver_password if hydroserver_password is not None else self.hydroserver_password
 
         settings_path = os.path.join(self.app_dir, 'settings.json')
         with open(settings_path, 'w') as settings_file:
@@ -345,8 +409,9 @@ class StreamingDataLoader(QMainWindow):
                 'url': hydroserver_url if hydroserver_url is not None else self.hydroserver_url,
                 'name': instance_name if instance_name is not None else self.instance_name,
                 'workspace': workspace_name if workspace_name is not None else self.workspace_name,
-                'username': hydroserver_username if hydroserver_username is not None else self.hydroserver_username,
-                'password': hydroserver_password if hydroserver_password is not None else self.hydroserver_password,
+                'apikey': api_key,
+                'username': username,
+                'password': password,
                 'paused': paused if paused is not None else self.paused
             }))
         self.get_settings()
@@ -355,9 +420,10 @@ class StreamingDataLoader(QMainWindow):
         """Handle the user updating connection settings"""
 
         if not all([
-            self.url_input.text(), self.workspace_input.text(), self.instance_input.text(), self.email_input.text(),
-            self.password_input.text()
-        ]):
+            self.hydroserver_url, self.workspace_name, self.instance_name
+        ]) or (
+            not (self.hydroserver_username and self.hydroserver_password) and not self.hydroserver_api_key
+        ):
             return self.show_message(
                 title='Missing Required Fields',
                 message='All fields are required to register the Streaming Data Loader app on HydroServer.'
@@ -367,8 +433,10 @@ class StreamingDataLoader(QMainWindow):
             hydroserver_url=self.url_input.text(),
             instance_name=self.instance_input.text(),
             workspace_name=self.workspace_input.text(),
+            hydroserver_api_key=self.api_key_input.text(),
             hydroserver_username=self.email_input.text(),
-            hydroserver_password=self.password_input.text()
+            hydroserver_password=self.password_input.text(),
+            use_api_key=not self.auth_toggle_checkbox.isChecked(),
         )
 
         connection_message = self.connect_to_hydroserver()
@@ -446,8 +514,12 @@ class StreamingDataLoader(QMainWindow):
             self.url_input.setText(self.hydroserver_url if self.hydroserver_url else 'https://www.hydroserver.org')
             self.instance_input.setText(self.instance_name if self.instance_name else '')
             self.workspace_input.setText(self.workspace_name if self.workspace_name else '')
+            self.api_key_input.setText(self.hydroserver_api_key if self.hydroserver_api_key else '')
             self.email_input.setText(self.hydroserver_username if self.hydroserver_username else '')
             self.password_input.setText(self.hydroserver_password if self.hydroserver_password else '')
+            self.auth_toggle_checkbox.setChecked(not bool(self.api_key_input.text()))
+            self.api_key_input_widget.setVisible(bool(self.api_key_input.text()))
+            self.basic_auth_input_widget.setVisible(not bool(self.api_key_input.text()))
 
 
 if __name__ == '__main__':

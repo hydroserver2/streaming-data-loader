@@ -1,6 +1,6 @@
 PySide6==6.6.1
 appdirs==1.4.4
-hydroserverpy==0.5.0b5
+hydroserverpy==1.1.0b1
 APScheduler==3.10.1
 pytz>=2023.3
 requests >= 2.27.1
