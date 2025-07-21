@@ -63,8 +63,8 @@ class DataLoaderScheduler(QObject):
             logging.error(e)
 
         try:
-            data_sources = self.hs_api.datasources.list(orchestration_system=self.data_loader)
-            for data_source in data_sources:
+            data_sources = self.hs_api.datasources.list(orchestration_system=self.data_loader, fetch_all=True)
+            for data_source in data_sources.items:
                 self.update_data_source(data_source)
         except Exception as e:
             logging.error(traceback.format_exc())

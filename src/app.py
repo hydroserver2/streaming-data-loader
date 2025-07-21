@@ -338,12 +338,12 @@ class StreamingDataLoader(QMainWindow):
             self.connected = False
             return 'Failed to connect to HydroServer.'
 
-        workspaces = self.service.workspaces.list(associated_only=True)
-        workspace = next((workspace for workspace in workspaces if workspace.name == self.workspace_name), None)
+        workspaces = self.service.workspaces.list(is_associated=True, fetch_all=True)
+        workspace = next((workspace for workspace in workspaces.items if workspace.name == self.workspace_name), None)
 
-        orchestration_systems = self.service.orchestrationsystems.list(workspace=workspace)
+        orchestration_systems = self.service.orchestrationsystems.list(workspace=workspace, fetch_all=True)
         orchestration_system = next((
-            orchestration_system for orchestration_system in orchestration_systems
+            orchestration_system for orchestration_system in orchestration_systems.items
             if orchestration_system.name == self.instance_name
         ), None)
 
