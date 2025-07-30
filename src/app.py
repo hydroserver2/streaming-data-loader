@@ -13,14 +13,6 @@ from PySide6.QtGui import QAction, QIcon, QPixmap
 from PySide6.QtWidgets import QApplication, QMainWindow, QSystemTrayIcon, QMenu, QWidget, QVBoxLayout, QLabel, \
      QLineEdit, QHBoxLayout, QPushButton, QMessageBox, QCheckBox
 
-APP_VERSION = "dev"
-
-try:
-    with open("version.txt") as f:
-        APP_VERSION = f.read().strip()
-except FileNotFoundError:
-    pass
-
 
 class StreamingDataLoader(QMainWindow):
 
@@ -59,9 +51,16 @@ class StreamingDataLoader(QMainWindow):
 
         self.assets_path = getattr(sys, '_MEIPASS', 'assets')
         self.app_dir = user_data_dir('Streaming Data Loader', 'CIROH')
+        self.app_version = 'dev'
 
         if not os.path.exists(self.app_dir):
             os.makedirs(self.app_dir)
+
+        try:
+            with open(os.path.join(self.assets_path, 'version.txt')) as f:
+                self.app_version = f.read().strip()
+        except FileNotFoundError:
+            pass
 
         self.init_ui()
         self.get_settings()
@@ -99,7 +98,7 @@ class StreamingDataLoader(QMainWindow):
         tray_icon.show()
 
         # HydroServer Connection Window
-        self.setWindowTitle(f'Streaming Data Loader ({APP_VERSION})')
+        self.setWindowTitle(f'Streaming Data Loader ({self.app_version})')
         self.setGeometry(300, 300, 550, 550)
         self.setFixedSize(550, 550)
         central_widget = QWidget(self)
