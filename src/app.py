@@ -427,9 +427,9 @@ class StreamingDataLoader(QMainWindow):
         """Handle the user updating connection settings"""
 
         if not all([
-            self.hydroserver_url, self.workspace_name, self.instance_name
+            self.url_input.text(), self.workspace_input.text(), self.instance_input.text()
         ]) or (
-            not (self.hydroserver_username and self.hydroserver_password) and not self.hydroserver_api_key
+            not (self.email_input.text() and self.password_input.text()) and not self.api_key_input.text()
         ):
             return self.show_message(
                 title='Missing Required Fields',
@@ -524,9 +524,9 @@ class StreamingDataLoader(QMainWindow):
             self.api_key_input.setText(self.hydroserver_api_key if self.hydroserver_api_key else '')
             self.email_input.setText(self.hydroserver_username if self.hydroserver_username else '')
             self.password_input.setText(self.hydroserver_password if self.hydroserver_password else '')
-            self.auth_toggle_checkbox.setChecked(not bool(self.api_key_input.text()))
-            self.api_key_input_widget.setVisible(bool(self.api_key_input.text()))
-            self.basic_auth_input_widget.setVisible(not bool(self.api_key_input.text()))
+            self.auth_toggle_checkbox.setChecked(bool(self.email_input.text()))
+            self.api_key_input_widget.setVisible(not bool(self.email_input.text()))
+            self.basic_auth_input_widget.setVisible(bool(self.email_input.text()))
 
 
 if __name__ == '__main__':
