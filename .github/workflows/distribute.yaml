@@ -24,12 +24,16 @@ jobs:
           pip install pyinstaller==5.13.0
 
       - name: Build App
+        env:
+          APP_VERSION: ${{ github.ref_name }}
         run: |
+          echo $APP_VERSION > version.txt
           pyinstaller \
           --name 'Streaming Data Loader' \
           --icon 'src/assets/app_icon.png' \
           --windowed \
           --onedir \
+          --add-data 'version.txt:.' \
           --add-data 'src/assets/setup_icon.png:.' \
           --add-data 'src/assets/app_icon.png:.' \
           --add-data 'src/assets/connected.png:.' \
@@ -70,12 +74,16 @@ jobs:
           pip install dmgbuild==1.6.1
 
       - name: Build App
+        env:
+          APP_VERSION: ${{ github.ref_name }}
         run: |
+          echo $APP_VERSION > version.txt
           pyinstaller \
           --name 'Streaming Data Loader' \
           --icon 'src/assets/app_icon.png' \
           --windowed \
           --onedir \
+          --add-data 'version.txt:.' \
           --add-data 'src/assets/setup_icon.png:.' \
           --add-data 'src/assets/app_icon.png:.' \
           --add-data 'src/assets/connected.png:.' \
@@ -119,12 +127,16 @@ jobs:
           pip install pyinstaller==5.13.0
 
       - name: Build App
+        env:
+          APP_VERSION: ${{ github.ref_name }}
         run: >
+          echo $env:APP_VERSION > version.txt
           pyinstaller
           --name "Streaming Data Loader"
           --icon src\assets\app_icon.png
           --windowed
           --onedir
+          --add-data "version.txt;."
           --add-data "src\assets\setup_icon.png;."
           --add-data "src\assets\app_icon.png;."
           --add-data "src\assets\connected.png;."
