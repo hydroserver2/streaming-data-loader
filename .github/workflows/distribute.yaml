@@ -1,5 +1,5 @@
 name: Streaming Data Loader Build and AWS Distribution
-run-name: ${{ github.actor }} is building Streaming Data Loader on ${{ github.ref }}
+run-name: "${{ github.actor }} is building Streaming Data Loader on ${{ github.ref }}"
 
 on:
   release:
@@ -129,26 +129,27 @@ jobs:
       - name: Build App
         env:
           APP_VERSION: ${{ github.ref_name }}
-        run: >
+        shell: pwsh
+        run: |
           echo $env:APP_VERSION > version.txt
-          pyinstaller
-          --name "Streaming Data Loader"
-          --icon src\assets\app_icon.png
-          --windowed
-          --onedir
-          --add-data "version.txt;."
-          --add-data "src\assets\setup_icon.png;."
-          --add-data "src\assets\app_icon.png;."
-          --add-data "src\assets\connected.png;."
-          --add-data "src\assets\database.png;."
-          --add-data "src\assets\description.png;."
-          --add-data "src\assets\disconnected.png;."
-          --add-data "src\assets\exit.png;."
-          --add-data "src\assets\pause.png;."
-          --add-data "src\assets\resume.png;."
-          --hidden-import "demjson3"
-          --additional-hooks-dir "pyi-hooks"
-          src\app.py
+          pyinstaller `
+            --name "Streaming Data Loader" `
+            --icon src\assets\app_icon.png `
+            --windowed `
+            --onedir `
+            --add-data "version.txt;." `
+            --add-data "src\assets\setup_icon.png;." `
+            --add-data "src\assets\app_icon.png;." `
+            --add-data "src\assets\connected.png;." `
+            --add-data "src\assets\database.png;." `
+            --add-data "src\assets\description.png;." `
+            --add-data "src\assets\disconnected.png;." `
+            --add-data "src\assets\exit.png;." `
+            --add-data "src\assets\pause.png;." `
+            --add-data "src\assets\resume.png;." `
+            --hidden-import "demjson3" `
+            --additional-hooks-dir "pyi-hooks" `
+            src\app.py
 
       - name: Zip App
         run: tar.exe -a -c -f "Streaming Data Loader.zip" "dist/Streaming Data Loader"
