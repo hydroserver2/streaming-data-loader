@@ -189,7 +189,8 @@ class DataLoaderScheduler(QObject):
                 (data_source.crontab or data_source.interval):
             self.add_schedule(data_source)
 
-    def load_data(self, data_source):
+    @staticmethod
+    def load_data(data_source):
         """
         The load_data function is used to load data from a data source into the
         data warehouse. The function takes in a single argument, which is an object
@@ -197,7 +198,6 @@ class DataLoaderScheduler(QObject):
         call on the service's 'load_data' method, passing in the ID of your desired
         data source as an argument.
 
-        :param self
         :param data_source: Identify the data source that you want to load
         :return: None
         """
