@@ -124,26 +124,26 @@ class DataLoaderScheduler(QObject):
         :return: None
         """
         schedule_range = {}
-        if data_source.start_time:
-            schedule_range['start_time'] = data_source.start_time
-        if data_source.end_time:
-            schedule_range['end_time'] = data_source.end_time
+        if data_source.schedule.start_time:
+            schedule_range['start_time'] = data_source.schedule.start_time
+        if data_source.schedule.end_time:
+            schedule_range['end_time'] = data_source.schedule.end_time
 
-        if data_source.interval and data_source.interval_units:
+        if data_source.schedule.interval and data_source.schedule.interval_units:
             self.scheduler.add_job(
                 lambda: self.load_data(data_source=data_source),
                 IntervalTrigger(
-                    start_date=data_source.start_time,
-                    end_date=data_source.end_time,
-                    **{data_source.interval_units: data_source.interval}
+                    start_date=data_source.schedule.start_time,
+                    end_date=data_source.schedule.end_time,
+                    **{data_source.schedule.interval_units: data_source.schedule.interval}
                 ),
                 id=str(data_source.uid),
                 **schedule_range
             )
-        elif data_source.crontab:
+        elif data_source.schedule.crontab:
             self.scheduler.add_job(
                 lambda: self.load_data(data_source=data_source),
-                CronTrigger.from_crontab(data_source.crontab, timezone='UTC'),
+                CronTrigger.from_crontab(data_source.schedule.crontab, timezone='UTC'),
                 id=str(data_source.uid),
                 **schedule_range
             )
@@ -161,8 +161,8 @@ class DataLoaderScheduler(QObject):
         """
 
         if (
-            (isinstance(scheduled_job.trigger, CronTrigger) and not data_source.crontab) or
-            (isinstance(scheduled_job.trigger, IntervalTrigger) and not data_source.interval)
+            (isinstance(scheduled_job.trigger, CronTrigger) and not data_source.schedule.crontab) or
+            (isinstance(scheduled_job.trigger, IntervalTrigger) and not data_source.schedule.interval)
         ):
             self.scheduler.remove_job(scheduled_job.id)
 
@@ -172,9 +172,9 @@ class DataLoaderScheduler(QObject):
             scheduled_job_trigger_value = str(scheduled_job.trigger)
         elif isinstance(scheduled_job.trigger, IntervalTrigger):
             data_source_trigger = IntervalTrigger(
-                start_date=data_source.start_time,
-                end_date=data_source.end_time,
-                **{data_source.interval_units: data_source.interval}
+                start_date=data_source.schedule.start_time,
+                end_date=data_source.schedule.end_time,
+                **{data_source.schedule.interval_units: data_source.schedule.interval}
             )
             data_source_trigger_value = data_source_trigger.interval_length
             scheduled_job_trigger_value = scheduled_job.trigger.interval_length
@@ -204,7 +204,7 @@ class DataLoaderScheduler(QObject):
 
         data_source.refresh()
 
-        if data_source.paused is True:
+        if data_source.status.paused is True:
             logging.info(f'Data source {data_source.name} is paused: Skipping')
             return
 
