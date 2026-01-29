@@ -122,12 +122,12 @@ class StreamingDataLoader(QMainWindow):
         self.connection_action.triggered.connect(lambda: self.show())
         tray_menu.addAction(self.connection_action)
 
-        # System Tray Menu View Data Sources
-        self.dashboard_action = QAction('View Data Sources', self)
+        # System Tray Menu View Tasks
+        self.dashboard_action = QAction('View Tasks', self)
         dashboard_icon = QIcon(os.path.join(self.assets_path, 'database.png'))
         dashboard_icon.setIsMask(True)
         self.dashboard_action.setIcon(dashboard_icon)
-        self.dashboard_action.triggered.connect(self.open_data_sources_dashboard)
+        self.dashboard_action.triggered.connect(self.open_orchestration_dashboard)
         tray_menu.addAction(self.dashboard_action)
 
         # System Tray Menu View Logs
@@ -298,8 +298,8 @@ class StreamingDataLoader(QMainWindow):
             self.basic_auth_input_widget.setVisible(False)
             self.api_key_input_widget.setVisible(True)
 
-    def open_data_sources_dashboard(self):
-        """Opens user's Data Sources Dashboard in a browser window"""
+    def open_orchestration_dashboard(self):
+        """Opens user's Orchestration Dashboard in a browser window"""
 
         webbrowser.open(f'{self.hydroserver_url}/orchestration')
 

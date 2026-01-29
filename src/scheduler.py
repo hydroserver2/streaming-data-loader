@@ -20,7 +20,7 @@ class DataLoaderScheduler(QObject):
 
         self.scheduler = BackgroundScheduler(timezone=utc)
         self.scheduler.add_job(
-            lambda: self.check_data_sources(),
+            lambda: self.check_tasks(),
             id="sdl-scheduler",
             trigger="interval",
             seconds=60,
@@ -45,13 +45,13 @@ class DataLoaderScheduler(QObject):
     def resume(self):
         self.scheduler.resume()
 
-    def check_data_sources(self):
+    def check_tasks(self):
         """
-        The check_data_sources function is used to check the status of all data sources associated with a given
-        instance. It will iterate through each data source and call the update_data_source function for each one.
+        The check_tasks function is used to check the status of all tasks associated with a given SDL
+        instance. It will iterate through each task and call the update_task function for each one.
 
         :param self
-        :return: The data_sources
+        :return: The tasks
         """
 
         try:
@@ -63,9 +63,9 @@ class DataLoaderScheduler(QObject):
             logging.error(e)
 
         try:
-            data_sources = self.hs_api.datasources.list(orchestration_system=self.data_loader, fetch_all=True)
-            for data_source in data_sources.items:
-                self.update_data_source(data_source)
+            tasks = self.hs_api.tasks.list(orchestration_system=self.data_loader, fetch_all=True)
+            for task in tasks.items:
+                self.update_task(task)
         except Exception as e:
             logging.error(traceback.format_exc())
             logging.error(e)
@@ -89,14 +89,14 @@ class DataLoaderScheduler(QObject):
 
         return True, ''
 
-    def update_data_source(self, data_source):
+    def update_task(self, task):
         """
-        The update_data_source function is called when a user updates the schedule of an existing data source.
-        It checks to see if the data source has a scheduled job, and if it does not, it adds one. If there is already
-        a scheduled job for that data source, then update_data_source calls update_schedule to change the schedule.
+        The update_task function is called when a user updates the schedule of an existing task. It checks to see
+        if the task has a scheduled job, and if it does not, it adds one. If there is already
+        a scheduled job for that task, then update_task calls update_schedule to change the schedule.
 
         :param self
-        :param data_source: Identify the data source that is being updated
+        :param task: Identify the task that is being updated
         :return: bool
         """
 
@@ -106,113 +106,110 @@ class DataLoaderScheduler(QObject):
             if scheduled_job.id != 'hydroloader-scheduler'
         }
 
-        if str(data_source.uid) not in scheduled_jobs.keys():
-            self.add_schedule(data_source)
+        if str(task.uid) not in scheduled_jobs.keys():
+            self.add_schedule(task)
         else:
-            self.update_schedule(data_source, scheduled_jobs[str(data_source.uid)])
+            self.update_schedule(task, scheduled_jobs[str(task.uid)])
 
         return True
 
-    def add_schedule(self, data_source):
+    def add_schedule(self, task):
         """
-        The add_schedule function is used to add a schedule for the data source. The function takes in a
-        DataSourceGetResponse object as an argument, which contains all the information needed to create and run
+        The add_schedule function is used to add a schedule for the task. The function takes in a
+        TaskGetResponse object as an argument, which contains all the information needed to create and run
         scheduled data loading tasks.
 
         :param self
-        :param data_source: DataSourceGetResponse: Pass the data source object to the function
+        :param task: TaskGetResponse: Pass the task object to the function
         :return: None
         """
+
         schedule_range = {}
-        if data_source.schedule.start_time:
-            schedule_range['start_time'] = data_source.schedule.start_time
-        if data_source.schedule.end_time:
-            schedule_range['end_time'] = data_source.schedule.end_time
+        if task.start_time:
+            schedule_range['start_time'] = task.start_time
 
-        if data_source.schedule.interval and data_source.schedule.interval_units:
+        if task.interval and task.interval_period:
             self.scheduler.add_job(
-                lambda: self.load_data(data_source=data_source),
+                lambda: self.load_data(task=task),
                 IntervalTrigger(
-                    start_date=data_source.schedule.start_time,
-                    end_date=data_source.schedule.end_time,
-                    **{data_source.schedule.interval_units: data_source.schedule.interval}
+                    start_date=task.start_time,
+                    **{task.interval_period: task.interval}
                 ),
-                id=str(data_source.uid),
+                id=str(task.uid),
                 **schedule_range
             )
-        elif data_source.schedule.crontab:
+        elif task.crontab:
             self.scheduler.add_job(
-                lambda: self.load_data(data_source=data_source),
-                CronTrigger.from_crontab(data_source.schedule.crontab, timezone='UTC'),
-                id=str(data_source.uid),
+                lambda: self.load_data(task=task),
+                CronTrigger.from_crontab(task.crontab, timezone='UTC'),
+                id=str(task.uid),
                 **schedule_range
             )
 
-    def update_schedule(self, data_source, scheduled_job):
+    def update_schedule(self, task, scheduled_job):
         """
-        The update_schedule function is called when a data source is updated.
+        The update_schedule function is called when a task is updated.
         It checks if the crontab or interval has changed, and if so, removes the old job from the scheduler and adds a
         new one. If neither have changed, it does nothing.
 
         :param self
-        :param data_source: DataSourceGetResponse: Get the data source information
+        :param task: TaskGetResponse: Get the task information
         :param scheduled_job: Get the job id and trigger
         :return: None
         """
 
         if (
-            (isinstance(scheduled_job.trigger, CronTrigger) and not data_source.schedule.crontab) or
-            (isinstance(scheduled_job.trigger, IntervalTrigger) and not data_source.schedule.interval)
+            (isinstance(scheduled_job.trigger, CronTrigger) and not task.crontab) or
+            (isinstance(scheduled_job.trigger, IntervalTrigger) and not task.interval)
         ):
             self.scheduler.remove_job(scheduled_job.id)
 
         if isinstance(scheduled_job.trigger, CronTrigger):
-            data_source_trigger = CronTrigger.from_crontab(data_source.crontab, timezone='UTC')
-            data_source_trigger_value = str(data_source_trigger)
+            task_trigger = CronTrigger.from_crontab(task.crontab, timezone='UTC')
+            task_trigger_value = str(task_trigger)
             scheduled_job_trigger_value = str(scheduled_job.trigger)
         elif isinstance(scheduled_job.trigger, IntervalTrigger):
-            data_source_trigger = IntervalTrigger(
-                start_date=data_source.schedule.start_time,
-                end_date=data_source.schedule.end_time,
-                **{data_source.schedule.interval_units: data_source.schedule.interval}
+            task_trigger = IntervalTrigger(
+                start_date=task.start_time,
+                **{task.interval_period: task.interval}
             )
-            data_source_trigger_value = data_source_trigger.interval_length
+            task_trigger_value = task_trigger.interval_length
             scheduled_job_trigger_value = scheduled_job.trigger.interval_length
         else:
-            data_source_trigger_value = None
+            task_trigger_value = None
             scheduled_job_trigger_value = None
 
-        if data_source_trigger_value != scheduled_job_trigger_value:
+        if task_trigger_value != scheduled_job_trigger_value:
             self.scheduler.remove_job(scheduled_job.id)
 
         if not self.scheduler.get_job(scheduled_job.id) and \
-                (data_source.crontab or data_source.interval):
-            self.add_schedule(data_source)
+                (task.crontab or task.interval):
+            self.add_schedule(task)
 
     @staticmethod
-    def load_data(data_source):
+    def load_data(task):
         """
-        The load_data function is used to load data from a data source into the
-        data warehouse. The function takes in a single argument, which is an object
-        representing the data source that you want to load. This function will then
-        call on the service's 'load_data' method, passing in the ID of your desired
-        data source as an argument.
+        The load_data function is used to load data as defined in a task into
+        HydroServer. The function takes in a single argument, which is an object
+        representing the task that you want to load. This function will then
+        call on the service's 'load_data' method, passing in the ID of the task as
+        an argument.
 
-        :param data_source: Identify the data source that you want to load
+        :param task: Identify the task that you want to load
         :return: None
         """
 
-        data_source.refresh()
+        task.refresh()
 
-        if data_source.status.paused is True:
-            logging.info(f'Data source {data_source.name} is paused: Skipping')
+        if task.paused is True:
+            logging.info(f'Task {task.name} is paused: Skipping')
             return
 
-        logging.info(f'Loading data source {data_source.name}')
+        logging.info(f'Loading data for task {task.name}')
 
         try:
-            data_source.load_data()
-            logging.info(f'Finished loading data source {data_source.name}')
+            task.run_local()
+            logging.info(f'Finished loading data for task {task.name}')
 
         except Exception as e:
             logging.error(traceback.format_exc())
