@@ -6,6 +6,11 @@
 # will have schema files for capabilities auto-completion
 /gen/schemas
 
+# Root frontend artifacts
+/node_modules/
+/dist/
+*.local
+
 # Legacy reference build artifacts
 /legacy-reference/node_modules/
 /legacy-reference/dist/

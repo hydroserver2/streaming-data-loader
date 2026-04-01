@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "com.streaming-data-loader.app",
   "build": {
-    "beforeDevCommand": "npm --prefix legacy-reference run dev",
+    "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm --prefix legacy-reference run build",
-    "frontendDist": "legacy-reference/dist"
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "dist"
   },
   "app": {
     "windows": [

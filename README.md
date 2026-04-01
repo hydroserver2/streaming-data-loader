@@ -1,13 +1,22 @@
 # Streaming Data Loader
 
-This repository is now organized as a Tauri-first project.
+This repository is now organized as a Tauri-first desktop app with a minimal vanilla TypeScript frontend.
 
 ## Layout
 
-- `src/`: root Rust application source for the Tauri app
+- `src/`: Rust source for the Tauri application
+- `frontend/`: vanilla TypeScript and CSS for the webview UI
+- `index.html`: Vite entry HTML
 - `icons/`, `capabilities/`, `tauri.conf.json`, `Cargo.toml`: root Tauri project files
-- `legacy-reference/`: archived SDL implementation, including the previous Vue frontend, Python sidecar, packaging files, and workflow definitions
+- `legacy-reference/`: archived SDL implementation kept as reference only
 
-## Transitional State
+## Frontend
 
-The current Tauri configuration still points at the archived frontend in `legacy-reference/` for development and build-time web assets while the UI is being migrated.
+The active frontend uses:
+
+- Vite
+- TypeScript
+- plain HTML
+- plain CSS
+
+No Vue runtime or Vue build plugins are used by the active Tauri app.
