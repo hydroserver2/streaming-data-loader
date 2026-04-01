@@ -1,6 +1,13 @@
-# HydroServer Streaming Data Loader
-A desktop application for loading streaming data to a HydroServer instance
+# Streaming Data Loader
 
-## Funding and Acknowledgements
+This repository is now organized as a Tauri-first project.
 
-Funding for this project was provided by the National Oceanic & Atmospheric Administration (NOAA), awarded to the Cooperative Institute for Research to Operations in Hydrology (CIROH) through the NOAA Cooperative Agreement with The University of Alabama (NA22NWS4320003). Utah State University is a founding member of CIROH and receives funding under subaward from the University of Alabama. Additional funding and support have been provided by the State of Utah Division of Water Rights, the World Meorological Organization, and the Utah Water Research laboratory at Utah State University.
+## Layout
+
+- `src/`: root Rust application source for the Tauri app
+- `icons/`, `capabilities/`, `tauri.conf.json`, `Cargo.toml`: root Tauri project files
+- `legacy-reference/`: archived SDL implementation, including the previous Vue frontend, Python sidecar, packaging files, and workflow definitions
+
+## Transitional State
+
+The current Tauri configuration still points at the archived frontend in `legacy-reference/` for development and build-time web assets while the UI is being migrated.
