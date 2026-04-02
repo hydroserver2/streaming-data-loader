@@ -10,6 +10,11 @@
 /node_modules/
 /dist/
 *.local
+/.cache/
+/.venv/
+/frontend/generated.css
+*.pyc
+__pycache__/
 
 # Legacy reference build artifacts
 /legacy-reference/node_modules/

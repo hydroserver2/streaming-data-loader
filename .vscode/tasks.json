@@ -1,0 +1,148 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "SDL: Bootstrap Frontend",
+      "type": "shell",
+      "command": "node",
+      "args": [
+        "./scripts/bootstrap-frontend.mjs"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "sdl-bootstrap"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "SDL: Bootstrap Sidecar",
+      "type": "shell",
+      "command": "node",
+      "args": [
+        "./scripts/bootstrap-sidecar.mjs"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "sdl-bootstrap"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "SDL: Tailwind",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "tailwind:watch"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "sdl-dev"
+      },
+      "problemMatcher": {
+        "owner": "tailwind",
+        "pattern": {
+          "regexp": ".+"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Done in .*"
+        }
+      }
+    },
+    {
+      "label": "SDL: Frontend",
+      "type": "shell",
+      "command": "npm",
+      "args": [
+        "run",
+        "dev"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "sdl-dev"
+      },
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": ".+"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Local:.*"
+        }
+      }
+    },
+    {
+      "label": "SDL: Sidecar",
+      "type": "shell",
+      "command": "node",
+      "args": [
+        "./scripts/run-sidecar.mjs"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "sdl-dev"
+      },
+      "problemMatcher": {
+        "owner": "uvicorn",
+        "pattern": {
+          "regexp": ".+"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "Uvicorn running on .*"
+        }
+      }
+    },
+    {
+      "label": "SDL: Dev Services",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "SDL: Bootstrap Frontend",
+        "SDL: Bootstrap Sidecar",
+        "SDL: Tailwind",
+        "SDL: Frontend"
+      ],
+      "problemMatcher": []
+    },
+    {
+      "label": "SDL: Dev",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "SDL: Bootstrap Frontend",
+        "SDL: Bootstrap Sidecar",
+        "SDL: Tailwind",
+        "SDL: Frontend",
+        "SDL: Sidecar"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

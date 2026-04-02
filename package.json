@@ -4,13 +4,21 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
+    "bootstrap:frontend": "node ./scripts/bootstrap-frontend.mjs",
+    "bootstrap:sidecar": "node ./scripts/bootstrap-sidecar.mjs",
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "dev:tauri": "node ./scripts/tauri-dev.mjs",
+    "build": "npm run tailwind:build && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && vite build",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tailwind:watch": "tailwindcss -i ./frontend/styles.css -o ./frontend/generated.css --watch",
+    "tailwind:build": "tailwindcss -i ./frontend/styles.css -o ./frontend/generated.css --minify",
+    "tauri": "node ./scripts/run-tauri.mjs"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.1.4",
     "@tauri-apps/cli": "^2.10.1",
+    "@types/node": "^22.13.10",
+    "tailwindcss": "^4.1.4",
     "typescript": "^5.6.3",
     "vite": "^6.0.3"
   }

@@ -1,0 +1,6 @@
+fastapi==0.115.12
+uvicorn==0.34.0
+APScheduler==3.11.0
+platformdirs==4.3.8
+hydroserverpy==1.9.0
+eval_type_backport==0.2.2

@@ -1,17 +1,22 @@
-use std::sync::Mutex;
-use tauri_plugin_shell::process::CommandChild;
-use tauri_plugin_shell::ShellExt;
+use std::{
+    collections::HashMap,
+    fs,
+    net::{TcpStream, ToSocketAddrs},
+    path::{Path, PathBuf},
+    process::{Child, Command, Stdio},
+    sync::Mutex,
+    time::Duration,
+};
 
-struct SidecarState(Mutex<Option<CommandChild>>);
+struct SidecarState(Mutex<Option<Child>>);
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_shell::init())
         .manage(SidecarState(Mutex::new(None)))
         .setup(|app| {
-            // start_sidecar(app)?;
+            start_sidecar(app)?;
             setup_tray(app)?;
             Ok(())
         })
@@ -28,12 +33,74 @@ pub fn run() {
 fn start_sidecar(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     use tauri::Manager;
 
-    let sidecar = app.shell().sidecar("sidecar")?;
-    let (_rx, child) = sidecar.spawn()?;
+    if !cfg!(debug_assertions) {
+        return Ok(());
+    }
+
+    let env_vars = read_env_file(&workspace_root().join(".env.development"))?;
+    let host = env_vars
+        .get("SDL_SIDECAR_HOST")
+        .cloned()
+        .unwrap_or_else(|| "127.0.0.1".to_string());
+    let port = env_vars
+        .get("SDL_SIDECAR_PORT")
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap_or(5321);
+
+    if port_is_in_use(&host, port) {
+        return Ok(());
+    }
+
+    let child = Command::new("node")
+        .arg("./scripts/run-sidecar.mjs")
+        .current_dir(workspace_root())
+        .envs(env_vars)
+        .env("SDL_TAURI_MANAGED", "1")
+        .stdin(Stdio::null())
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit())
+        .spawn()?;
 
     *app.state::<SidecarState>().0.lock().unwrap() = Some(child);
 
     Ok(())
+}
+
+fn workspace_root() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+}
+
+fn read_env_file(path: &Path) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
+    let mut env_vars = HashMap::new();
+
+    if !path.exists() {
+        return Ok(env_vars);
+    }
+
+    for line in fs::read_to_string(path)?.lines() {
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        if let Some((key, value)) = trimmed.split_once('=') {
+            env_vars.insert(key.trim().to_string(), value.trim().to_string());
+        }
+    }
+
+    Ok(env_vars)
+}
+
+fn port_is_in_use(host: &str, port: u16) -> bool {
+    let address = format!("{host}:{port}");
+    address
+        .to_socket_addrs()
+        .map(|addresses| {
+            addresses.into_iter().any(|socket| {
+                TcpStream::connect_timeout(&socket, Duration::from_millis(200)).is_ok()
+            })
+        })
+        .unwrap_or(false)
 }
 
 fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -67,7 +134,7 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             }
             "quit" => {
                 // Kill the sidecar before quitting
-                if let Some(child) = app.state::<SidecarState>().0.lock().unwrap().take() {
+                if let Some(mut child) = app.state::<SidecarState>().0.lock().unwrap().take() {
                     let _ = child.kill();
                 }
                 app.exit(0);
