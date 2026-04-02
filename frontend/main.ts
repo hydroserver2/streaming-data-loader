@@ -114,6 +114,8 @@ if (
 const { sidebar, mainContent, jobsLink, settingsLink, connectionDot } =
   shellElements;
 
+let lastRenderedMarkup = "";
+
 function createEmptyPipelineForm(): PipelineFormState {
   return {
     name: "",
@@ -173,7 +175,6 @@ function emptyServerConfig(): ServerConfig {
 
 window.setInterval(() => {
   void refreshJobs();
-  render();
 }, 30_000);
 
 function escapeHtml(value: string): string {
@@ -816,7 +817,7 @@ function renderAuthForm(
 
 function renderWelcome(): string {
   return `
-    <section class="welcome-shell animate-fade-in">
+    <section class="welcome-shell">
       ${renderAuthForm(
         "welcome-form",
         state.welcomeFeedback,
@@ -1289,7 +1290,7 @@ function renderPipelineEditor(): string {
 
 function renderFatalError(): string {
   return `
-    <section class="welcome-shell animate-fade-in">
+    <section class="welcome-shell">
       <div class="welcome-card">
         <p class="eyebrow">Sidecar error</p>
         <h1 class="page-title">The background process is unavailable</h1>
@@ -1327,7 +1328,12 @@ function render(): void {
   }
 
   const showSidebar = currentRoute !== "welcome" && !state.bootstrapError;
+  const useWelcomeSurface = Boolean(
+    state.loading || state.bootstrapError || currentRoute === "welcome"
+  );
   sidebar.classList.toggle("hidden", !showSidebar);
+  mainContent.classList.toggle("main-content-welcome", useWelcomeSurface);
+  document.body.classList.toggle("app-surface-welcome", useWelcomeSurface);
 
   jobsLink.className =
     currentRoute === "dashboard" ? "nav-item nav-item-active" : "nav-item";
@@ -1338,8 +1344,10 @@ function render(): void {
   connectionDot.className = status.className;
   connectionDot.title = status.label;
 
+  let nextMarkup = "";
+
   if (state.loading) {
-    mainContent.innerHTML = `
+    nextMarkup = `
       <section class="welcome-shell">
         <div class="welcome-card">
           <p class="eyebrow">Starting Up</p>
@@ -1348,30 +1356,22 @@ function render(): void {
         </div>
       </section>
     `;
-    return;
+  } else if (state.bootstrapError) {
+    nextMarkup = renderFatalError();
+  } else if (currentRoute === "settings") {
+    nextMarkup = renderSettings();
+  } else if (currentRoute === "welcome") {
+    nextMarkup = renderWelcome();
+  } else if (currentRoute === "jobs-new") {
+    nextMarkup = renderPipelineEditor();
+  } else {
+    nextMarkup = renderDashboard();
   }
 
-  if (state.bootstrapError) {
-    mainContent.innerHTML = renderFatalError();
-    return;
+  if (nextMarkup !== lastRenderedMarkup) {
+    mainContent.innerHTML = nextMarkup;
+    lastRenderedMarkup = nextMarkup;
   }
-
-  if (currentRoute === "settings") {
-    mainContent.innerHTML = renderSettings();
-    return;
-  }
-
-  if (currentRoute === "welcome") {
-    mainContent.innerHTML = renderWelcome();
-    return;
-  }
-
-  if (currentRoute === "jobs-new") {
-    mainContent.innerHTML = renderPipelineEditor();
-    return;
-  }
-
-  mainContent.innerHTML = renderDashboard();
 }
 
 function sleep(ms: number): Promise<void> {
