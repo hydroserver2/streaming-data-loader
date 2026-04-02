@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "streaming-data-loader",
+  "productName": "Streaming Data Loader",
   "version": "0.1.0",
   "identifier": "com.streaming-data-loader.app",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "streaming-data-loader",
+        "title": "Streaming Data Loader",
         "width": 800,
         "height": 600,
         "visible": false

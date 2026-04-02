@@ -108,6 +108,47 @@ function buildApiUrl(path: string): string {
   return `${apiBaseUrl.replace(/\/$/, "")}${path}`
 }
 
+function formatErrorDetail(detail: unknown): string | null {
+  if (typeof detail === "string" && detail.trim()) {
+    return detail
+  }
+
+  if (Array.isArray(detail)) {
+    const firstMessage = detail
+      .map(item => {
+        if (typeof item === "string") {
+          return item
+        }
+        if (
+          item &&
+          typeof item === "object" &&
+          "msg" in item &&
+          typeof item.msg === "string"
+        ) {
+          return item.msg
+        }
+        return null
+      })
+      .find(Boolean)
+
+    return firstMessage ?? null
+  }
+
+  if (detail && typeof detail === "object") {
+    if ("msg" in detail && typeof detail.msg === "string") {
+      return detail.msg
+    }
+
+    try {
+      return JSON.stringify(detail)
+    } catch {
+      return null
+    }
+  }
+
+  return null
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
     headers: {
@@ -121,9 +162,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     let detail = `Request failed with status ${response.status}`
 
     try {
-      const payload = (await response.json()) as { detail?: string }
-      if (payload.detail) {
-        detail = payload.detail
+      const payload = (await response.json()) as { detail?: unknown }
+      const formattedDetail = formatErrorDetail(payload.detail)
+      if (formattedDetail) {
+        detail = formattedDetail
       }
     } catch {
       // Ignore JSON parsing errors for non-JSON error responses.

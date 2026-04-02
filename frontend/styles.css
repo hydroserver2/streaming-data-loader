@@ -218,15 +218,15 @@
   }
 
   .input-status {
-    @apply pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-sm font-semibold;
+    @apply pointer-events-none absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center justify-center text-sm font-semibold;
   }
 
   .input-status-valid {
-    @apply text-emerald-600;
+    @apply h-5 w-5 rounded-full border border-emerald-500 bg-emerald-50 text-[11px] text-emerald-600;
   }
 
   .input-status-invalid {
-    @apply text-red-600;
+    @apply h-5 w-5 rounded-full border border-red-500 bg-red-50 text-[11px] text-red-600;
   }
 
   .input-status-checking {
@@ -309,7 +309,7 @@
   }
 
   .welcome-shell {
-    @apply flex min-h-screen w-full items-stretch bg-[#edf1f5];
+    @apply flex min-h-screen w-full items-stretch bg-[#2f3133];
   }
 
   .welcome-card {
@@ -326,6 +326,63 @@
 
   .welcome-shell .card-section + .card-section {
     @apply mt-8;
+  }
+
+  .welcome-shell .auth-app-icon {
+    @apply h-32 w-32;
+    filter: drop-shadow(0 10px 24px rgb(0 0 0 / 0.24));
+  }
+
+  .welcome-shell .page-title {
+    @apply text-slate-50;
+  }
+
+  .welcome-shell .label {
+    @apply text-slate-200;
+  }
+
+  .welcome-shell .label-link {
+    @apply text-slate-400 hover:text-slate-200;
+  }
+
+  .welcome-shell .auth-divider-label {
+    @apply text-slate-500;
+  }
+
+  .welcome-shell .auth-toggle {
+    @apply text-brand-400 hover:text-brand-500 hover:decoration-brand-400;
+  }
+
+  .welcome-shell .input {
+    @apply border-slate-700 bg-[#1f2022] text-slate-100 placeholder:text-slate-500 focus:border-brand-500 focus:ring-sky-950;
+  }
+
+  .welcome-shell .input-status-checking {
+    @apply text-slate-500;
+  }
+
+  .welcome-shell .input-spinner {
+    @apply border-slate-600 border-t-brand-500;
+  }
+
+  .welcome-shell .field-error {
+    @apply text-red-400;
+  }
+
+  .welcome-shell .notice-error {
+    @apply bg-red-950/40 text-red-200;
+  }
+
+  .welcome-shell .notice-info {
+    @apply bg-sky-950/40 text-sky-200;
+  }
+
+  .welcome-shell .notice-success {
+    @apply bg-emerald-950/40 text-emerald-200;
+  }
+
+  .welcome-shell .btn-ghost {
+    @apply text-slate-300 hover:bg-white/6 hover:text-slate-100;
   }
 
   .pipeline-layout {

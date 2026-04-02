@@ -423,6 +423,45 @@ function applyConnectionValidationResult(
   }
 }
 
+function validateAuthFieldsForSubmit(server: ServerConfig): boolean {
+  let valid = true;
+
+  if (!server.url) {
+    markField("url", "invalid", "Enter the HydroServer URL.");
+    valid = false;
+  } else if (!isValidHttpUrl(server.url)) {
+    markField("url", "invalid", "Enter a full http:// or https:// URL.");
+    valid = false;
+  } else {
+    markField("url", "valid");
+  }
+
+  if (server.auth_type === "apikey") {
+    if (!server.api_key) {
+      markField("api_key", "invalid", "Enter the API key.");
+      valid = false;
+    } else {
+      markField("api_key", "valid");
+    }
+  } else {
+    if (!server.username) {
+      markField("username", "invalid", "Enter the username.");
+      valid = false;
+    } else {
+      markField("username", "valid");
+    }
+
+    if (!server.password) {
+      markField("password", "invalid", "Enter the password.");
+      valid = false;
+    } else {
+      markField("password", "valid");
+    }
+  }
+
+  return valid;
+}
+
 async function validateAuthField(
   form: HTMLFormElement,
   field: AuthFieldName
@@ -1644,6 +1683,14 @@ async function saveAuthenticatedServerConfig(
   const canReuseValidation =
     sameServerConfig(state.lastAuthValidationServer, payload) &&
     state.lastAuthValidationResult?.ok === true;
+
+  state[feedbackKey] = null;
+  resetAuthFieldStates(payload.auth_type);
+
+  if (!validateAuthFieldsForSubmit(payload)) {
+    render();
+    return;
+  }
 
   try {
     state.authSubmitting = true;
