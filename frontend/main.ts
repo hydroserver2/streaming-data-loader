@@ -319,12 +319,16 @@ function renderAuthInputField(params: {
   value: string
   placeholder: string
   helpText?: string
+  labelAction?: string
 }): string {
-  const { label, name, type, value, placeholder, helpText } = params
+  const { label, name, type, value, placeholder, helpText, labelAction } = params
 
   return `
     <label class="field">
-      <span class="label">${escapeHtml(label)}</span>
+      <span class="field-label-row">
+        <span class="label">${escapeHtml(label)}</span>
+        ${labelAction ?? ""}
+      </span>
       <span class="field-control">
         <input class="input input-with-status" type="${type}" name="${name}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" />
         ${authFieldStateMarkup(name)}
@@ -671,11 +675,8 @@ function renderAuthForm(
                 type: "password",
                 value: server.api_key,
                 placeholder: "KaTz74swGqHn__I2VY6ceIzrIxC04oDhUrLLgBTH9ACxYIunmkrdmqk",
+                labelAction: `<a class="label-link" href="${API_KEY_DOCS_URL}" target="_blank" rel="noreferrer">How to create an API key &rarr;</a>`,
               })}
-
-              <a class="text-link" href="${API_KEY_DOCS_URL}" target="_blank" rel="noreferrer">
-                How to create an API key
-              </a>
             `
         }
 
