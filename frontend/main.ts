@@ -463,6 +463,18 @@ function validateAuthFieldsForSubmit(server: ServerConfig): boolean {
   return valid;
 }
 
+function authFieldsReadyForConnectionTest(server: ServerConfig): boolean {
+  if (!server.url || !isValidHttpUrl(server.url)) {
+    return false;
+  }
+
+  if (server.auth_type === "apikey") {
+    return Boolean(server.api_key);
+  }
+
+  return Boolean(server.username && server.password);
+}
+
 async function validateAuthField(
   form: HTMLFormElement,
   field: AuthFieldName
@@ -473,13 +485,29 @@ async function validateAuthField(
 
   if (field === "url") {
     if (!server.url) {
-      markField("url", "invalid", "Enter the HydroServer URL.");
+      markField("url", "idle");
+      for (const name of credentialFields(server.auth_type)) {
+        if (state.authFieldStates[name].state === "checking") {
+          markField(name, "idle");
+        }
+      }
       render();
       return;
     }
 
     if (!isValidHttpUrl(server.url)) {
       markField("url", "invalid", "Enter a full http:// or https:// URL.");
+      render();
+      return;
+    }
+
+    if (!authFieldsReadyForConnectionTest(server)) {
+      markField("url", "idle");
+      for (const name of credentialFields(server.auth_type)) {
+        if (state.authFieldStates[name].state === "checking") {
+          markField(name, "idle");
+        }
+      }
       render();
       return;
     }
@@ -511,25 +539,26 @@ async function validateAuthField(
     return;
   }
 
-  if (field === "url") {
-    markField("url", "valid");
-  } else {
-    markField(field, "checking");
-  }
+  if (field !== "url") {
+    if (!server.url) {
+      markField("url", "idle");
+      markField(field, "idle");
+      render();
+      return;
+    }
 
-  const requiredFieldsReady =
-    server.auth_type === "apikey"
-      ? Boolean(server.url && isValidHttpUrl(server.url) && server.api_key)
-      : Boolean(
-          server.url &&
-            isValidHttpUrl(server.url) &&
-            server.username &&
-            server.password
-        );
+    if (!isValidHttpUrl(server.url)) {
+      markField("url", "invalid", "Enter a full http:// or https:// URL.");
+      markField(field, "idle");
+      render();
+      return;
+    }
 
-  if (!requiredFieldsReady) {
-    render();
-    return;
+    if (!authFieldsReadyForConnectionTest(server)) {
+      markField(field, "idle");
+      render();
+      return;
+    }
   }
 
   for (const name of credentialFields(server.auth_type)) {
