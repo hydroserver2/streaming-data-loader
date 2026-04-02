@@ -45,6 +45,11 @@ class ConfigStore:
         )
         return self.save(config)
 
+    def clear_server(self) -> AppConfig:
+        config = self.load()
+        config.server = ServerConfig()
+        return self.save(config)
+
     def list_jobs(self) -> list[JobConfig]:
         return self.load().jobs
 

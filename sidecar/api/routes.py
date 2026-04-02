@@ -83,6 +83,10 @@ def create_app(runtime: AppRuntime) -> FastAPI:
         config = runtime.config_store.update_server(payload)
         return config
 
+    @app.delete("/config/server", response_model=AppConfig, tags=["config"])
+    def clear_server_config(runtime: AppRuntime = Depends(get_runtime)) -> AppConfig:
+        return runtime.config_store.clear_server()
+
     @app.post("/connection/test", response_model=ConnectionTestResponse, tags=["connection"])
     def test_connection(
         payload: ConnectionTestRequest,

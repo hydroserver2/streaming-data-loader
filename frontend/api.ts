@@ -150,6 +150,12 @@ export function updateServerConfig(server: ServerConfig): Promise<AppConfig> {
   })
 }
 
+export function clearServerConfig(): Promise<AppConfig> {
+  return request<AppConfig>("/config/server", {
+    method: "DELETE",
+  })
+}
+
 export function testConnection(server: ServerConfig): Promise<ConnectionTestResponse> {
   return request<ConnectionTestResponse>("/connection/test", {
     method: "POST",

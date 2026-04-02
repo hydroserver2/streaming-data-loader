@@ -1,7 +1,8 @@
-import "./generated.css"
-import appIconUrl from "../icons/icon-color.svg"
+import "./generated.css";
+import appIconUrl from "../icons/icon-color.svg";
 
 import {
+  clearServerConfig,
   createJob,
   deleteJob,
   disableJob,
@@ -23,78 +24,82 @@ import {
   type HealthResponse,
   type JobSummary,
   type ServerConfig,
-} from "./api"
-import { getRouteFromHash, navigate, routeHref, type AppRoute } from "./router"
-import { formatRelativeTime, formatSchedule, shortenPath } from "./time"
+} from "./api";
+import { getRouteFromHash, navigate, routeHref, type AppRoute } from "./router";
+import { formatRelativeTime, formatSchedule, shortenPath } from "./time";
 
 const API_KEY_DOCS_URL =
-  "https://hydroserver2.github.io/hydroserver/tutorials/creating-your-first-orchestration-system#create-an-api-key"
-const APP_NAME = "HydroServer Streaming Data Loader"
-const STARTUP_RETRY_ATTEMPTS = 12
-const STARTUP_RETRY_DELAY_MS = 350
+  "https://hydroserver2.github.io/hydroserver/tutorials/creating-your-first-orchestration-system#create-an-api-key";
+const APP_NAME = "HydroServer Streaming Data Loader";
+const STARTUP_RETRY_ATTEMPTS = 12;
+const STARTUP_RETRY_DELAY_MS = 350;
 
 type Feedback = {
-  tone: "success" | "error" | "info"
-  message: string
-} | null
+  tone: "success" | "error" | "info";
+  message: string;
+} | null;
 
-type AuthFieldName = "url" | "api_key" | "username" | "password"
+type AuthFieldName = "url" | "api_key" | "username" | "password";
 
 type FieldValidationState = {
-  state: "idle" | "checking" | "valid" | "invalid"
-  message: string | null
-}
+  state: "idle" | "checking" | "valid" | "invalid";
+  message: string | null;
+};
 
 type PipelineMappingDraft = {
-  csvColumn: string
-  datastreamId: string
-}
+  csvColumn: string;
+  datastreamId: string;
+};
 
 type PipelineFormState = {
-  name: string
-  filePath: string
-  scheduleMinutes: number
-  headerRow: number
-  dataStartRow: number
-  delimiter: string
-  timestampColumn: string
-  timestampFormat: string
-  timezone: string
-  mappings: PipelineMappingDraft[]
-}
+  name: string;
+  filePath: string;
+  scheduleMinutes: number;
+  headerRow: number;
+  dataStartRow: number;
+  delimiter: string;
+  timestampColumn: string;
+  timestampFormat: string;
+  timezone: string;
+  mappings: PipelineMappingDraft[];
+};
 
 type UiState = {
-  route: AppRoute
-  health: HealthResponse | null
-  config: AppConfig | null
-  jobs: JobSummary[]
-  datastreams: DatastreamSummary[]
-  connectionSummary: ConnectionTestResponse | null
-  loading: boolean
-  bootstrapError: string | null
-  settingsFeedback: Feedback
-  welcomeFeedback: Feedback
-  pipelineFeedback: Feedback
-  lastConnectionState: ConnectionState | null
-  settingsEditMode: boolean
-  pipelineForm: PipelineFormState
-  pipelinePreview: CsvPreviewResponse | null
-  pipelineErrors: string[]
-  datastreamsError: string | null
-  authDraft: ServerConfig
-  authFieldStates: Record<AuthFieldName, FieldValidationState>
-  authSubmitting: boolean
-  lastAuthValidationServer: ServerConfig | null
-  lastAuthValidationResult: ConnectionTestResponse | null
-}
+  route: AppRoute;
+  health: HealthResponse | null;
+  config: AppConfig | null;
+  jobs: JobSummary[];
+  datastreams: DatastreamSummary[];
+  connectionSummary: ConnectionTestResponse | null;
+  loading: boolean;
+  bootstrapError: string | null;
+  settingsFeedback: Feedback;
+  welcomeFeedback: Feedback;
+  pipelineFeedback: Feedback;
+  lastConnectionState: ConnectionState | null;
+  settingsEditMode: boolean;
+  pipelineForm: PipelineFormState;
+  pipelinePreview: CsvPreviewResponse | null;
+  pipelineErrors: string[];
+  datastreamsError: string | null;
+  authDraft: ServerConfig;
+  authFieldStates: Record<AuthFieldName, FieldValidationState>;
+  authSubmitting: boolean;
+  lastAuthValidationServer: ServerConfig | null;
+  lastAuthValidationResult: ConnectionTestResponse | null;
+};
 
 const shellElements = {
   sidebar: document.querySelector<HTMLElement>("#app-sidebar"),
   mainContent: document.querySelector<HTMLElement>("#main-content"),
-  jobsLink: document.querySelector<HTMLAnchorElement>('[data-route="dashboard"]'),
-  settingsLink: document.querySelector<HTMLAnchorElement>('[data-route="settings"]'),
+  jobsLink: document.querySelector<HTMLAnchorElement>(
+    '[data-route="dashboard"]'
+  ),
+  settingsLink: document.querySelector<HTMLAnchorElement>(
+    '[data-route="settings"]'
+  ),
   connectionDot: document.querySelector<HTMLElement>("#connection-status-dot"),
-}
+};
 
 if (
   !shellElements.sidebar ||
@@ -103,10 +108,11 @@ if (
   !shellElements.settingsLink ||
   !shellElements.connectionDot
 ) {
-  throw new Error("App shell is missing required elements.")
+  throw new Error("App shell is missing required elements.");
 }
 
-const { sidebar, mainContent, jobsLink, settingsLink, connectionDot } = shellElements
+const { sidebar, mainContent, jobsLink, settingsLink, connectionDot } =
+  shellElements;
 
 function createEmptyPipelineForm(): PipelineFormState {
   return {
@@ -120,7 +126,7 @@ function createEmptyPipelineForm(): PipelineFormState {
     timestampFormat: "%Y-%m-%d %H:%M:%S",
     timezone: "America/Denver",
     mappings: [],
-  }
+  };
 }
 
 const state: UiState = {
@@ -151,9 +157,9 @@ const state: UiState = {
   authSubmitting: false,
   lastAuthValidationServer: null,
   lastAuthValidationResult: null,
-}
+};
 
-let authValidationRequestId = 0
+let authValidationRequestId = 0;
 
 function emptyServerConfig(): ServerConfig {
   return {
@@ -162,13 +168,13 @@ function emptyServerConfig(): ServerConfig {
     api_key: "",
     username: "",
     password: "",
-  }
+  };
 }
 
 window.setInterval(() => {
-  void refreshJobs()
-  render()
-}, 30_000)
+  void refreshJobs();
+  render();
+}, 30_000);
 
 function escapeHtml(value: string): string {
   return value
@@ -176,92 +182,105 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;")
+    .replace(/'/g, "&#39;");
 }
 
 function feedbackMarkup(feedback: Feedback): string {
   if (!feedback) {
-    return ""
+    return "";
   }
 
   const toneClass =
     feedback.tone === "success"
       ? "notice-success"
       : feedback.tone === "error"
-        ? "notice-error"
-        : "notice-info"
+      ? "notice-error"
+      : "notice-info";
 
-  return `<div class="${toneClass}">${escapeHtml(feedback.message)}</div>`
+  return `<div class="${toneClass}">${escapeHtml(feedback.message)}</div>`;
 }
 
 function basename(path: string): string {
-  const segments = path.split(/[\\/]/).filter(Boolean)
-  return segments.at(-1) ?? path
+  const segments = path.split(/[\\/]/).filter(Boolean);
+  return segments.at(-1) ?? path;
 }
 
 function connected(): boolean {
-  return state.connectionSummary?.ok === true && state.lastConnectionState === "connected"
+  return (
+    state.connectionSummary?.ok === true &&
+    state.lastConnectionState === "connected"
+  );
 }
 
 function currentServerConfig(): ServerConfig {
-  return state.authDraft
+  return state.authDraft;
 }
 
 function emptyFieldValidationState(): FieldValidationState {
-  return { state: "idle", message: null }
+  return { state: "idle", message: null };
 }
 
 function resetAuthFieldStates(authType: AuthType): void {
-  state.authFieldStates.url = emptyFieldValidationState()
-  state.authFieldStates.api_key = emptyFieldValidationState()
-  state.authFieldStates.username = emptyFieldValidationState()
-  state.authFieldStates.password = emptyFieldValidationState()
+  state.authFieldStates.url = emptyFieldValidationState();
+  state.authFieldStates.api_key = emptyFieldValidationState();
+  state.authFieldStates.username = emptyFieldValidationState();
+  state.authFieldStates.password = emptyFieldValidationState();
 
   if (authType === "apikey") {
-    state.authFieldStates.username = emptyFieldValidationState()
-    state.authFieldStates.password = emptyFieldValidationState()
+    state.authFieldStates.username = emptyFieldValidationState();
+    state.authFieldStates.password = emptyFieldValidationState();
   } else {
-    state.authFieldStates.api_key = emptyFieldValidationState()
+    state.authFieldStates.api_key = emptyFieldValidationState();
   }
 }
 
 function serverConfigured(server: ServerConfig | null | undefined): boolean {
   if (!server?.url.trim()) {
-    return false
+    return false;
   }
 
   if (server.auth_type === "userpass") {
-    return Boolean(server.username.trim() && server.password.trim())
+    return Boolean(server.username.trim() && server.password.trim());
   }
 
-  return Boolean(server.api_key.trim())
+  return Boolean(server.api_key.trim());
 }
 
 function readServerConfigForm(
   form: HTMLFormElement,
   base: ServerConfig = currentServerConfig()
 ): ServerConfig {
-  const data = new FormData(form)
-  const authType = data.get("auth_type") === "userpass" ? "userpass" : "apikey"
+  const data = new FormData(form);
+  const authType = data.get("auth_type") === "userpass" ? "userpass" : "apikey";
 
   return {
     auth_type: authType,
     url: String(data.get("url") ?? "").trim(),
-    api_key: authType === "apikey" ? String(data.get("api_key") ?? "").trim() : base.api_key,
+    api_key:
+      authType === "apikey"
+        ? String(data.get("api_key") ?? "").trim()
+        : base.api_key,
     username:
-      authType === "userpass" ? String(data.get("username") ?? "").trim() : base.username,
+      authType === "userpass"
+        ? String(data.get("username") ?? "").trim()
+        : base.username,
     password:
-      authType === "userpass" ? String(data.get("password") ?? "").trim() : base.password,
-  }
+      authType === "userpass"
+        ? String(data.get("password") ?? "").trim()
+        : base.password,
+  };
 }
 
 function setServerDraft(server: ServerConfig): void {
-  state.authDraft = { ...server }
+  state.authDraft = { ...server };
 }
 
-function sameServerConfig(left: ServerConfig | null, right: ServerConfig): boolean {
+function sameServerConfig(
+  left: ServerConfig | null,
+  right: ServerConfig
+): boolean {
   if (!left) {
-    return false
+    return false;
   }
 
   return (
@@ -270,7 +289,7 @@ function sameServerConfig(left: ServerConfig | null, right: ServerConfig): boole
     left.api_key === right.api_key &&
     left.username === right.username &&
     left.password === right.password
-  )
+  );
 }
 
 function markField(
@@ -278,50 +297,51 @@ function markField(
   nextState: FieldValidationState["state"],
   message: string | null = null
 ): void {
-  state.authFieldStates[field] = { state: nextState, message }
+  state.authFieldStates[field] = { state: nextState, message };
 }
 
 function credentialFields(authType: AuthType): AuthFieldName[] {
-  return authType === "userpass" ? ["username", "password"] : ["api_key"]
+  return authType === "userpass" ? ["username", "password"] : ["api_key"];
 }
 
 function authFieldStateMarkup(field: AuthFieldName): string {
-  const fieldState = state.authFieldStates[field]
+  const fieldState = state.authFieldStates[field];
 
   if (fieldState.state === "valid") {
-    return '<span class="input-status input-status-valid" aria-hidden="true">&#10003;</span>'
+    return '<span class="input-status input-status-valid" aria-hidden="true">&#10003;</span>';
   }
 
   if (fieldState.state === "invalid") {
-    return '<span class="input-status input-status-invalid" aria-hidden="true">&#10005;</span>'
+    return '<span class="input-status input-status-invalid" aria-hidden="true">&#10005;</span>';
   }
 
   if (fieldState.state === "checking") {
-    return '<span class="input-status input-status-checking" aria-hidden="true"><span class="input-spinner"></span></span>'
+    return '<span class="input-status input-status-checking" aria-hidden="true"><span class="input-spinner"></span></span>';
   }
 
-  return ""
+  return "";
 }
 
 function authFieldErrorMarkup(field: AuthFieldName): string {
-  const fieldState = state.authFieldStates[field]
+  const fieldState = state.authFieldStates[field];
   if (fieldState.state !== "invalid" || !fieldState.message) {
-    return ""
+    return "";
   }
 
-  return `<p class="field-error">${escapeHtml(fieldState.message)}</p>`
+  return `<p class="field-error">${escapeHtml(fieldState.message)}</p>`;
 }
 
 function renderAuthInputField(params: {
-  label: string
-  name: AuthFieldName
-  type: "url" | "text" | "password"
-  value: string
-  placeholder: string
-  helpText?: string
-  labelAction?: string
+  label: string;
+  name: AuthFieldName;
+  type: "url" | "text" | "password";
+  value: string;
+  placeholder: string;
+  helpText?: string;
+  labelAction?: string;
 }): string {
-  const { label, name, type, value, placeholder, helpText, labelAction } = params
+  const { label, name, type, value, placeholder, helpText, labelAction } =
+    params;
 
   return `
     <label class="field">
@@ -330,237 +350,285 @@ function renderAuthInputField(params: {
         ${labelAction ?? ""}
       </span>
       <span class="field-control">
-        <input class="input input-with-status" type="${type}" name="${name}" value="${escapeHtml(value)}" placeholder="${escapeHtml(placeholder)}" />
+        <input class="input input-with-status" type="${type}" name="${name}" value="${escapeHtml(
+    value
+  )}" placeholder="${escapeHtml(placeholder)}" />
         ${authFieldStateMarkup(name)}
       </span>
       ${helpText ? `<p class="field-hint">${escapeHtml(helpText)}</p>` : ""}
       ${authFieldErrorMarkup(name)}
     </label>
-  `
+  `;
 }
 
-function fieldFormFeedbackTarget(formId: string): "welcomeFeedback" | "settingsFeedback" {
-  return formId === "welcome-form" ? "welcomeFeedback" : "settingsFeedback"
+function fieldFormFeedbackTarget(
+  formId: string
+): "welcomeFeedback" | "settingsFeedback" {
+  return formId === "welcome-form" ? "welcomeFeedback" : "settingsFeedback";
 }
 
 function clearAuthFormFeedback(formId: string): void {
-  state[fieldFormFeedbackTarget(formId)] = null
+  state[fieldFormFeedbackTarget(formId)] = null;
 }
 
 function clearAuthValidationCache(): void {
-  state.lastAuthValidationServer = null
-  state.lastAuthValidationResult = null
+  state.lastAuthValidationServer = null;
+  state.lastAuthValidationResult = null;
 }
 
 function setAuthFieldLoading(server: ServerConfig): void {
-  markField("url", "checking")
+  markField("url", "checking");
   for (const field of credentialFields(server.auth_type)) {
-    markField(field, "checking")
+    markField(field, "checking");
   }
 }
 
 function isValidHttpUrl(value: string): boolean {
   try {
-    const parsed = new URL(value)
-    return parsed.protocol === "http:" || parsed.protocol === "https:"
+    const parsed = new URL(value);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
   } catch {
-    return false
+    return false;
   }
 }
 
-function applyConnectionValidationResult(server: ServerConfig, result: ConnectionTestResponse): void {
-  markField("url", "valid")
+function applyConnectionValidationResult(
+  server: ServerConfig,
+  result: ConnectionTestResponse
+): void {
+  markField("url", "valid");
 
   if (result.ok) {
     for (const field of credentialFields(server.auth_type)) {
-      markField(field, "valid")
+      markField(field, "valid");
     }
-    return
+    return;
   }
 
-  const message = result.message
+  const message = result.message;
   const isUrlError =
     result.message.includes("Couldn't reach HydroServer") ||
-    result.message.includes("HydroServer returned an error")
+    result.message.includes("HydroServer returned an error");
 
   if (isUrlError) {
-    markField("url", "invalid", message)
+    markField("url", "invalid", message);
     for (const field of credentialFields(server.auth_type)) {
-      markField(field, "idle")
+      markField(field, "idle");
     }
-    return
+    return;
   }
 
   for (const field of credentialFields(server.auth_type)) {
-    markField(field, "invalid", message)
+    markField(field, "invalid", message);
   }
 }
 
-async function validateAuthField(form: HTMLFormElement, field: AuthFieldName): Promise<void> {
-  const server = readServerConfigForm(form)
-  const requestId = ++authValidationRequestId
-  setServerDraft(server)
+async function validateAuthField(
+  form: HTMLFormElement,
+  field: AuthFieldName
+): Promise<void> {
+  const server = readServerConfigForm(form);
+  const requestId = ++authValidationRequestId;
+  setServerDraft(server);
 
   if (field === "url") {
     if (!server.url) {
-      markField("url", "invalid", "Enter the HydroServer URL.")
-      render()
-      return
+      markField("url", "invalid", "Enter the HydroServer URL.");
+      render();
+      return;
     }
 
     if (!isValidHttpUrl(server.url)) {
-      markField("url", "invalid", "Enter a full http:// or https:// URL.")
-      render()
-      return
+      markField("url", "invalid", "Enter a full http:// or https:// URL.");
+      render();
+      return;
     }
   }
 
   if (field === "api_key" && server.auth_type === "apikey" && !server.api_key) {
-    markField("api_key", "invalid", "Enter the API key.")
-    render()
-    return
+    markField("api_key", "invalid", "Enter the API key.");
+    render();
+    return;
   }
 
-  if (field === "username" && server.auth_type === "userpass" && !server.username) {
-    markField("username", "invalid", "Enter the username.")
-    render()
-    return
+  if (
+    field === "username" &&
+    server.auth_type === "userpass" &&
+    !server.username
+  ) {
+    markField("username", "invalid", "Enter the username.");
+    render();
+    return;
   }
 
-  if (field === "password" && server.auth_type === "userpass" && !server.password) {
-    markField("password", "invalid", "Enter the password.")
-    render()
-    return
+  if (
+    field === "password" &&
+    server.auth_type === "userpass" &&
+    !server.password
+  ) {
+    markField("password", "invalid", "Enter the password.");
+    render();
+    return;
   }
 
   if (field === "url") {
-    markField("url", "valid")
+    markField("url", "valid");
   } else {
-    markField(field, "checking")
+    markField(field, "checking");
   }
 
   const requiredFieldsReady =
     server.auth_type === "apikey"
       ? Boolean(server.url && isValidHttpUrl(server.url) && server.api_key)
-      : Boolean(server.url && isValidHttpUrl(server.url) && server.username && server.password)
+      : Boolean(
+          server.url &&
+            isValidHttpUrl(server.url) &&
+            server.username &&
+            server.password
+        );
 
   if (!requiredFieldsReady) {
-    render()
-    return
+    render();
+    return;
   }
 
   for (const name of credentialFields(server.auth_type)) {
-    markField(name, "checking")
+    markField(name, "checking");
   }
-  markField("url", "checking")
-  render()
+  markField("url", "checking");
+  render();
 
   try {
-    const result = await testConnection(server)
+    const result = await testConnection(server);
 
     if (requestId !== authValidationRequestId) {
-      return
+      return;
     }
 
-    state.lastAuthValidationServer = server
-    state.lastAuthValidationResult = result
-    applyConnectionValidationResult(server, result)
+    state.lastAuthValidationServer = server;
+    state.lastAuthValidationResult = result;
+    applyConnectionValidationResult(server, result);
   } catch (error) {
     if (requestId !== authValidationRequestId) {
-      return
+      return;
     }
 
-    clearAuthValidationCache()
+    clearAuthValidationCache();
     const message =
-      error instanceof Error ? error.message : "Couldn't test the HydroServer connection."
+      error instanceof Error
+        ? error.message
+        : "Couldn't test the HydroServer connection.";
     const isUrlError =
       message.includes("Request failed with status 500") ||
       message.includes("Failed to fetch") ||
-      message.includes("Couldn't test the HydroServer connection.")
+      message.includes("Couldn't test the HydroServer connection.");
 
     if (isUrlError) {
-      markField("url", "invalid", message)
+      markField("url", "invalid", message);
       for (const name of credentialFields(server.auth_type)) {
-        markField(name, "idle")
+        markField(name, "idle");
       }
     } else {
-      markField("url", "valid")
+      markField("url", "valid");
       for (const name of credentialFields(server.auth_type)) {
-        markField(name, "invalid", message)
+        markField(name, "invalid", message);
       }
     }
   }
 
-  render()
+  render();
 }
 
 function previewHeaders(): string[] {
-  return state.pipelinePreview?.parsed_rows[0] ?? []
+  return state.pipelinePreview?.parsed_rows[0] ?? [];
 }
 
 function pipelineMappingsByColumn(): Map<string, string> {
-  return new Map(state.pipelineForm.mappings.map(mapping => [mapping.csvColumn, mapping.datastreamId]))
+  return new Map(
+    state.pipelineForm.mappings.map((mapping) => [
+      mapping.csvColumn,
+      mapping.datastreamId,
+    ])
+  );
 }
 
 function previewColumnClass(columnName: string): string {
   if (columnName === state.pipelineForm.timestampColumn) {
-    return "preview-col-timestamp"
+    return "preview-col-timestamp";
   }
 
   const mapped = state.pipelineForm.mappings.find(
-    mapping => mapping.csvColumn === columnName && mapping.datastreamId
-  )
-  return mapped ? "preview-col-mapped" : ""
+    (mapping) => mapping.csvColumn === columnName && mapping.datastreamId
+  );
+  return mapped ? "preview-col-mapped" : "";
 }
 
 function initializeMappings(headers: string[]): void {
-  const existing = pipelineMappingsByColumn()
+  const existing = pipelineMappingsByColumn();
   state.pipelineForm.mappings = headers
-    .filter(header => header !== state.pipelineForm.timestampColumn)
-    .map(header => ({
+    .filter((header) => header !== state.pipelineForm.timestampColumn)
+    .map((header) => ({
       csvColumn: header,
       datastreamId: existing.get(header) ?? "",
-    }))
+    }));
 }
 
 function applyPreview(path: string, preview: CsvPreviewResponse): void {
-  state.pipelinePreview = preview
-  state.pipelineForm.filePath = path
-  state.pipelineForm.headerRow = preview.detected_header_row ?? state.pipelineForm.headerRow
-  state.pipelineForm.dataStartRow = preview.detected_data_start_row ?? state.pipelineForm.dataStartRow
-  state.pipelineForm.delimiter = preview.detected_delimiter || state.pipelineForm.delimiter
+  state.pipelinePreview = preview;
+  state.pipelineForm.filePath = path;
+  state.pipelineForm.headerRow =
+    preview.detected_header_row ?? state.pipelineForm.headerRow;
+  state.pipelineForm.dataStartRow =
+    preview.detected_data_start_row ?? state.pipelineForm.dataStartRow;
+  state.pipelineForm.delimiter =
+    preview.detected_delimiter || state.pipelineForm.delimiter;
 
-  const headers = preview.parsed_rows[0] ?? []
+  const headers = preview.parsed_rows[0] ?? [];
   if (headers.length > 0) {
     const preferredTimestamp =
-      headers.find(header => header.toLowerCase().includes("time")) ?? headers[0]
-    state.pipelineForm.timestampColumn = headers.includes(state.pipelineForm.timestampColumn)
+      headers.find((header) => header.toLowerCase().includes("time")) ??
+      headers[0];
+    state.pipelineForm.timestampColumn = headers.includes(
+      state.pipelineForm.timestampColumn
+    )
       ? state.pipelineForm.timestampColumn
-      : preferredTimestamp
+      : preferredTimestamp;
   }
 
   if (!state.pipelineForm.name.trim()) {
-    const inferred = basename(path).replace(/\.[^.]+$/, "")
-    state.pipelineForm.name = inferred
+    const inferred = basename(path).replace(/\.[^.]+$/, "");
+    state.pipelineForm.name = inferred;
   }
 
-  initializeMappings(headers)
+  initializeMappings(headers);
 }
 
 function connectionIndicator(): { label: string; className: string } {
   if (!serverConfigured(state.config?.server)) {
-    return { label: "HydroServer not configured", className: "status-dot bg-slate-300" }
+    return {
+      label: "HydroServer not configured",
+      className: "status-dot bg-slate-300",
+    };
   }
 
   if (connected()) {
-    return { label: "Connected to HydroServer", className: "status-dot bg-emerald-500" }
+    return {
+      label: "Connected to HydroServer",
+      className: "status-dot bg-emerald-500",
+    };
   }
 
   if (state.lastConnectionState === "error") {
-    return { label: "HydroServer authentication error", className: "status-dot bg-rose-500" }
+    return {
+      label: "HydroServer authentication error",
+      className: "status-dot bg-rose-500",
+    };
   }
 
-  return { label: "HydroServer configured", className: "status-dot bg-sky-500" }
+  return {
+    label: "HydroServer configured",
+    className: "status-dot bg-sky-500",
+  };
 }
 
 function statusPill(job: JobSummary): string {
@@ -571,20 +639,22 @@ function statusPill(job: JobSummary): string {
     disabled: "pill-muted",
     pending: "pill-info",
     running: "pill-info",
-  }
+  };
 
-  return `<span class="${classes[job.status]}">${escapeHtml(job.status_message)}</span>`
+  return `<span class="${classes[job.status]}">${escapeHtml(
+    job.status_message
+  )}</span>`;
 }
 
 function renderConnectedCard(showActions: boolean): string {
   if (!connected() || !state.connectionSummary) {
-    return ""
+    return "";
   }
 
   const datastreamText =
     state.connectionSummary.datastream_count === 1
       ? "1 datastream available"
-      : `${state.connectionSummary.datastream_count} datastreams available`
+      : `${state.connectionSummary.datastream_count} datastreams available`;
 
   return `
     <article class="summary-card">
@@ -593,7 +663,9 @@ function renderConnectedCard(showActions: boolean): string {
         <h2 class="section-title">${escapeHtml(
           state.connectionSummary.instance_name ?? "HydroServer"
         )}</h2>
-        <p class="section-copy">${escapeHtml(state.connectionSummary.message)}</p>
+        <p class="section-copy">${escapeHtml(
+          state.connectionSummary.message
+        )}</p>
         <div class="summary-inline">
           <span class="pill-success">Connected</span>
           <span class="summary-meta">${escapeHtml(datastreamText)}</span>
@@ -603,10 +675,13 @@ function renderConnectedCard(showActions: boolean): string {
         showActions
           ? `
         <div class="button-row">
+          <button class="btn-danger" type="button" data-action="disconnect">Disconnect</button>
           <button class="btn-ghost" type="button" data-action="change-credentials">Change credentials</button>
           ${
             state.jobs.length === 0
-              ? `<a class="btn-primary" href="${routeHref("jobs-new")}">Create first pipeline</a>`
+              ? `<a class="btn-primary" href="${routeHref(
+                  "jobs-new"
+                )}">Create first pipeline</a>`
               : ""
           }
         </div>
@@ -614,7 +689,7 @@ function renderConnectedCard(showActions: boolean): string {
           : ""
       }
     </article>
-  `
+  `;
 }
 
 function renderAuthForm(
@@ -623,20 +698,20 @@ function renderAuthForm(
   submitLabel: string,
   secondaryAction: string
 ): string {
-  const server = currentServerConfig()
-  const usingUserPass = server.auth_type === "userpass"
+  const server = currentServerConfig();
+  const usingUserPass = server.auth_type === "userpass";
   const authToggleLabel = usingUserPass
     ? "Connect with an API key"
-    : "Connect with username and password"
-  const submitDisabled = state.authSubmitting ? "disabled" : ""
-  const submitLabelText = state.authSubmitting ? "Connecting..." : submitLabel
+    : "Connect with username and password";
+  const submitDisabled = state.authSubmitting ? "disabled" : "";
+  const submitLabelText = state.authSubmitting ? "Connecting..." : submitLabel;
 
   return `
     <form id="${formId}" class="auth-card" autocomplete="off">
       <section class="card-section">
         <div class="auth-header">
           <img class="auth-app-icon" src="${appIconUrl}" alt="HydroServer Streaming Data Loader icon" />
-          <h1 class="page-title">Connect to your HydroServer instance</h1>
+          <h1 class="page-title">Connect to HydroServer</h1>
         </div>
 
         ${feedbackMarkup(feedback)}
@@ -674,7 +749,8 @@ function renderAuthForm(
                 name: "api_key",
                 type: "password",
                 value: server.api_key,
-                placeholder: "KaTz74swGqHn__I2VY6ceIzrIxC04oDhUrLLgBTH9ACxYIunmkrdmqk",
+                placeholder:
+                  "KaTz74swGqHn__I2VY6ceIzrIxC04oDhUrLLgBTH9ACxYIunmkrdmqk",
                 labelAction: `<a class="label-link" href="${API_KEY_DOCS_URL}" target="_blank" rel="noreferrer">How to create an API key &rarr;</a>`,
               })}
             `
@@ -690,23 +766,30 @@ function renderAuthForm(
 
         <div class="button-row button-row-end">
           ${secondaryAction}
-          <button class="btn-primary" type="submit" ${submitDisabled}>${escapeHtml(submitLabelText)}</button>
+          <button class="btn-primary" type="submit" ${submitDisabled}>${escapeHtml(
+    submitLabelText
+  )}</button>
         </div>
       </section>
     </form>
-  `
+  `;
 }
 
 function renderWelcome(): string {
   return `
     <section class="welcome-shell animate-fade-in">
-      ${renderAuthForm("welcome-form", state.welcomeFeedback, "Connect to HydroServer", "")}
+      ${renderAuthForm(
+        "welcome-form",
+        state.welcomeFeedback,
+        "Connect to HydroServer",
+        ""
+      )}
     </section>
-  `
+  `;
 }
 
 function renderSettings(): string {
-  const showForm = !connected() || state.settingsEditMode
+  const showForm = !connected() || state.settingsEditMode;
 
   return `
     <section class="page-shell animate-fade-in">
@@ -718,9 +801,20 @@ function renderSettings(): string {
         </div>
       </header>
 
-      ${showForm ? renderAuthForm("settings-form", state.settingsFeedback, "Save and verify", connected() ? '<button class="btn-ghost" type="button" data-action="cancel-credential-edit">Cancel</button>' : "") : renderConnectedCard(true)}
+      ${
+        showForm
+          ? renderAuthForm(
+              "settings-form",
+              state.settingsFeedback,
+              "Save and verify",
+              connected()
+                ? '<button class="btn-ghost" type="button" data-action="cancel-credential-edit">Cancel</button>'
+                : ""
+            )
+          : renderConnectedCard(true)
+      }
     </section>
-  `
+  `;
 }
 
 function renderDashboard(): string {
@@ -733,45 +827,67 @@ function renderDashboard(): string {
             <h1 class="page-title">Jobs</h1>
             <p class="page-copy">Finish the onboarding flow by creating your first pipeline. ${APP_NAME} will use that saved local configuration from then on.</p>
           </div>
-          <a class="btn-primary" href="${routeHref("jobs-new")}">Create first pipeline</a>
+          <a class="btn-primary" href="${routeHref(
+            "jobs-new"
+          )}">Create first pipeline</a>
         </header>
       </section>
-    `
+    `;
   }
 
   const cards = state.jobs
-    .map(job => {
+    .map((job) => {
       const lastLine = job.last_error
         ? `Failed ${formatRelativeTime(job.last_run_at)}`
-        : `Last pushed ${formatRelativeTime(job.last_pushed_timestamp)}`
+        : `Last pushed ${formatRelativeTime(job.last_pushed_timestamp)}`;
 
       return `
         <article class="job-card animate-fade-in">
           <div class="job-card-top">
             <div>
               <div class="job-card-title-row">
-                <span class="status-dot ${job.status === "error" ? "bg-rose-500" : job.status === "warning" ? "bg-amber-500" : job.status === "disabled" ? "bg-slate-300" : "bg-emerald-500"}"></span>
+                <span class="status-dot ${
+                  job.status === "error"
+                    ? "bg-rose-500"
+                    : job.status === "warning"
+                    ? "bg-amber-500"
+                    : job.status === "disabled"
+                    ? "bg-slate-300"
+                    : "bg-emerald-500"
+                }"></span>
                 <h2 class="section-title">${escapeHtml(job.name)}</h2>
               </div>
-              <p class="section-copy">${escapeHtml(shortenPath(job.file_path))}</p>
-              <p class="job-meta ${job.status === "error" ? "text-rose-600" : ""}">
-                ${escapeHtml(lastLine)} · ${escapeHtml(formatSchedule(job.schedule_minutes))}
+              <p class="section-copy">${escapeHtml(
+                shortenPath(job.file_path)
+              )}</p>
+              <p class="job-meta ${
+                job.status === "error" ? "text-rose-600" : ""
+              }">
+                ${escapeHtml(lastLine)} · ${escapeHtml(
+        formatSchedule(job.schedule_minutes)
+      )}
               </p>
             </div>
             ${statusPill(job)}
           </div>
 
           <div class="job-card-actions">
-            <button class="btn-ghost" data-action="run-job" data-job-id="${job.id}">Run now</button>
-            <button class="btn-ghost" data-action="toggle-job" data-job-id="${job.id}">
+            <button class="btn-ghost" data-action="run-job" data-job-id="${
+              job.id
+            }">Run now</button>
+            <button class="btn-ghost" data-action="toggle-job" data-job-id="${
+              job.id
+            }">
               ${job.enabled ? "Disable" : "Enable"}
             </button>
-            <button class="btn-danger" data-action="delete-job" data-job-id="${job.id}">Delete</button>
+            <button class="btn-danger" data-action="delete-job" data-job-id="${
+              job.id
+            }">Delete</button>
           </div>
         </article>
-      `
+      `;
     })
-    .join("")
+    .join("");
 
   return `
     <section class="page-shell">
@@ -785,7 +901,7 @@ function renderDashboard(): string {
       </header>
       <div class="card-stack">${cards}</div>
     </section>
-  `
+  `;
 }
 
 function renderPipelinePreview(): string {
@@ -798,63 +914,75 @@ function renderPipelinePreview(): string {
           <p class="section-copy">Choose a CSV file path, then load the preview to detect headers and map source columns to HydroServer datastreams.</p>
         </div>
       </article>
-    `
+    `;
   }
 
-  const headers = previewHeaders()
-  const parsedRows = state.pipelinePreview.parsed_rows.slice(1, 7)
+  const headers = previewHeaders();
+  const parsedRows = state.pipelinePreview.parsed_rows.slice(1, 7);
   const rawRows = state.pipelinePreview.raw_lines
     .map((line, index) => {
-      const lineNumber = index + 1
+      const lineNumber = index + 1;
       const rowClass =
         lineNumber === state.pipelineForm.headerRow
           ? "preview-raw-line preview-raw-line-header"
           : lineNumber === state.pipelineForm.dataStartRow
-            ? "preview-raw-line preview-raw-line-data"
-            : "preview-raw-line"
+          ? "preview-raw-line preview-raw-line-data"
+          : "preview-raw-line";
 
       return `
         <div class="${rowClass}">
           <span class="preview-line-number">${lineNumber}</span>
           <code>${escapeHtml(line)}</code>
         </div>
-      `
+      `;
     })
-    .join("")
+    .join("");
 
   const headerCells = headers
     .map(
-      header =>
-        `<th class="preview-cell ${previewColumnClass(header)}">${escapeHtml(header)}</th>`
+      (header) =>
+        `<th class="preview-cell ${previewColumnClass(header)}">${escapeHtml(
+          header
+        )}</th>`
     )
-    .join("")
+    .join("");
 
   const tableRows = parsedRows
     .map(
-      row => `
+      (row) => `
         <tr>
           ${row
             .map((cell, index) => {
-              const columnName = headers[index] ?? ""
-              return `<td class="preview-cell ${previewColumnClass(columnName)}">${escapeHtml(cell)}</td>`
+              const columnName = headers[index] ?? "";
+              return `<td class="preview-cell ${previewColumnClass(
+                columnName
+              )}">${escapeHtml(cell)}</td>`;
             })
             .join("")}
         </tr>
       `
     )
-    .join("")
+    .join("");
 
   return `
     <article class="preview-card">
       <div class="preview-header">
         <div>
           <p class="eyebrow">Preview</p>
-          <h2 class="section-title">${escapeHtml(basename(state.pipelineForm.filePath))}</h2>
+          <h2 class="section-title">${escapeHtml(
+            basename(state.pipelineForm.filePath)
+          )}</h2>
         </div>
         <div class="preview-summary">
-          <span class="pill-info">Header row ${state.pipelineForm.headerRow}</span>
-          <span class="pill-info">Data starts ${state.pipelineForm.dataStartRow}</span>
-          <span class="pill-info">${escapeHtml(state.pipelinePreview.encoding)}</span>
+          <span class="pill-info">Header row ${
+            state.pipelineForm.headerRow
+          }</span>
+          <span class="pill-info">Data starts ${
+            state.pipelineForm.dataStartRow
+          }</span>
+          <span class="pill-info">${escapeHtml(
+            state.pipelinePreview.encoding
+          )}</span>
         </div>
       </div>
 
@@ -872,14 +1000,17 @@ function renderPipelinePreview(): string {
       </div>
 
       <footer class="preview-footer">
-        Showing the first ${Math.min(state.pipelinePreview.total_lines, state.pipelinePreview.raw_lines.length)} of ${state.pipelinePreview.total_lines} lines
+        Showing the first ${Math.min(
+          state.pipelinePreview.total_lines,
+          state.pipelinePreview.raw_lines.length
+        )} of ${state.pipelinePreview.total_lines} lines
       </footer>
     </article>
-  `
+  `;
 }
 
 function renderPipelineMappings(): string {
-  const availableMappings = state.pipelineForm.mappings
+  const availableMappings = state.pipelineForm.mappings;
 
   if (!state.pipelinePreview || availableMappings.length === 0) {
     return `
@@ -887,20 +1018,20 @@ function renderPipelineMappings(): string {
         <h3 class="section-title">Column mappings</h3>
         <p class="section-copy">Load a CSV preview first so HydroServer Streaming Data Loader can list the available source columns.</p>
       </div>
-    `
+    `;
   }
 
   const rows = availableMappings
-    .map(mapping => {
+    .map((mapping) => {
       const options = [
         `<option value="">Not mapped</option>`,
         ...state.datastreams.map(
-          datastream =>
+          (datastream) =>
             `<option value="${escapeHtml(datastream.id)}" ${
               datastream.id === mapping.datastreamId ? "selected" : ""
             }>${escapeHtml(datastream.name)}</option>`
         ),
-      ].join("")
+      ].join("");
 
       return `
         <div class="mapping-row">
@@ -908,13 +1039,15 @@ function renderPipelineMappings(): string {
             <p class="mapping-source">${escapeHtml(mapping.csvColumn)}</p>
             <p class="mapping-help">Source column</p>
           </div>
-          <select class="input" data-mapping-column="${escapeHtml(mapping.csvColumn)}">
+          <select class="input" data-mapping-column="${escapeHtml(
+            mapping.csvColumn
+          )}">
             ${options}
           </select>
         </div>
-      `
+      `;
     })
-    .join("")
+    .join("");
 
   return `
     <div class="pipeline-subcard">
@@ -922,12 +1055,12 @@ function renderPipelineMappings(): string {
       <p class="section-copy">Map each source column to a HydroServer datastream. Leave any unused source columns as “Not mapped.”</p>
       <div class="mapping-grid">${rows}</div>
     </div>
-  `
+  `;
 }
 
 function renderPipelineEditor(): string {
   if (!connected()) {
-    return renderWelcome()
+    return renderWelcome();
   }
 
   if (state.datastreamsError) {
@@ -944,7 +1077,7 @@ function renderPipelineEditor(): string {
         ${renderConnectedCard(true)}
         <div class="notice-error">${escapeHtml(state.datastreamsError)}</div>
       </section>
-    `
+    `;
   }
 
   if (state.datastreams.length === 0) {
@@ -963,17 +1096,17 @@ function renderPipelineEditor(): string {
           Open the HydroServer 101 tutorial
         </a>
       </section>
-    `
+    `;
   }
 
   const timestampOptions = previewHeaders()
     .map(
-      header =>
+      (header) =>
         `<option value="${escapeHtml(header)}" ${
           header === state.pipelineForm.timestampColumn ? "selected" : ""
         }>${escapeHtml(header)}</option>`
     )
-    .join("")
+    .join("");
 
   const pipelineErrorMarkup =
     state.pipelineErrors.length > 0
@@ -981,11 +1114,13 @@ function renderPipelineEditor(): string {
         <div class="validation-panel">
           <h3 class="section-title">Fix these issues before saving</h3>
           <ul class="validation-list">
-            ${state.pipelineErrors.map(error => `<li>${escapeHtml(error)}</li>`).join("")}
+            ${state.pipelineErrors
+              .map((error) => `<li>${escapeHtml(error)}</li>`)
+              .join("")}
           </ul>
         </div>
       `
-      : ""
+      : "";
 
   return `
     <section class="page-shell animate-fade-in">
@@ -1029,10 +1164,15 @@ function renderPipelineEditor(): string {
               <select class="input" name="schedule_minutes">
                 ${[5, 15, 30, 60]
                   .map(
-                    minutes =>
+                    (minutes) =>
                       `<option value="${minutes}" ${
-                        state.pipelineForm.scheduleMinutes === minutes ? "selected" : ""
-                      }>Every ${formatSchedule(minutes).replace("Every ", "")}</option>`
+                        state.pipelineForm.scheduleMinutes === minutes
+                          ? "selected"
+                          : ""
+                      }>Every ${formatSchedule(minutes).replace(
+                        "Every ",
+                        ""
+                      )}</option>`
                   )
                   .join("")}
               </select>
@@ -1045,12 +1185,16 @@ function renderPipelineEditor(): string {
             <div class="split-fields">
               <label class="field">
                 <span class="label">Header row</span>
-                <input class="input" type="number" min="1" name="header_row" value="${state.pipelineForm.headerRow}" />
+                <input class="input" type="number" min="1" name="header_row" value="${
+                  state.pipelineForm.headerRow
+                }" />
               </label>
 
               <label class="field">
                 <span class="label">Data start row</span>
-                <input class="input" type="number" min="1" name="data_start_row" value="${state.pipelineForm.dataStartRow}" />
+                <input class="input" type="number" min="1" name="data_start_row" value="${
+                  state.pipelineForm.dataStartRow
+                }" />
               </label>
             </div>
 
@@ -1101,7 +1245,7 @@ function renderPipelineEditor(): string {
         ${renderPipelinePreview()}
       </div>
     </section>
-  `
+  `;
 }
 
 function renderFatalError(): string {
@@ -1110,37 +1254,50 @@ function renderFatalError(): string {
       <div class="welcome-card">
         <p class="eyebrow">Sidecar error</p>
         <h1 class="page-title">The background process is unavailable</h1>
-        <p class="page-copy">${escapeHtml(state.bootstrapError ?? `${APP_NAME} could not reach the local background service.`)}</p>
+        <p class="page-copy">${escapeHtml(
+          state.bootstrapError ??
+            `${APP_NAME} could not reach the local background service.`
+        )}</p>
         <button class="btn-primary" type="button" data-action="retry-bootstrap">Retry</button>
       </div>
     </section>
-  `
+  `;
 }
 
 function render(): void {
-  state.route = getRouteFromHash()
+  state.route = getRouteFromHash();
 
-  let currentRoute = getRouteFromHash()
+  let currentRoute = getRouteFromHash();
 
   if (!state.loading && !state.bootstrapError) {
-    if (!connected() && currentRoute !== "settings" && currentRoute !== "welcome") {
-      navigate("welcome")
-      currentRoute = "welcome"
-    } else if (connected() && state.jobs.length === 0 && (currentRoute === "dashboard" || currentRoute === "welcome")) {
-      navigate("jobs-new")
-      currentRoute = "jobs-new"
+    if (
+      !connected() &&
+      currentRoute !== "settings" &&
+      currentRoute !== "welcome"
+    ) {
+      navigate("welcome");
+      currentRoute = "welcome";
+    } else if (
+      connected() &&
+      state.jobs.length === 0 &&
+      (currentRoute === "dashboard" || currentRoute === "welcome")
+    ) {
+      navigate("jobs-new");
+      currentRoute = "jobs-new";
     }
   }
 
-  const showSidebar = currentRoute !== "welcome" && !state.bootstrapError
-  sidebar.classList.toggle("hidden", !showSidebar)
+  const showSidebar = currentRoute !== "welcome" && !state.bootstrapError;
+  sidebar.classList.toggle("hidden", !showSidebar);
 
-  jobsLink.className = currentRoute === "dashboard" ? "nav-item nav-item-active" : "nav-item"
-  settingsLink.className = currentRoute === "settings" ? "nav-item nav-item-active" : "nav-item"
+  jobsLink.className =
+    currentRoute === "dashboard" ? "nav-item nav-item-active" : "nav-item";
+  settingsLink.className =
+    currentRoute === "settings" ? "nav-item nav-item-active" : "nav-item";
 
-  const status = connectionIndicator()
-  connectionDot.className = status.className
-  connectionDot.title = status.label
+  const status = connectionIndicator();
+  connectionDot.className = status.className;
+  connectionDot.title = status.label;
 
   if (state.loading) {
     mainContent.innerHTML = `
@@ -1151,43 +1308,43 @@ function render(): void {
           <p class="page-copy">Connecting ${APP_NAME} to its local background service and validating your HydroServer configuration.</p>
         </div>
       </section>
-    `
-    return
+    `;
+    return;
   }
 
   if (state.bootstrapError) {
-    mainContent.innerHTML = renderFatalError()
-    return
+    mainContent.innerHTML = renderFatalError();
+    return;
   }
 
   if (currentRoute === "settings") {
-    mainContent.innerHTML = renderSettings()
-    return
+    mainContent.innerHTML = renderSettings();
+    return;
   }
 
   if (currentRoute === "welcome") {
-    mainContent.innerHTML = renderWelcome()
-    return
+    mainContent.innerHTML = renderWelcome();
+    return;
   }
 
   if (currentRoute === "jobs-new") {
-    mainContent.innerHTML = renderPipelineEditor()
-    return
+    mainContent.innerHTML = renderPipelineEditor();
+    return;
   }
 
-  mainContent.innerHTML = renderDashboard()
+  mainContent.innerHTML = renderDashboard();
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise(resolve => window.setTimeout(resolve, ms))
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 function isTransientBootstrapError(error: unknown): boolean {
   if (!(error instanceof Error)) {
-    return false
+    return false;
   }
 
-  const message = error.message.toLowerCase()
+  const message = error.message.toLowerCase();
   return (
     message.includes("failed to fetch") ||
     message.includes("networkerror") ||
@@ -1195,100 +1352,112 @@ function isTransientBootstrapError(error: unknown): boolean {
     message.includes("status 502") ||
     message.includes("status 503") ||
     message.includes("status 504")
-  )
+  );
 }
 
 async function loadInitialStateWithRetry(): Promise<{
-  health: HealthResponse
-  config: AppConfig
-  jobs: JobSummary[]
+  health: HealthResponse;
+  config: AppConfig;
+  jobs: JobSummary[];
 }> {
-  let lastError: unknown = null
+  let lastError: unknown = null;
 
   for (let attempt = 1; attempt <= STARTUP_RETRY_ATTEMPTS; attempt += 1) {
     try {
-      const [health, config, jobs] = await Promise.all([getHealth(), getConfig(), listJobs()])
-      return { health, config, jobs }
+      const [health, config, jobs] = await Promise.all([
+        getHealth(),
+        getConfig(),
+        listJobs(),
+      ]);
+      return { health, config, jobs };
     } catch (error) {
-      lastError = error
+      lastError = error;
 
-      if (attempt === STARTUP_RETRY_ATTEMPTS || !isTransientBootstrapError(error)) {
-        throw error
+      if (
+        attempt === STARTUP_RETRY_ATTEMPTS ||
+        !isTransientBootstrapError(error)
+      ) {
+        throw error;
       }
 
-      await sleep(STARTUP_RETRY_DELAY_MS)
+      await sleep(STARTUP_RETRY_DELAY_MS);
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error(`Failed to load ${APP_NAME}.`)
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`Failed to load ${APP_NAME}.`);
 }
 
 async function syncAuthenticationStatus(
   server: ServerConfig,
   context: "bootstrap" | "welcome" | "settings"
 ): Promise<ConnectionTestResponse> {
-  const result = await testConnection(server)
-  state.lastAuthValidationServer = server
-  state.lastAuthValidationResult = result
-  state.connectionSummary = result
-  state.lastConnectionState = result.state
+  const result = await testConnection(server);
+  state.lastAuthValidationServer = server;
+  state.lastAuthValidationResult = result;
+  state.connectionSummary = result;
+  state.lastConnectionState = result.state;
 
   if (result.ok) {
-    await loadDatastreams()
+    await loadDatastreams();
   } else {
-    state.datastreams = []
-    state.datastreamsError = null
+    state.datastreams = [];
+    state.datastreamsError = null;
   }
 
   if (context === "bootstrap" && !result.ok) {
-    state.welcomeFeedback = { tone: "error", message: result.message }
+    state.welcomeFeedback = { tone: "error", message: result.message };
   }
 
-  return result
+  return result;
 }
 
 async function loadDatastreams(): Promise<void> {
   try {
-    state.datastreams = await getDatastreams()
-    state.datastreamsError = null
+    state.datastreams = await getDatastreams();
+    state.datastreamsError = null;
   } catch (error) {
-    state.datastreams = []
+    state.datastreams = [];
     state.datastreamsError =
-      error instanceof Error ? error.message : "Couldn't load HydroServer datastreams."
+      error instanceof Error
+        ? error.message
+        : "Couldn't load HydroServer datastreams.";
   }
 }
 
 async function bootstrap(): Promise<void> {
-  state.loading = true
-  state.bootstrapError = null
-  render()
+  state.loading = true;
+  state.bootstrapError = null;
+  render();
 
   try {
-    const { health, config, jobs } = await loadInitialStateWithRetry()
-    state.health = health
-    state.config = config
-    state.jobs = jobs
-    state.lastConnectionState = health.connection.state
+    const { health, config, jobs } = await loadInitialStateWithRetry();
+    state.health = health;
+    state.config = config;
+    state.jobs = jobs;
+    state.lastConnectionState = health.connection.state;
 
     if (serverConfigured(config.server)) {
-      await syncAuthenticationStatus(config.server, "bootstrap")
+      await syncAuthenticationStatus(config.server, "bootstrap");
     }
   } catch (error) {
-    state.bootstrapError = error instanceof Error ? error.message : `Failed to load ${APP_NAME}.`
+    state.bootstrapError =
+      error instanceof Error ? error.message : `Failed to load ${APP_NAME}.`;
   } finally {
-    state.loading = false
-    render()
+    state.loading = false;
+    render();
   }
 }
 
 async function refreshJobs(): Promise<void> {
   if (state.bootstrapError || state.loading) {
-    return
+    return;
   }
 
   try {
-    state.jobs = await listJobs()
-    render()
+    state.jobs = await listJobs();
+    render();
   } catch {
     // Keep existing UI state on polling failure.
   }
@@ -1297,145 +1466,165 @@ async function refreshJobs(): Promise<void> {
 function updatePipelineField(name: string, value: string): void {
   switch (name) {
     case "pipeline_name":
-      state.pipelineForm.name = value
-      break
+      state.pipelineForm.name = value;
+      break;
     case "file_path":
-      state.pipelineForm.filePath = value
-      break
+      state.pipelineForm.filePath = value;
+      break;
     case "schedule_minutes":
-      state.pipelineForm.scheduleMinutes = Number(value) || 15
-      break
+      state.pipelineForm.scheduleMinutes = Number(value) || 15;
+      break;
     case "header_row":
-      state.pipelineForm.headerRow = Number(value) || 1
-      break
+      state.pipelineForm.headerRow = Number(value) || 1;
+      break;
     case "data_start_row":
-      state.pipelineForm.dataStartRow = Number(value) || 1
-      break
+      state.pipelineForm.dataStartRow = Number(value) || 1;
+      break;
     case "delimiter":
-      state.pipelineForm.delimiter = value || ","
-      break
+      state.pipelineForm.delimiter = value || ",";
+      break;
     case "timestamp_column":
-      state.pipelineForm.timestampColumn = value
-      initializeMappings(previewHeaders())
-      render()
-      break
+      state.pipelineForm.timestampColumn = value;
+      initializeMappings(previewHeaders());
+      render();
+      break;
     case "timestamp_format":
-      state.pipelineForm.timestampFormat = value
-      break
+      state.pipelineForm.timestampFormat = value;
+      break;
     case "timezone":
-      state.pipelineForm.timezone = value
-      break
+      state.pipelineForm.timezone = value;
+      break;
     default:
-      break
+      break;
   }
 }
 
 function validatePipeline(): string[] {
-  const errors: string[] = []
-  const headers = previewHeaders()
-  const selectedMappings = state.pipelineForm.mappings.filter(mapping => mapping.datastreamId)
-  const datastreamIds = new Set(state.datastreams.map(datastream => datastream.id))
-  const seenTargets = new Set<string>()
+  const errors: string[] = [];
+  const headers = previewHeaders();
+  const selectedMappings = state.pipelineForm.mappings.filter(
+    (mapping) => mapping.datastreamId
+  );
+  const datastreamIds = new Set(
+    state.datastreams.map((datastream) => datastream.id)
+  );
+  const seenTargets = new Set<string>();
 
   if (!connected()) {
-    errors.push("Connect to HydroServer before saving a pipeline.")
+    errors.push("Connect to HydroServer before saving a pipeline.");
   }
 
   if (!state.pipelineForm.name.trim()) {
-    errors.push("Give the pipeline a name.")
+    errors.push("Give the pipeline a name.");
   }
 
   if (!state.pipelineForm.filePath.trim()) {
-    errors.push(`Choose the CSV file ${APP_NAME} should watch.`)
+    errors.push(`Choose the CSV file ${APP_NAME} should watch.`);
   }
 
   if (!state.pipelinePreview) {
-    errors.push("Load a CSV preview before saving the pipeline.")
+    errors.push("Load a CSV preview before saving the pipeline.");
   }
 
   if (state.pipelineForm.headerRow < 1) {
-    errors.push("Header row must be 1 or greater.")
+    errors.push("Header row must be 1 or greater.");
   }
 
   if (state.pipelineForm.dataStartRow <= state.pipelineForm.headerRow) {
-    errors.push("Data start row must come after the header row.")
+    errors.push("Data start row must come after the header row.");
   }
 
-  if (headers.length > 0 && !headers.includes(state.pipelineForm.timestampColumn)) {
-    errors.push("Choose a timestamp column that exists in the previewed CSV header.")
+  if (
+    headers.length > 0 &&
+    !headers.includes(state.pipelineForm.timestampColumn)
+  ) {
+    errors.push(
+      "Choose a timestamp column that exists in the previewed CSV header."
+    );
   }
 
   if (selectedMappings.length === 0) {
-    errors.push("Map at least one source column to a HydroServer datastream.")
+    errors.push("Map at least one source column to a HydroServer datastream.");
   }
 
   for (const mapping of selectedMappings) {
     if (!datastreamIds.has(mapping.datastreamId)) {
-      errors.push(`The selected target for ${mapping.csvColumn} is not a valid HydroServer datastream.`)
+      errors.push(
+        `The selected target for ${mapping.csvColumn} is not a valid HydroServer datastream.`
+      );
     }
 
     if (seenTargets.has(mapping.datastreamId)) {
-      errors.push("Each target datastream can only be mapped once in this first-run flow.")
+      errors.push(
+        "Each target datastream can only be mapped once in this first-run flow."
+      );
     }
 
-    seenTargets.add(mapping.datastreamId)
+    seenTargets.add(mapping.datastreamId);
   }
 
-  return errors
+  return errors;
 }
 
 async function loadPipelinePreview(path: string): Promise<void> {
   if (!path.trim()) {
-    state.pipelineFeedback = { tone: "error", message: "Enter or choose a CSV file path first." }
-    render()
-    return
+    state.pipelineFeedback = {
+      tone: "error",
+      message: "Enter or choose a CSV file path first.",
+    };
+    render();
+    return;
   }
 
   try {
-    const preview = await getCsvPreview(path.trim())
-    applyPreview(path.trim(), preview)
-    state.pipelineErrors = []
+    const preview = await getCsvPreview(path.trim());
+    applyPreview(path.trim(), preview);
+    state.pipelineErrors = [];
     state.pipelineFeedback = {
       tone: "success",
-      message: "Preview loaded. Review the detected structure and map the source columns.",
-    }
+      message:
+        "Preview loaded. Review the detected structure and map the source columns.",
+    };
   } catch (error) {
-    state.pipelinePreview = null
+    state.pipelinePreview = null;
     state.pipelineFeedback = {
       tone: "error",
-      message: error instanceof Error ? error.message : "Couldn't preview that CSV file.",
-    }
+      message:
+        error instanceof Error
+          ? error.message
+          : "Couldn't preview that CSV file.",
+    };
   }
 
-  render()
+  render();
 }
 
 async function browseForCsvPath(): Promise<void> {
   try {
-    const dialog = await import("@tauri-apps/plugin-dialog")
+    const dialog = await import("@tauri-apps/plugin-dialog");
     const selection = await dialog.open({
       directory: false,
       multiple: false,
       filters: [{ name: "CSV files", extensions: ["csv", "txt"] }],
-    })
+    });
 
     if (typeof selection !== "string" || !selection) {
-      return
+      return;
     }
 
-    state.pipelineForm.filePath = selection
+    state.pipelineForm.filePath = selection;
     if (!state.pipelineForm.name.trim()) {
-      state.pipelineForm.name = basename(selection).replace(/\.[^.]+$/, "")
+      state.pipelineForm.name = basename(selection).replace(/\.[^.]+$/, "");
     }
 
-    await loadPipelinePreview(selection)
+    await loadPipelinePreview(selection);
   } catch {
     state.pipelineFeedback = {
       tone: "info",
       message:
         "The native file picker is only available in the desktop app. Enter the CSV path manually if you're using the browser preview.",
-    }
-    render()
+    };
+    render();
   }
 }
 
@@ -1444,91 +1633,121 @@ async function saveAuthenticatedServerConfig(
   context: "welcome" | "settings"
 ): Promise<void> {
   if (state.authSubmitting) {
-    return
+    return;
   }
 
-  const payload = readServerConfigForm(form)
-  setServerDraft(payload)
+  const payload = readServerConfigForm(form);
+  setServerDraft(payload);
 
-  const feedbackKey = context === "welcome" ? "welcomeFeedback" : "settingsFeedback"
+  const feedbackKey =
+    context === "welcome" ? "welcomeFeedback" : "settingsFeedback";
   const canReuseValidation =
     sameServerConfig(state.lastAuthValidationServer, payload) &&
-    state.lastAuthValidationResult?.ok === true
+    state.lastAuthValidationResult?.ok === true;
 
   try {
-    state.authSubmitting = true
-    setAuthFieldLoading(payload)
-    render()
+    state.authSubmitting = true;
+    setAuthFieldLoading(payload);
+    render();
 
     const result = canReuseValidation
       ? state.lastAuthValidationResult!
-      : await syncAuthenticationStatus(payload, context)
+      : await syncAuthenticationStatus(payload, context);
 
     if (canReuseValidation) {
-      state.connectionSummary = result
-      state.lastConnectionState = result.state
-      await loadDatastreams()
+      state.connectionSummary = result;
+      state.lastConnectionState = result.state;
+      await loadDatastreams();
     }
 
-    applyConnectionValidationResult(payload, result)
+    applyConnectionValidationResult(payload, result);
     if (!result.ok) {
-      state[feedbackKey] = { tone: "error", message: result.message }
-      render()
-      return
+      state[feedbackKey] = { tone: "error", message: result.message };
+      render();
+      return;
     }
 
-    state.config = await updateServerConfig(payload)
+    state.config = await updateServerConfig(payload);
     state.authDraft = {
       ...emptyServerConfig(),
       ...state.config.server,
-    }
-    state[feedbackKey] = { tone: "success", message: result.message }
-    state.settingsEditMode = false
+    };
+    state[feedbackKey] = { tone: "success", message: result.message };
+    state.settingsEditMode = false;
 
     if (state.jobs.length === 0) {
-      navigate("jobs-new")
+      navigate("jobs-new");
     } else {
-      navigate("dashboard")
+      navigate("dashboard");
     }
   } catch (error) {
-    clearAuthValidationCache()
+    clearAuthValidationCache();
     state[feedbackKey] = {
       tone: "error",
       message:
         error instanceof Error
           ? error.message
           : "Couldn't verify the HydroServer connection.",
-    }
-    state.lastConnectionState = "error"
+    };
+    state.lastConnectionState = "error";
   } finally {
-    state.authSubmitting = false
+    state.authSubmitting = false;
   }
 
-  render()
+  render();
+}
+
+async function disconnectHydroServer(): Promise<void> {
+  try {
+    state.config = await clearServerConfig();
+    state.authDraft = emptyServerConfig();
+    state.connectionSummary = null;
+    state.lastConnectionState = "not_configured";
+    state.datastreams = [];
+    state.datastreamsError = null;
+    state.welcomeFeedback = null;
+    state.settingsFeedback = null;
+    state.settingsEditMode = false;
+    resetAuthFieldStates("apikey");
+    clearAuthValidationCache();
+    navigate("welcome");
+  } catch (error) {
+    state.settingsFeedback = {
+      tone: "error",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Couldn't disconnect from HydroServer right now.",
+    };
+  }
+
+  render();
 }
 
 async function savePipeline(): Promise<void> {
-  state.pipelineErrors = validatePipeline()
+  state.pipelineErrors = validatePipeline();
 
   if (state.pipelineErrors.length > 0) {
     state.pipelineFeedback = {
       tone: "error",
       message: `${APP_NAME} needs a little more information before it can save this pipeline.`,
-    }
-    render()
-    return
+    };
+    render();
+    return;
   }
 
   const mappedColumns = state.pipelineForm.mappings
-    .filter(mapping => mapping.datastreamId)
-    .map(mapping => {
-      const datastream = state.datastreams.find(item => item.id === mapping.datastreamId)
+    .filter((mapping) => mapping.datastreamId)
+    .map((mapping) => {
+      const datastream = state.datastreams.find(
+        (item) => item.id === mapping.datastreamId
+      );
       return {
         csv_column: mapping.csvColumn,
         datastream_id: mapping.datastreamId,
         datastream_name: datastream?.name ?? mapping.datastreamId,
-      }
-    })
+      };
+    });
 
   try {
     const created = await createJob({
@@ -1545,70 +1764,74 @@ async function savePipeline(): Promise<void> {
         timezone: state.pipelineForm.timezone,
       },
       column_mappings: mappedColumns,
-    })
+    });
 
-    state.jobs = [...state.jobs, created]
-    state.pipelineForm = createEmptyPipelineForm()
-    state.pipelinePreview = null
-    state.pipelineErrors = []
-    state.pipelineFeedback = { tone: "success", message: "Pipeline saved." }
-    navigate("dashboard")
+    state.jobs = [...state.jobs, created];
+    state.pipelineForm = createEmptyPipelineForm();
+    state.pipelinePreview = null;
+    state.pipelineErrors = [];
+    state.pipelineFeedback = { tone: "success", message: "Pipeline saved." };
+    navigate("dashboard");
   } catch (error) {
     state.pipelineFeedback = {
       tone: "error",
-      message: error instanceof Error ? error.message : "Couldn't save that pipeline.",
-    }
+      message:
+        error instanceof Error ? error.message : "Couldn't save that pipeline.",
+    };
   }
 
-  render()
+  render();
 }
 
 window.addEventListener("hashchange", () => {
-  state.settingsFeedback = null
-  render()
-})
+  state.settingsFeedback = null;
+  render();
+});
 
-mainContent.addEventListener("submit", event => {
-  const target = event.target
+mainContent.addEventListener("submit", (event) => {
+  const target = event.target;
   if (!(target instanceof HTMLFormElement)) {
-    return
+    return;
   }
 
-  event.preventDefault()
+  event.preventDefault();
 
   if (target.id === "welcome-form") {
-    void saveAuthenticatedServerConfig(target, "welcome")
-    return
+    void saveAuthenticatedServerConfig(target, "welcome");
+    return;
   }
 
   if (target.id === "settings-form") {
-    void saveAuthenticatedServerConfig(target, "settings")
-    return
+    void saveAuthenticatedServerConfig(target, "settings");
+    return;
   }
 
   if (target.id === "pipeline-form") {
-    void savePipeline()
+    void savePipeline();
   }
-})
+});
 
-mainContent.addEventListener("input", event => {
-  const target = event.target
+mainContent.addEventListener("input", (event) => {
+  const target = event.target;
 
   if (
     !(
       target instanceof HTMLInputElement ||
       target instanceof HTMLSelectElement ||
       target instanceof HTMLTextAreaElement
-  )
+    )
   ) {
-    return
+    return;
   }
 
-  if (target.form?.id === "welcome-form" || target.form?.id === "settings-form") {
-    const form = target.form
-    setServerDraft(readServerConfigForm(form))
-    clearAuthFormFeedback(form.id)
-    clearAuthValidationCache()
+  if (
+    target.form?.id === "welcome-form" ||
+    target.form?.id === "settings-form"
+  ) {
+    const form = target.form;
+    setServerDraft(readServerConfigForm(form));
+    clearAuthFormFeedback(form.id);
+    clearAuthValidationCache();
 
     if (
       target instanceof HTMLInputElement &&
@@ -1617,38 +1840,40 @@ mainContent.addEventListener("input", event => {
         target.name === "username" ||
         target.name === "password")
     ) {
-      markField(target.name, "idle")
+      markField(target.name, "idle");
     }
-    return
+    return;
   }
 
   if (target.form?.id !== "pipeline-form") {
-    return
+    return;
   }
 
-  state.pipelineFeedback = null
-  state.pipelineErrors = []
+  state.pipelineFeedback = null;
+  state.pipelineErrors = [];
 
-  const mappingColumn = target.dataset.mappingColumn
+  const mappingColumn = target.dataset.mappingColumn;
   if (mappingColumn) {
-    const mapping = state.pipelineForm.mappings.find(item => item.csvColumn === mappingColumn)
+    const mapping = state.pipelineForm.mappings.find(
+      (item) => item.csvColumn === mappingColumn
+    );
     if (mapping) {
-      mapping.datastreamId = target.value
+      mapping.datastreamId = target.value;
     }
-    return
+    return;
   }
 
-  updatePipelineField(target.name, target.value)
-})
+  updatePipelineField(target.name, target.value);
+});
 
-mainContent.addEventListener("focusout", event => {
-  const target = event.target
+mainContent.addEventListener("focusout", (event) => {
+  const target = event.target;
   if (!(target instanceof HTMLInputElement) || !target.form) {
-    return
+    return;
   }
 
   if (target.form.id !== "welcome-form" && target.form.id !== "settings-form") {
-    return
+    return;
   }
 
   if (
@@ -1657,141 +1882,147 @@ mainContent.addEventListener("focusout", event => {
     target.name !== "username" &&
     target.name !== "password"
   ) {
-    return
+    return;
   }
 
-  void validateAuthField(target.form, target.name)
-})
+  void validateAuthField(target.form, target.name);
+});
 
-mainContent.addEventListener("click", event => {
-  const target = event.target
+mainContent.addEventListener("click", (event) => {
+  const target = event.target;
   if (!(target instanceof HTMLElement)) {
-    return
+    return;
   }
 
-  const action = target.closest<HTMLElement>("[data-action]")?.dataset.action
-  const jobId = target.closest<HTMLElement>("[data-job-id]")?.dataset.jobId
+  const action = target.closest<HTMLElement>("[data-action]")?.dataset.action;
+  const jobId = target.closest<HTMLElement>("[data-job-id]")?.dataset.jobId;
 
   if (!action) {
-    return
+    return;
   }
 
   if (action === "retry-bootstrap") {
-    void bootstrap()
-    return
+    void bootstrap();
+    return;
   }
 
   if (action === "toggle-auth-mode") {
-    const form = target.closest<HTMLFormElement>("form")
+    const form = target.closest<HTMLFormElement>("form");
     if (!form) {
-      return
+      return;
     }
 
-    const nextServer = readServerConfigForm(form)
-    const nextAuthType: AuthType = nextServer.auth_type === "apikey" ? "userpass" : "apikey"
+    const nextServer = readServerConfigForm(form);
+    const nextAuthType: AuthType =
+      nextServer.auth_type === "apikey" ? "userpass" : "apikey";
     setServerDraft({
       ...nextServer,
       auth_type: nextAuthType,
-    })
-    resetAuthFieldStates(nextAuthType)
+    });
+    resetAuthFieldStates(nextAuthType);
 
-    clearAuthFormFeedback(form.id)
-    clearAuthValidationCache()
+    clearAuthFormFeedback(form.id);
+    clearAuthValidationCache();
 
-    render()
-    return
+    render();
+    return;
+  }
+
+  if (action === "disconnect") {
+    void disconnectHydroServer();
+    return;
   }
 
   if (action === "change-credentials") {
     state.authDraft = {
       ...emptyServerConfig(),
       ...(state.config?.server ?? {}),
-    }
-    state.settingsEditMode = true
-    navigate("settings")
-    render()
-    return
+    };
+    state.settingsEditMode = true;
+    navigate("settings");
+    render();
+    return;
   }
 
   if (action === "cancel-credential-edit") {
     state.authDraft = {
       ...emptyServerConfig(),
       ...(state.config?.server ?? {}),
-    }
-    state.settingsEditMode = false
-    render()
-    return
+    };
+    state.settingsEditMode = false;
+    render();
+    return;
   }
 
   if (action === "browse-csv") {
-    void browseForCsvPath()
-    return
+    void browseForCsvPath();
+    return;
   }
 
   if (action === "load-preview") {
-    void loadPipelinePreview(state.pipelineForm.filePath)
-    return
+    void loadPipelinePreview(state.pipelineForm.filePath);
+    return;
   }
 
   if (!jobId) {
-    return
+    return;
   }
 
   if (action === "run-job") {
-    void handleRunJob(jobId)
-    return
+    void handleRunJob(jobId);
+    return;
   }
 
   if (action === "toggle-job") {
-    void handleToggleJob(jobId)
-    return
+    void handleToggleJob(jobId);
+    return;
   }
 
   if (action === "delete-job") {
-    void handleDeleteJob(jobId)
+    void handleDeleteJob(jobId);
   }
-})
+});
 
 async function handleRunJob(jobId: string): Promise<void> {
   try {
-    await runJob(jobId)
-    await refreshJobs()
+    await runJob(jobId);
+    await refreshJobs();
   } catch {
     // Keep dashboard state unchanged on action failure.
   }
 }
 
 async function handleToggleJob(jobId: string): Promise<void> {
-  const job = state.jobs.find(item => item.id === jobId)
+  const job = state.jobs.find((item) => item.id === jobId);
   if (!job) {
-    return
+    return;
   }
 
   try {
     if (job.enabled) {
-      await disableJob(jobId)
+      await disableJob(jobId);
     } else {
-      await enableJob(jobId)
+      await enableJob(jobId);
     }
 
-    await refreshJobs()
+    await refreshJobs();
   } catch {
     // Keep dashboard state unchanged on action failure.
   }
 }
 
 async function handleDeleteJob(jobId: string): Promise<void> {
-  const confirmed = window.confirm("Delete this pipeline?")
+  const confirmed = window.confirm("Delete this pipeline?");
   if (!confirmed) {
-    return
+    return;
   }
 
   try {
-    await deleteJob(jobId)
-    await refreshJobs()
+    await deleteJob(jobId);
+    await refreshJobs();
   } catch {
     // Keep dashboard state unchanged on action failure.
   }
 }
 
-void bootstrap()
+void bootstrap();
