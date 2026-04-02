@@ -25,6 +25,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host", default=os.environ.get("SDL_SIDECAR_HOST", "127.0.0.1"))
     parser.add_argument("--port", type=int, default=int(os.environ.get("SDL_SIDECAR_PORT", "8765")))
     parser.add_argument(
+        "--reload",
+        action="store_true",
+        default=os.environ.get("SDL_SIDECAR_RELOAD", "").lower() in {"1", "true", "yes"},
+    )
+    parser.add_argument(
         "--config-dir",
         default=os.environ.get("SDL_CONFIG_DIR", str(default_config_dir())),
     )
@@ -49,9 +54,26 @@ def build_runtime() -> AppRuntime:
 
 def run() -> None:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+    args = parse_args()
+
+    if args.reload:
+        uvicorn.run(
+            "sidecar.main:create_dev_app",
+            host=args.host,
+            port=args.port,
+            reload=True,
+            factory=True,
+        )
+        return
+
     runtime = build_runtime()
     app = create_app(runtime)
     uvicorn.run(app, host=runtime.settings.host, port=runtime.settings.port, reload=False)
+
+
+def create_dev_app():
+    runtime = build_runtime()
+    return create_app(runtime)
 
 
 if __name__ == "__main__":

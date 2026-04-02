@@ -67,7 +67,7 @@ def create_app(runtime: AppRuntime) -> FastAPI:
         return HealthResponse(
             version=runtime.settings.version,
             config_dir=str(runtime.settings.config_dir),
-            server_configured=bool(config.server.url and config.server.api_key),
+            server_configured=_server_is_configured(config.server),
             connection=connection,
         )
 
@@ -94,6 +94,9 @@ def create_app(runtime: AppRuntime) -> FastAPI:
             state=result.state,  # type: ignore[arg-type]
             message=result.message,
             instance_name=result.instance_name,
+            workspace_count=result.workspace_count,
+            datastream_count=result.datastream_count,
+            permissions_ok=result.permissions_ok,
         )
 
     @app.get("/jobs", response_model=list[JobStatusSummary], tags=["jobs"])
@@ -246,9 +249,17 @@ def _derive_job_status(job: JobConfig, cursor: JobCursor, is_running: bool) -> t
 
 
 def _connection_status(server: ServerConfig) -> ConnectionStatus:
-    if not server.url.strip() or not server.api_key.strip():
+    if not _server_is_configured(server):
         return ConnectionStatus(state="not_configured", message="HydroServer not configured")
     return ConnectionStatus(state="configured", message="HydroServer configured")
+
+
+def _server_is_configured(server: ServerConfig) -> bool:
+    if not server.url.strip():
+        return False
+    if server.auth_type == "userpass":
+        return bool(server.username.strip() and server.password.strip())
+    return bool(server.api_key.strip())
 
 
 def _simulate_job_run(runtime: AppRuntime, job: JobConfig) -> None:

@@ -36,7 +36,13 @@ class ConfigStore:
 
     def update_server(self, update: ServerConfigUpdate) -> AppConfig:
         config = self.load()
-        config.server = ServerConfig(url=update.url.strip(), api_key=update.api_key.strip())
+        config.server = ServerConfig(
+            auth_type=update.auth_type,
+            url=update.url.strip(),
+            api_key=update.api_key.strip() if update.auth_type == "apikey" else "",
+            username=update.username.strip() if update.auth_type == "userpass" else "",
+            password=update.password.strip() if update.auth_type == "userpass" else "",
+        )
         return self.save(config)
 
     def list_jobs(self) -> list[JobConfig]:

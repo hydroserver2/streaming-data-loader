@@ -33,6 +33,16 @@
   }
 }
 
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
 @layer base {
   html {
     -webkit-font-smoothing: antialiased;
@@ -70,7 +80,7 @@
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-brand-600;
   }
 
   .btn-ghost {
@@ -107,6 +117,11 @@
 
   .settings-card,
   .welcome-card,
+  .auth-card,
+  .summary-card,
+  .pipeline-form,
+  .preview-card,
+  .pipeline-subcard,
   .job-card,
   .empty-panel {
     border-color: var(--color-surface-border);
@@ -114,8 +129,50 @@
     @apply rounded-2xl border bg-white;
   }
 
-  .settings-card {
+  .settings-card,
+  .auth-card {
     @apply max-w-3xl overflow-hidden;
+  }
+
+  .auth-header {
+    @apply flex flex-col items-center;
+  }
+
+  .auth-app-icon {
+    @apply mb-5 h-11 w-11 shrink-0;
+    filter: drop-shadow(0 8px 18px rgb(14 116 144 / 0.14));
+  }
+
+  .auth-header .page-title {
+    @apply text-[1.5rem] font-semibold leading-tight;
+  }
+
+  .auth-intro {
+    @apply grid gap-4 rounded-xl border border-slate-200 bg-slate-50/80 p-4 md:grid-cols-2;
+  }
+
+  .auth-intro-block {
+    @apply flex flex-col gap-2;
+  }
+
+  .auth-intro-label {
+    @apply text-xs font-semibold uppercase tracking-[0.18em] text-slate-500;
+  }
+
+  .summary-card {
+    @apply flex flex-col gap-5 p-6 md:flex-row md:items-center md:justify-between;
+  }
+
+  .summary-card-copy {
+    @apply flex flex-col gap-2;
+  }
+
+  .summary-inline {
+    @apply mt-1 flex flex-wrap items-center gap-3;
+  }
+
+  .summary-meta {
+    @apply text-sm text-slate-500;
   }
 
   .card-section {
@@ -138,6 +195,14 @@
     @apply flex flex-col gap-1.5;
   }
 
+  .field-control {
+    @apply relative block;
+  }
+
+  .field-hint {
+    @apply text-xs leading-5 text-slate-500;
+  }
+
   .label {
     @apply text-xs font-medium uppercase tracking-wide text-slate-500;
   }
@@ -146,8 +211,77 @@
     @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-sky-100;
   }
 
+  .input-with-status {
+    @apply pr-10;
+  }
+
+  .input-status {
+    @apply pointer-events-none absolute inset-y-0 right-3 inline-flex items-center text-sm font-semibold;
+  }
+
+  .input-status-valid {
+    @apply text-emerald-600;
+  }
+
+  .input-status-invalid {
+    @apply text-red-600;
+  }
+
+  .input-status-checking {
+    @apply text-slate-400;
+  }
+
+  .input-spinner {
+    @apply h-4 w-4 rounded-full border-2 border-slate-300 border-t-brand-600;
+    animation: spin 650ms linear infinite;
+  }
+
+  .field-error {
+    @apply text-sm text-red-600;
+  }
+
   .button-row {
     @apply flex flex-wrap items-center gap-3 pt-2;
+  }
+
+  .button-row-between {
+    @apply justify-between;
+  }
+
+  .button-row-tight {
+    @apply gap-2 pt-0;
+  }
+
+  .button-row-end {
+    @apply justify-end;
+  }
+
+  .btn-link {
+    @apply inline-flex items-center gap-2 text-sm font-medium text-brand-700 hover:text-brand-600;
+  }
+
+  .text-link {
+    @apply inline-flex text-sm font-medium text-brand-700 underline underline-offset-3 hover:text-brand-600;
+  }
+
+  .auth-toggle-group {
+    @apply flex flex-col items-center gap-1 py-1;
+  }
+
+  .auth-divider-label {
+    @apply text-xs text-slate-400;
+  }
+
+  .auth-toggle {
+    @apply mx-auto w-fit cursor-pointer appearance-none border-0 bg-transparent p-0 text-sm text-slate-500 hover:text-slate-700;
+  }
+
+  .onboarding-list {
+    @apply m-0 flex list-decimal flex-col gap-2 pl-5 text-sm leading-6 text-slate-600;
+  }
+
+  .onboarding-list-compact {
+    @apply gap-1.5;
   }
 
   .notice-success,
@@ -174,6 +308,118 @@
 
   .welcome-card {
     @apply w-full max-w-2xl p-8 md:p-10;
+  }
+
+  .pipeline-layout {
+    @apply grid gap-6 xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)];
+  }
+
+  .pipeline-form {
+    @apply flex flex-col gap-4 p-5;
+  }
+
+  .pipeline-subcard {
+    @apply rounded-xl border border-slate-200 bg-slate-50/40 p-4;
+  }
+
+  .split-fields {
+    @apply grid gap-4 sm:grid-cols-2;
+  }
+
+  .mapping-grid {
+    @apply mt-4 flex flex-col gap-3;
+  }
+
+  .mapping-row {
+    @apply grid items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)];
+  }
+
+  .mapping-source {
+    @apply text-sm font-medium text-slate-800;
+  }
+
+  .mapping-help {
+    @apply mt-1 text-xs text-slate-500;
+  }
+
+  .preview-card {
+    @apply flex min-h-[32rem] flex-col overflow-hidden p-5;
+  }
+
+  .preview-header {
+    @apply flex flex-col gap-4 border-b border-slate-100 pb-4;
+  }
+
+  .preview-summary {
+    @apply flex flex-wrap gap-2;
+  }
+
+  .preview-raw {
+    @apply mt-4 rounded-xl border border-slate-200 bg-slate-950 p-3 text-xs text-slate-200;
+  }
+
+  .preview-raw-line {
+    @apply grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3 border-b border-slate-800/80 px-1 py-1.5 last:border-b-0;
+  }
+
+  .preview-raw-line-header {
+    @apply bg-sky-950/60;
+  }
+
+  .preview-raw-line-data {
+    @apply bg-emerald-950/40;
+  }
+
+  .preview-line-number {
+    @apply font-mono text-slate-400;
+  }
+
+  .preview-table-shell {
+    @apply mt-4 overflow-auto rounded-xl border border-slate-200;
+  }
+
+  .preview-table {
+    @apply min-w-full border-collapse text-left text-xs;
+  }
+
+  .preview-table thead {
+    @apply bg-slate-100;
+  }
+
+  .preview-table tbody tr:nth-child(odd) {
+    @apply bg-white;
+  }
+
+  .preview-table tbody tr:nth-child(even) {
+    @apply bg-slate-50/70;
+  }
+
+  .preview-cell {
+    @apply border-b border-slate-200 px-3 py-2 font-mono text-slate-700;
+  }
+
+  .preview-col-timestamp {
+    @apply bg-brand-50 text-brand-700;
+  }
+
+  .preview-col-mapped {
+    @apply bg-emerald-50 text-emerald-700;
+  }
+
+  .preview-footer {
+    @apply mt-4 text-xs text-slate-500;
+  }
+
+  .preview-placeholder {
+    @apply flex h-full min-h-[20rem] flex-col items-center justify-center gap-4 text-center;
+  }
+
+  .validation-panel {
+    @apply rounded-xl border border-red-200 bg-red-50 p-4;
+  }
+
+  .validation-list {
+    @apply mt-3 list-disc pl-5 text-sm leading-6 text-red-700;
   }
 
   .empty-panel {

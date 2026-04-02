@@ -3,32 +3,36 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 JobStatus = Literal["healthy", "warning", "error", "disabled", "pending", "running"]
 ConnectionState = Literal["not_configured", "configured", "connected", "error"]
 LogLevel = Literal["info", "warning", "error"]
+AuthType = Literal["apikey", "userpass"]
 
 
 class ServerConfig(BaseModel):
+    auth_type: AuthType = "apikey"
     url: str = ""
     api_key: str = ""
+    username: str = ""
+    password: str = ""
 
 
 class FileConfig(BaseModel):
-    header_row: int = 3
-    data_start_row: int = 4
-    delimiter: str = ","
-    timestamp_column: str = "Timestamp"
-    timestamp_format: str = "%Y-%m-%d %H:%M:%S"
-    timezone: str = "America/Denver"
+    header_row: int = Field(default=3, ge=1)
+    data_start_row: int = Field(default=4, ge=1)
+    delimiter: str = Field(default=",", min_length=1, max_length=2)
+    timestamp_column: str = Field(default="Timestamp", min_length=1)
+    timestamp_format: str = Field(default="%Y-%m-%d %H:%M:%S", min_length=1)
+    timezone: str = Field(default="America/Denver", min_length=1)
 
 
 class ColumnMapping(BaseModel):
-    csv_column: str
-    datastream_id: str
-    datastream_name: str
+    csv_column: str = Field(min_length=1)
+    datastream_id: str = Field(min_length=1)
+    datastream_name: str = Field(min_length=1)
 
 
 class JobConfig(BaseModel):
@@ -79,13 +83,43 @@ class HealthResponse(BaseModel):
 
 
 class ServerConfigUpdate(BaseModel):
+    auth_type: AuthType = "apikey"
     url: str
     api_key: str
+    username: str = ""
+    password: str = ""
+
+    @model_validator(mode="after")
+    def validate_auth_fields(self) -> "ServerConfigUpdate":
+        if not self.url.strip():
+            raise ValueError("Host URL is required.")
+        if self.auth_type == "apikey" and not self.api_key.strip():
+            raise ValueError("API key is required.")
+        if self.auth_type == "userpass" and (
+            not self.username.strip() or not self.password.strip()
+        ):
+            raise ValueError("Username and password are required.")
+        return self
 
 
 class ConnectionTestRequest(BaseModel):
+    auth_type: AuthType = "apikey"
     url: str
     api_key: str
+    username: str = ""
+    password: str = ""
+
+    @model_validator(mode="after")
+    def validate_auth_fields(self) -> "ConnectionTestRequest":
+        if not self.url.strip():
+            raise ValueError("Host URL is required.")
+        if self.auth_type == "apikey" and not self.api_key.strip():
+            raise ValueError("API key is required.")
+        if self.auth_type == "userpass" and (
+            not self.username.strip() or not self.password.strip()
+        ):
+            raise ValueError("Username and password are required.")
+        return self
 
 
 class ConnectionTestResponse(BaseModel):
@@ -93,6 +127,9 @@ class ConnectionTestResponse(BaseModel):
     state: ConnectionState
     message: str
     instance_name: str | None = None
+    workspace_count: int = 0
+    datastream_count: int = 0
+    permissions_ok: bool = False
 
 
 class ActionResponse(BaseModel):
@@ -125,9 +162,9 @@ class JobDetail(JobStatusSummary):
 
 
 class JobUpsertRequest(BaseModel):
-    name: str
+    name: str = Field(min_length=1)
     enabled: bool = True
-    file_path: str
+    file_path: str = Field(min_length=1)
     schedule_minutes: int = Field(default=15, ge=1)
     file_config: FileConfig = Field(default_factory=FileConfig)
     column_mappings: list[ColumnMapping] = Field(default_factory=list)

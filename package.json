@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "dependencies": {
+    "@tauri-apps/plugin-dialog": "^2.0.0"
+  },
   "scripts": {
     "bootstrap:frontend": "node ./scripts/bootstrap-frontend.mjs",
     "bootstrap:sidecar": "node ./scripts/bootstrap-sidecar.mjs",

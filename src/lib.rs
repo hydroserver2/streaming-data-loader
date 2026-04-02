@@ -1,11 +1,9 @@
 use std::{
     collections::HashMap,
     fs,
-    net::{TcpStream, ToSocketAddrs},
     path::{Path, PathBuf},
     process::{Child, Command, Stdio},
     sync::Mutex,
-    time::Duration,
 };
 
 struct SidecarState(Mutex<Option<Child>>);
@@ -13,6 +11,7 @@ struct SidecarState(Mutex<Option<Child>>);
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(SidecarState(Mutex::new(None)))
         .setup(|app| {
@@ -38,19 +37,6 @@ fn start_sidecar(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
     }
 
     let env_vars = read_env_file(&workspace_root().join(".env.development"))?;
-    let host = env_vars
-        .get("SDL_SIDECAR_HOST")
-        .cloned()
-        .unwrap_or_else(|| "127.0.0.1".to_string());
-    let port = env_vars
-        .get("SDL_SIDECAR_PORT")
-        .and_then(|value| value.parse::<u16>().ok())
-        .unwrap_or(5321);
-
-    if port_is_in_use(&host, port) {
-        return Ok(());
-    }
-
     let child = Command::new("node")
         .arg("./scripts/run-sidecar.mjs")
         .current_dir(workspace_root())
@@ -89,18 +75,6 @@ fn read_env_file(path: &Path) -> Result<HashMap<String, String>, Box<dyn std::er
     }
 
     Ok(env_vars)
-}
-
-fn port_is_in_use(host: &str, port: u16) -> bool {
-    let address = format!("{host}:{port}");
-    address
-        .to_socket_addrs()
-        .map(|addresses| {
-            addresses.into_iter().any(|socket| {
-                TcpStream::connect_timeout(&socket, Duration::from_millis(200)).is_ok()
-            })
-        })
-        .unwrap_or(false)
 }
 
 fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
