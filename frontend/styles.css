@@ -51,9 +51,7 @@
   body {
     min-height: 100vh;
     margin: 0;
-    background:
-      radial-gradient(circle at top right, rgb(125 211 252 / 0.18), transparent 24%),
-      linear-gradient(180deg, #f8fafc 0%, #eef6fb 100%);
+    background: #edf1f5;
     color: #1e293b;
     font-family: var(--font-sans);
   }
@@ -131,7 +129,7 @@
 
   .settings-card,
   .auth-card {
-    @apply max-w-3xl overflow-hidden;
+    @apply w-full max-w-3xl overflow-hidden;
   }
 
   .auth-header {
@@ -311,11 +309,23 @@
   }
 
   .welcome-shell {
-    @apply flex min-h-screen items-center justify-center px-6 py-10;
+    @apply flex min-h-screen w-full items-stretch bg-[#edf1f5];
   }
 
   .welcome-card {
     @apply w-full max-w-2xl p-8 md:p-10;
+  }
+
+  .welcome-shell .auth-card {
+    @apply flex w-full max-w-none flex-col justify-center rounded-none border-0 bg-transparent shadow-none;
+  }
+
+  .welcome-shell .card-section {
+    @apply mx-auto w-full max-w-[42rem] gap-5 border-0 px-10 py-0;
+  }
+
+  .welcome-shell .card-section + .card-section {
+    @apply mt-8;
   }
 
   .pipeline-layout {
