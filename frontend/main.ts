@@ -55,6 +55,7 @@ type PipelineFormState = {
   name: string;
   filePath: string;
   scheduleMinutes: number;
+  hasHeaderRow: boolean;
   headerRow: number;
   dataStartRow: number;
   delimiter: string;
@@ -69,6 +70,27 @@ type PreviewSelectionTarget =
   | "data-start-row"
   | "timestamp-column"
   | null;
+
+type PreviewRowSelectionTarget = Exclude<
+  PreviewSelectionTarget,
+  "timestamp-column" | null
+>;
+
+type PreviewDragState = {
+  target: PreviewRowSelectionTarget;
+  lineNumber: number;
+  pointerId: number;
+  moved: boolean;
+};
+
+type PreviewDragVisualState = {
+  handle: HTMLElement;
+  startClientY: number;
+  currentClientY: number;
+  rowButtons: Map<number, HTMLButtonElement>;
+  rowCenters: Array<{ lineNumber: number; centerY: number }>;
+  frameRequested: boolean;
+};
 
 type UiState = {
   route: AppRoute;
@@ -94,6 +116,7 @@ type UiState = {
   lastAuthValidationServer: ServerConfig | null;
   lastAuthValidationResult: ConnectionTestResponse | null;
   pipelineSelectionTarget: PreviewSelectionTarget;
+  pipelineDrag: PreviewDragState | null;
 };
 
 const shellElements = {
@@ -122,12 +145,15 @@ const { sidebar, mainContent, jobsLink, settingsLink, connectionDot } =
   shellElements;
 
 let lastRenderedMarkup = "";
+let suppressPreviewHandleClick = false;
+let previewDragVisual: PreviewDragVisualState | null = null;
 
 function createEmptyPipelineForm(): PipelineFormState {
   return {
     name: "",
     filePath: "",
     scheduleMinutes: 15,
+    hasHeaderRow: true,
     headerRow: 3,
     dataStartRow: 4,
     delimiter: ",",
@@ -162,6 +188,7 @@ const state: UiState = {
   lastAuthValidationServer: null,
   lastAuthValidationResult: null,
   pipelineSelectionTarget: null,
+  pipelineDrag: null,
 };
 
 function emptyServerConfig(): ServerConfig {
@@ -369,10 +396,217 @@ function clearAuthValidationCache(): void {
 
 function previewHeaders(): string[] {
   const rows = parsedPreviewRows();
+  if (!state.pipelineForm.hasHeaderRow) {
+    const dataRows = rows.slice(Math.max(state.pipelineForm.dataStartRow - 1, 0));
+    const columnCount = (dataRows.length > 0 ? dataRows : rows).reduce(
+      (max, row) => Math.max(max, row.length),
+      0
+    );
+    return Array.from(
+      { length: columnCount },
+      (_, index) => `Column ${index + 1}`
+    );
+  }
+
   const headerRow = rows[state.pipelineForm.headerRow - 1] ?? [];
   return headerRow.map((cell, index) =>
     normalizePreviewHeaderName(cell, index)
   );
+}
+
+function activePreviewRowTarget(): PreviewRowSelectionTarget | null {
+  if (state.pipelineDrag) {
+    return state.pipelineDrag.target;
+  }
+
+  return state.pipelineSelectionTarget === "header-row" ||
+    state.pipelineSelectionTarget === "data-start-row"
+    ? state.pipelineSelectionTarget
+    : null;
+}
+
+function previewHandleLine(
+  target: PreviewRowSelectionTarget
+): number | null {
+  if (state.pipelineDrag?.target === target) {
+    return state.pipelineDrag.lineNumber;
+  }
+
+  if (target === "header-row") {
+    return state.pipelineForm.hasHeaderRow ? state.pipelineForm.headerRow : null;
+  }
+
+  return state.pipelineForm.dataStartRow;
+}
+
+function setPreviewRowSelectionTarget(
+  target: PreviewRowSelectionTarget,
+  lineNumber: number
+): void {
+  if (target === "header-row") {
+    updateHeaderRowFromPreview(lineNumber);
+    return;
+  }
+
+  updateDataStartRowFromPreview(lineNumber);
+}
+
+function previewCommittedHandleLine(
+  target: PreviewRowSelectionTarget
+): number | null {
+  if (target === "header-row") {
+    return state.pipelineForm.hasHeaderRow ? state.pipelineForm.headerRow : null;
+  }
+
+  return state.pipelineForm.dataStartRow;
+}
+
+function previewDragHandleSelector(
+  target: PreviewRowSelectionTarget,
+  lineNumber: number
+): string {
+  return `[data-preview-handle-target="${target}"][data-preview-line="${lineNumber}"]`;
+}
+
+function findPreviewHandleElement(
+  target: PreviewRowSelectionTarget,
+  lineNumber: number
+): HTMLElement | null {
+  return mainContent.querySelector<HTMLElement>(
+    previewDragHandleSelector(target, lineNumber)
+  );
+}
+
+function collectPreviewRowButtons(): Map<number, HTMLButtonElement> {
+  return new Map(
+    Array.from(
+      mainContent.querySelectorAll<HTMLButtonElement>(
+        '[data-action="pick-preview-line"][data-preview-line]'
+      )
+    )
+      .map((button) => {
+        const lineNumber = Number(button.dataset.previewLine);
+        return Number.isFinite(lineNumber) ? [lineNumber, button] : null;
+      })
+      .filter(
+        (entry): entry is [number, HTMLButtonElement] => entry !== null
+      )
+  );
+}
+
+function collectPreviewRowCenters(
+  rowButtons: Map<number, HTMLButtonElement>
+): Array<{ lineNumber: number; centerY: number }> {
+  return Array.from(rowButtons.entries()).map(([lineNumber, button]) => {
+    const rect = button.getBoundingClientRect();
+    return { lineNumber, centerY: rect.top + rect.height / 2 };
+  });
+}
+
+function nearestPreviewLineNumber(
+  clientY: number,
+  rowCenters: Array<{ lineNumber: number; centerY: number }>
+): number | null {
+  if (rowCenters.length === 0) {
+    return null;
+  }
+
+  let bestLine = rowCenters[0].lineNumber;
+  let bestDistance = Math.abs(clientY - rowCenters[0].centerY);
+
+  for (const row of rowCenters.slice(1)) {
+    const distance = Math.abs(clientY - row.centerY);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestLine = row.lineNumber;
+    }
+  }
+
+  return bestLine;
+}
+
+function applyPreviewDragClasses(): void {
+  if (!state.pipelineDrag || !previewDragVisual) {
+    return;
+  }
+
+  const headerLine =
+    state.pipelineDrag.target === "header-row"
+      ? state.pipelineDrag.lineNumber
+      : previewCommittedHandleLine("header-row");
+  const dataLine =
+    state.pipelineDrag.target === "data-start-row"
+      ? state.pipelineDrag.lineNumber
+      : previewCommittedHandleLine("data-start-row");
+
+  for (const [lineNumber, button] of previewDragVisual.rowButtons.entries()) {
+    button.classList.toggle(
+      "preview-raw-line-header",
+      state.pipelineForm.hasHeaderRow && headerLine === lineNumber
+    );
+    button.classList.toggle("preview-raw-line-data", dataLine === lineNumber);
+  }
+}
+
+function flushPreviewDragVisual(): void {
+  if (!state.pipelineDrag || !previewDragVisual) {
+    return;
+  }
+
+  previewDragVisual.frameRequested = false;
+  const offset = previewDragVisual.currentClientY - previewDragVisual.startClientY;
+  previewDragVisual.handle.style.setProperty(
+    "--preview-handle-offset",
+    `${offset}px`
+  );
+  applyPreviewDragClasses();
+}
+
+function schedulePreviewDragVisual(): void {
+  if (!previewDragVisual || previewDragVisual.frameRequested) {
+    return;
+  }
+
+  previewDragVisual.frameRequested = true;
+  window.requestAnimationFrame(flushPreviewDragVisual);
+}
+
+function beginPreviewDragVisual(pointerClientY: number): void {
+  if (!state.pipelineDrag) {
+    return;
+  }
+
+  const handle = findPreviewHandleElement(
+    state.pipelineDrag.target,
+    state.pipelineDrag.lineNumber
+  );
+  if (!handle) {
+    return;
+  }
+
+  const rowButtons = collectPreviewRowButtons();
+  previewDragVisual = {
+    handle,
+    startClientY: pointerClientY,
+    currentClientY: pointerClientY,
+    rowButtons,
+    rowCenters: collectPreviewRowCenters(rowButtons),
+    frameRequested: false,
+  };
+
+  handle.classList.add("preview-row-handle-dragging");
+  handle.style.setProperty("--preview-handle-offset", "0px");
+  applyPreviewDragClasses();
+}
+
+function endPreviewDragVisual(): void {
+  if (!previewDragVisual) {
+    return;
+  }
+
+  previewDragVisual.handle.classList.remove("preview-row-handle-dragging");
+  previewDragVisual.handle.style.removeProperty("--preview-handle-offset");
+  previewDragVisual = null;
 }
 
 function pipelineMappingsByColumn(): Map<string, string> {
@@ -414,7 +648,10 @@ function previewPickerButtonClass(
 function previewFieldClass(
   target: Exclude<PreviewSelectionTarget, null>
 ): string {
-  const active = state.pipelineSelectionTarget === target;
+  const active =
+    target === "timestamp-column"
+      ? state.pipelineSelectionTarget === target
+      : activePreviewRowTarget() === target;
   const toneClass =
     target === "header-row"
       ? "preview-bound-field-header"
@@ -428,19 +665,23 @@ function previewFieldClass(
 }
 
 function previewGuidanceText(): string {
-  if (state.pipelineSelectionTarget === "header-row") {
-    return "Click a raw line to set the header row.";
+  const activeTarget = activePreviewRowTarget();
+
+  if (activeTarget === "header-row") {
+    return "Drag the HEADER handle, or click a row to place it.";
   }
 
-  if (state.pipelineSelectionTarget === "data-start-row") {
-    return "Click the first data line in the raw preview.";
+  if (activeTarget === "data-start-row") {
+    return "Drag the DATA START handle, or click the first data row.";
   }
 
   if (state.pipelineSelectionTarget === "timestamp-column") {
     return "Click a column header to set the timestamp column.";
   }
 
-  return "Use the picker controls on the left, or click a column header to set the timestamp column directly.";
+  return state.pipelineForm.hasHeaderRow
+    ? "Drag the HEADER and DATA START handles, or click a column header to set the timestamp column."
+    : "Drag the DATA START handle, or click a column header to set the timestamp column.";
 }
 
 function syncPipelineSelectionsWithPreview(): void {
@@ -477,6 +718,7 @@ function initializeMappings(headers: string[]): void {
 function applyPreview(path: string, preview: CsvPreviewResponse): void {
   state.pipelinePreview = preview;
   state.pipelineForm.filePath = path;
+  state.pipelineForm.hasHeaderRow = preview.detected_header_row !== null;
   state.pipelineForm.headerRow =
     preview.detected_header_row ?? state.pipelineForm.headerRow;
   state.pipelineForm.dataStartRow =
@@ -484,6 +726,7 @@ function applyPreview(path: string, preview: CsvPreviewResponse): void {
   state.pipelineForm.delimiter =
     preview.detected_delimiter || state.pipelineForm.delimiter;
   state.pipelineSelectionTarget = null;
+  state.pipelineDrag = null;
 
   if (!state.pipelineForm.name.trim()) {
     const inferred = basename(path).replace(/\.[^.]+$/, "");
@@ -494,6 +737,7 @@ function applyPreview(path: string, preview: CsvPreviewResponse): void {
 }
 
 function updateHeaderRowFromPreview(lineNumber: number): void {
+  state.pipelineForm.hasHeaderRow = true;
   state.pipelineForm.headerRow = lineNumber;
   if (state.pipelineForm.dataStartRow <= lineNumber) {
     state.pipelineForm.dataStartRow = lineNumber + 1;
@@ -502,23 +746,53 @@ function updateHeaderRowFromPreview(lineNumber: number): void {
 }
 
 function updateDataStartRowFromPreview(lineNumber: number): void {
-  state.pipelineForm.dataStartRow = Math.max(2, lineNumber);
-  if (state.pipelineForm.headerRow >= state.pipelineForm.dataStartRow) {
+  state.pipelineForm.dataStartRow = Math.max(
+    state.pipelineForm.hasHeaderRow ? 2 : 1,
+    lineNumber
+  );
+  if (
+    state.pipelineForm.hasHeaderRow &&
+    state.pipelineForm.headerRow >= state.pipelineForm.dataStartRow
+  ) {
     state.pipelineForm.headerRow = state.pipelineForm.dataStartRow - 1;
   }
   syncPipelineSelectionsWithPreview();
 }
 
+function setPipelineHasHeaderRow(enabled: boolean): void {
+  state.pipelineForm.hasHeaderRow = enabled;
+
+  if (!enabled && state.pipelineSelectionTarget === "header-row") {
+    state.pipelineSelectionTarget = null;
+  }
+
+  if (!enabled && state.pipelineDrag?.target === "header-row") {
+    state.pipelineDrag = null;
+  }
+
+  if (
+    enabled &&
+    state.pipelineForm.headerRow >= state.pipelineForm.dataStartRow
+  ) {
+    state.pipelineForm.headerRow = Math.max(
+      1,
+      state.pipelineForm.dataStartRow - 1
+    );
+  }
+
+  syncPipelineSelectionsWithPreview();
+}
+
 function applyPreviewLineSelection(lineNumber: number): void {
   if (state.pipelineSelectionTarget === "header-row") {
-    updateHeaderRowFromPreview(lineNumber);
+    setPreviewRowSelectionTarget("header-row", lineNumber);
     state.pipelineSelectionTarget = null;
     render();
     return;
   }
 
   if (state.pipelineSelectionTarget === "data-start-row") {
-    updateDataStartRowFromPreview(lineNumber);
+    setPreviewRowSelectionTarget("data-start-row", lineNumber);
     state.pipelineSelectionTarget = null;
     render();
   }
@@ -532,10 +806,10 @@ function applyPreviewColumnSelection(columnName: string): void {
     return;
   }
 
-  state.pipelineForm.timestampColumn = columnName;
-  initializeMappings(previewHeaders());
-  state.pipelineSelectionTarget = null;
-  render();
+    state.pipelineForm.timestampColumn = columnName;
+    initializeMappings(previewHeaders());
+    state.pipelineSelectionTarget = null;
+    render();
 }
 
 function onboardingRoute(route: AppRoute): boolean {
@@ -836,6 +1110,35 @@ function renderDashboard(): string {
   `;
 }
 
+function renderPreviewHandle(
+  target: PreviewRowSelectionTarget,
+  lineNumber: number
+): string {
+  const handleLine = previewHandleLine(target);
+  if (handleLine !== lineNumber) {
+    return "";
+  }
+
+  const active = activePreviewRowTarget() === target;
+  const label = target === "header-row" ? "HEADER" : "DATA START";
+  const className =
+    target === "header-row"
+      ? "preview-row-handle preview-row-handle-header"
+      : "preview-row-handle preview-row-handle-data";
+
+  return `
+    <button
+      class="${active ? `${className} preview-row-handle-active` : className}"
+      type="button"
+      data-action="activate-preview-handle"
+      data-preview-handle-target="${target}"
+      data-preview-line="${lineNumber}"
+    >
+      ${label}
+    </button>
+  `;
+}
+
 function renderPipelinePreview(): string {
   if (!state.pipelinePreview) {
     return `
@@ -861,28 +1164,30 @@ function renderPipelinePreview(): string {
   const rawRows = state.pipelinePreview.raw_lines
     .map((line, index) => {
       const lineNumber = index + 1;
+      const headerLine = previewHandleLine("header-row");
+      const dataStartLine = previewHandleLine("data-start-row");
       const rowClass =
-        lineNumber === state.pipelineForm.headerRow
+        state.pipelineForm.hasHeaderRow && lineNumber === headerLine
           ? "preview-raw-line preview-raw-line-header"
-          : lineNumber === state.pipelineForm.dataStartRow
+          : lineNumber === dataStartLine
           ? "preview-raw-line preview-raw-line-data"
           : "preview-raw-line";
 
-      const rowTag =
-        lineNumber === state.pipelineForm.headerRow
-          ? '<span class="preview-row-tag preview-row-tag-header">Header</span>'
-          : lineNumber === state.pipelineForm.dataStartRow
-          ? '<span class="preview-row-tag preview-row-tag-data">Data start</span>'
-          : "";
-
       return `
-        <button class="${rowClass}" type="button" data-action="pick-preview-line" data-preview-line="${lineNumber}">
-          <span class="preview-line-number-shell">
-            <span class="preview-line-number">${lineNumber}</span>
-            ${rowTag}
-          </span>
-          <code>${escapeHtml(line)}</code>
-        </button>
+        <div class="preview-raw-line-shell">
+          ${
+            state.pipelineForm.hasHeaderRow
+              ? renderPreviewHandle("header-row", lineNumber)
+              : ""
+          }
+          ${renderPreviewHandle("data-start-row", lineNumber)}
+          <button class="${rowClass}" type="button" data-action="pick-preview-line" data-preview-line="${lineNumber}">
+            <span class="preview-line-number-shell">
+              <span class="preview-line-number">${lineNumber}</span>
+            </span>
+            <code>${escapeHtml(line)}</code>
+          </button>
+        </div>
       `;
     })
     .join("");
@@ -928,18 +1233,17 @@ function renderPipelinePreview(): string {
           )}</h2>
           <p class="preview-guidance">${escapeHtml(previewGuidanceText())}</p>
         </div>
-        <div class="preview-summary">
-          <span class="pill-info">Header row ${
-            state.pipelineForm.headerRow
-          }</span>
-          <span class="pill-info">Data starts ${
-            state.pipelineForm.dataStartRow
-          }</span>
-          <span class="pill-info">${escapeHtml(
-            state.pipelinePreview.encoding
-          )}</span>
-        </div>
       </div>
+
+      <label class="preview-toggle">
+        <input
+          class="preview-toggle-input"
+          type="checkbox"
+          name="has_header_row"
+          ${state.pipelineForm.hasHeaderRow ? "checked" : ""}
+        />
+        <span class="preview-toggle-label">File has a header row</span>
+      </label>
 
       <div class="preview-raw">${rawRows}</div>
 
@@ -1174,48 +1478,37 @@ function renderPipelineEditor(): string {
             <h2 class="section-title">File structure</h2>
 
             <div class="split-fields">
-              <div class="${previewFieldClass("header-row")}">
-                <div class="field-label-row">
-                  <label class="label" for="pipeline-header-row">Header row</label>
-                  <button
-                    class="${previewPickerButtonClass("header-row")}"
-                    type="button"
-                    data-action="toggle-preview-picker"
-                    data-picker-target="header-row"
-                  >
-                    ${
-                      state.pipelineSelectionTarget === "header-row"
-                        ? "Picking in preview"
-                        : "Pick from preview"
-                    }
-                  </button>
-                </div>
-                <input id="pipeline-header-row" class="input" type="number" min="1" name="header_row" value="${
-                  state.pipelineForm.headerRow
-                }" />
-                <span class="field-hint">Click the line that contains the CSV column names.</span>
-              </div>
+              ${
+                state.pipelineForm.hasHeaderRow
+                  ? `
+                    <div class="${previewFieldClass("header-row")}">
+                      <div class="field-label-row">
+                        <label class="label" for="pipeline-header-row">Header row</label>
+                      </div>
+                      <input id="pipeline-header-row" class="input" type="number" min="1" name="header_row" value="${
+                        state.pipelineForm.headerRow
+                      }" />
+                      <span class="field-hint">Drag the blue HEADER handle in the preview or enter a row number.</span>
+                    </div>
+                  `
+                  : `
+                    <div class="field">
+                      <span class="label">Header row</span>
+                      <span class="field-hint">This file is using generated column labels: Column 1, Column 2, Column 3...</span>
+                    </div>
+                  `
+              }
 
               <div class="${previewFieldClass("data-start-row")}">
                 <div class="field-label-row">
                   <label class="label" for="pipeline-data-start-row">Data start row</label>
-                  <button
-                    class="${previewPickerButtonClass("data-start-row")}"
-                    type="button"
-                    data-action="toggle-preview-picker"
-                    data-picker-target="data-start-row"
-                  >
-                    ${
-                      state.pipelineSelectionTarget === "data-start-row"
-                        ? "Picking in preview"
-                        : "Pick from preview"
-                    }
-                  </button>
                 </div>
-                <input id="pipeline-data-start-row" class="input" type="number" min="1" name="data_start_row" value="${
+                <input id="pipeline-data-start-row" class="input" type="number" min="${
+                  state.pipelineForm.hasHeaderRow ? 2 : 1
+                }" name="data_start_row" value="${
                   state.pipelineForm.dataStartRow
                 }" />
-                <span class="field-hint">Choose the first line that contains actual observation values.</span>
+                <span class="field-hint">Drag the green DATA START handle in the preview or enter a row number.</span>
               </div>
             </div>
 
@@ -1502,6 +1795,7 @@ function updatePipelineField(name: string, value: string): void {
       state.pipelinePreview = null;
       state.pipelineErrors = [];
       state.pipelineSelectionTarget = null;
+      state.pipelineDrag = null;
       break;
     case "schedule_minutes":
       state.pipelineForm.scheduleMinutes = Number(value) || 15;
@@ -1512,6 +1806,7 @@ function updatePipelineField(name: string, value: string): void {
       break;
     case "data_start_row":
       state.pipelineForm.dataStartRow = Number(value) || 1;
+      syncPipelineSelectionsWithPreview();
       break;
     case "delimiter":
       state.pipelineForm.delimiter = value || ",";
@@ -1560,12 +1855,19 @@ function validatePipeline(): string[] {
     errors.push("Load a CSV preview before saving the pipeline.");
   }
 
-  if (state.pipelineForm.headerRow < 1) {
+  if (state.pipelineForm.hasHeaderRow && state.pipelineForm.headerRow < 1) {
     errors.push("Header row must be 1 or greater.");
   }
 
-  if (state.pipelineForm.dataStartRow <= state.pipelineForm.headerRow) {
+  if (
+    state.pipelineForm.hasHeaderRow &&
+    state.pipelineForm.dataStartRow <= state.pipelineForm.headerRow
+  ) {
     errors.push("Data start row must come after the header row.");
+  }
+
+  if (!state.pipelineForm.hasHeaderRow && state.pipelineForm.dataStartRow < 1) {
+    errors.push("Data start row must be 1 or greater.");
   }
 
   if (
@@ -1793,7 +2095,9 @@ async function savePipeline(): Promise<void> {
       file_path: state.pipelineForm.filePath.trim(),
       schedule_minutes: state.pipelineForm.scheduleMinutes,
       file_config: {
-        header_row: state.pipelineForm.headerRow,
+        header_row: state.pipelineForm.hasHeaderRow
+          ? state.pipelineForm.headerRow
+          : 0,
         data_start_row: state.pipelineForm.dataStartRow,
         delimiter: state.pipelineForm.delimiter,
         timestamp_column: state.pipelineForm.timestampColumn,
@@ -1807,6 +2111,7 @@ async function savePipeline(): Promise<void> {
     state.pipelineForm = createEmptyPipelineForm();
     state.pipelinePreview = null;
     state.pipelineSelectionTarget = null;
+    state.pipelineDrag = null;
     state.pipelineErrors = [];
     state.pipelineFeedback = { tone: "success", message: "Pipeline saved." };
     navigate("dashboard");
@@ -1932,11 +2237,115 @@ mainContent.addEventListener("change", (event) => {
     return;
   }
 
+  if (target.name === "has_header_row" && target instanceof HTMLInputElement) {
+    setPipelineHasHeaderRow(target.checked);
+    render();
+    return;
+  }
+
   if (target.form?.id !== "pipeline-form" || target.name !== "file_path") {
     return;
   }
 
   void loadPipelinePreview(target.value);
+});
+
+mainContent.addEventListener("pointerdown", (event) => {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+
+  const handle = target.closest<HTMLElement>("[data-preview-handle-target]");
+  if (!handle) {
+    return;
+  }
+
+  const pickerTarget = handle.dataset.previewHandleTarget;
+  if (pickerTarget !== "header-row" && pickerTarget !== "data-start-row") {
+    return;
+  }
+
+  const lineNumber = Number(handle.dataset.previewLine);
+  if (!Number.isFinite(lineNumber) || lineNumber < 1) {
+    return;
+  }
+
+  state.pipelineSelectionTarget = pickerTarget;
+  state.pipelineDrag = {
+    target: pickerTarget,
+    lineNumber,
+    pointerId: event.pointerId,
+    moved: false,
+  };
+  suppressPreviewHandleClick = false;
+  render();
+  beginPreviewDragVisual(event.clientY);
+  event.preventDefault();
+});
+
+window.addEventListener("pointermove", (event) => {
+  if (!state.pipelineDrag || state.pipelineDrag.pointerId !== event.pointerId) {
+    return;
+  }
+
+  if (!previewDragVisual) {
+    return;
+  }
+
+  previewDragVisual.currentClientY = event.clientY;
+  const lineNumber = nearestPreviewLineNumber(
+    event.clientY,
+    previewDragVisual.rowCenters
+  );
+  if (!lineNumber) {
+    schedulePreviewDragVisual();
+    return;
+  }
+
+  if (lineNumber === state.pipelineDrag.lineNumber) {
+    schedulePreviewDragVisual();
+    return;
+  }
+
+  state.pipelineDrag = {
+    ...state.pipelineDrag,
+    lineNumber,
+    moved: true,
+  };
+  schedulePreviewDragVisual();
+});
+
+window.addEventListener("pointerup", (event) => {
+  if (!state.pipelineDrag || state.pipelineDrag.pointerId !== event.pointerId) {
+    return;
+  }
+
+  const drag = state.pipelineDrag;
+  endPreviewDragVisual();
+  state.pipelineDrag = null;
+
+  if (drag.moved) {
+    setPreviewRowSelectionTarget(drag.target, drag.lineNumber);
+    state.pipelineSelectionTarget = null;
+    suppressPreviewHandleClick = true;
+  } else {
+    state.pipelineSelectionTarget = drag.target;
+    suppressPreviewHandleClick = false;
+  }
+
+  render();
+});
+
+window.addEventListener("pointercancel", (event) => {
+  if (!state.pipelineDrag || state.pipelineDrag.pointerId !== event.pointerId) {
+    return;
+  }
+
+  endPreviewDragVisual();
+  state.pipelineDrag = null;
+  suppressPreviewHandleClick = false;
+  render();
 });
 
 mainContent.addEventListener("click", (event) => {
@@ -2007,6 +2416,23 @@ mainContent.addEventListener("click", (event) => {
 
   if (action === "browse-csv") {
     void browseForCsvPath();
+    return;
+  }
+
+  if (action === "activate-preview-handle") {
+    if (suppressPreviewHandleClick) {
+      suppressPreviewHandleClick = false;
+      return;
+    }
+
+    const pickerTarget = target.closest<HTMLElement>("[data-preview-handle-target]")
+      ?.dataset.previewHandleTarget;
+    if (pickerTarget !== "header-row" && pickerTarget !== "data-start-row") {
+      return;
+    }
+
+    state.pipelineSelectionTarget = pickerTarget;
+    render();
     return;
   }
 

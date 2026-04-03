@@ -21,7 +21,7 @@ class ServerConfig(BaseModel):
 
 
 class FileConfig(BaseModel):
-    header_row: int = Field(default=3, ge=1)
+    header_row: int = Field(default=3, ge=0)
     data_start_row: int = Field(default=4, ge=1)
     delimiter: str = Field(default=",", min_length=1, max_length=2)
     timestamp_column: str = Field(default="Timestamp", min_length=1)
