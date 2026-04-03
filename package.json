@@ -13,6 +13,9 @@
     "dev:tauri": "node ./scripts/tauri-dev.mjs",
     "build": "npm run tailwind:build && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && vite build",
     "preview": "vite preview",
+    "test": "npm run test:frontend && npm run test:sidecar",
+    "test:frontend": "tsx --test frontend/**/*.test.ts",
+    "test:sidecar": "./.venv/bin/python -m unittest discover -s sidecar/tests -p 'test_*.py'",
     "tailwind:watch": "tailwindcss -i ./frontend/styles.css -o ./frontend/generated.css --watch",
     "tailwind:build": "tailwindcss -i ./frontend/styles.css -o ./frontend/generated.css --minify",
     "tauri": "node ./scripts/run-tauri.mjs"
@@ -22,6 +25,7 @@
     "@tauri-apps/cli": "^2.10.1",
     "@types/node": "^22.13.10",
     "tailwindcss": "^4.1.4",
+    "tsx": "^4.21.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.3"
   }

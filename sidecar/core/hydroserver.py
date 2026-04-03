@@ -97,9 +97,8 @@ class HydroServerService:
 
         try:
             client = self._build_client(server)
-            workspaces = client.workspaces.list(page_size=25)
+            workspaces = self._list_associated_workspaces(client)
             datastreams = client.datastreams.list(page_size=100)
-            client.orchestrationsystems.list(page_size=25)
 
             workspace_count = self._collection_count(workspaces)
             datastream_count = self._collection_count(datastreams)
@@ -108,7 +107,10 @@ class HydroServerService:
                 return HydroServerCheck(
                     ok=False,
                     state="error",
-                    message="This API key is not attached to any accessible workspace. Check the key permissions and try again.",
+                    message=(
+                        "That API key is invalid or is not attached to any accessible workspace. "
+                        "Check the API key permissions and try again."
+                    ),
                     instance_name=self._instance_name(server.url),
                     workspace_count=workspace_count,
                     datastream_count=datastream_count,
@@ -180,6 +182,9 @@ class HydroServerService:
                 password=server.password,
             )
         return HydroServer(host=server.url, apikey=server.api_key)
+
+    def _list_associated_workspaces(self, client):
+        return client.workspaces.list(page_size=25, is_associated=True)
 
     def _is_configured(self, server: ServerConfig) -> bool:
         if not server.url.strip():

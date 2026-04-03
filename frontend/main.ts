@@ -26,6 +26,17 @@ import {
   type JobSummary,
   type ServerConfig,
 } from "./api";
+import {
+  applyConnectionValidationResult,
+  createAuthFieldStates,
+  fieldFormFeedbackTarget,
+  resetAuthFieldStates,
+  runAuthSubmission,
+  validateAuthFieldsForSubmit,
+  type AuthFieldName,
+  type Feedback,
+  type FieldValidationState,
+} from "./auth-submit";
 import { getRouteFromHash, navigate, routeHref, type AppRoute } from "./router";
 import { formatRelativeTime, formatSchedule, shortenPath } from "./time";
 
@@ -34,18 +45,6 @@ const API_KEY_DOCS_URL =
 const APP_NAME = "HydroServer Streaming Data Loader";
 const STARTUP_RETRY_ATTEMPTS = 12;
 const STARTUP_RETRY_DELAY_MS = 350;
-
-type Feedback = {
-  tone: "success" | "error" | "info";
-  message: string;
-} | null;
-
-type AuthFieldName = "url" | "api_key" | "username" | "password";
-
-type FieldValidationState = {
-  state: "idle" | "checking" | "valid" | "invalid";
-  message: string | null;
-};
 
 type PipelineMappingDraft = {
   csvColumn: string;
@@ -158,12 +157,7 @@ const state: UiState = {
   pipelineErrors: [],
   datastreamsError: null,
   authDraft: emptyServerConfig(),
-  authFieldStates: {
-    url: { state: "idle", message: null },
-    api_key: { state: "idle", message: null },
-    username: { state: "idle", message: null },
-    password: { state: "idle", message: null },
-  },
+  authFieldStates: createAuthFieldStates(),
   authSubmitting: false,
   lastAuthValidationServer: null,
   lastAuthValidationResult: null,
@@ -275,22 +269,8 @@ function currentServerConfig(): ServerConfig {
   return state.authDraft;
 }
 
-function emptyFieldValidationState(): FieldValidationState {
-  return { state: "idle", message: null };
-}
-
-function resetAuthFieldStates(authType: AuthType): void {
-  state.authFieldStates.url = emptyFieldValidationState();
-  state.authFieldStates.api_key = emptyFieldValidationState();
-  state.authFieldStates.username = emptyFieldValidationState();
-  state.authFieldStates.password = emptyFieldValidationState();
-
-  if (authType === "apikey") {
-    state.authFieldStates.username = emptyFieldValidationState();
-    state.authFieldStates.password = emptyFieldValidationState();
-  } else {
-    state.authFieldStates.api_key = emptyFieldValidationState();
-  }
+function resetStateAuthFieldStates(authType: AuthType): void {
+  resetAuthFieldStates(state.authFieldStates, authType);
 }
 
 function serverConfigured(server: ServerConfig | null | undefined): boolean {
@@ -342,10 +322,6 @@ function markField(
   state.authFieldStates[field] = { state: nextState, message };
 }
 
-function credentialFields(authType: AuthType): AuthFieldName[] {
-  return authType === "userpass" ? ["username", "password"] : ["api_key"];
-}
-
 function authFieldErrorMarkup(field: AuthFieldName): string {
   const fieldState = state.authFieldStates[field];
   if (fieldState.state !== "invalid" || !fieldState.message) {
@@ -382,12 +358,6 @@ function renderAuthInputField(params: {
   `;
 }
 
-function fieldFormFeedbackTarget(
-  formId: string
-): "welcomeFeedback" | "settingsFeedback" {
-  return formId === "welcome-form" ? "welcomeFeedback" : "settingsFeedback";
-}
-
 function clearAuthFormFeedback(formId: string): void {
   state[fieldFormFeedbackTarget(formId)] = null;
 }
@@ -395,87 +365,6 @@ function clearAuthFormFeedback(formId: string): void {
 function clearAuthValidationCache(): void {
   state.lastAuthValidationServer = null;
   state.lastAuthValidationResult = null;
-}
-
-function isValidHttpUrl(value: string): boolean {
-  try {
-    const parsed = new URL(value);
-    return parsed.protocol === "http:" || parsed.protocol === "https:";
-  } catch {
-    return false;
-  }
-}
-
-function applyConnectionValidationResult(
-  server: ServerConfig,
-  result: ConnectionTestResponse
-): void {
-  markField("url", "valid");
-
-  if (result.ok) {
-    for (const field of credentialFields(server.auth_type)) {
-      markField(field, "valid");
-    }
-    return;
-  }
-
-  const message = result.message;
-  const isUrlError =
-    result.message.includes("Couldn't reach HydroServer") ||
-    result.message.includes("HydroServer returned an error");
-
-  if (isUrlError) {
-    markField("url", "invalid", message);
-    for (const field of credentialFields(server.auth_type)) {
-      markField(field, "idle");
-    }
-    return;
-  }
-
-  for (const field of credentialFields(server.auth_type)) {
-    markField(field, "invalid", message);
-  }
-}
-
-function validateAuthFieldsForSubmit(server: ServerConfig): boolean {
-  let valid = true;
-
-  resetAuthFieldStates(server.auth_type);
-
-  if (!server.url) {
-    markField("url", "invalid", "Enter the HydroServer URL.");
-    valid = false;
-  } else if (!isValidHttpUrl(server.url)) {
-    markField("url", "invalid", "Enter a full http:// or https:// URL.");
-    valid = false;
-  } else {
-    markField("url", "valid");
-  }
-
-  if (server.auth_type === "apikey") {
-    if (!server.api_key) {
-      markField("api_key", "invalid", "Enter the API key.");
-      valid = false;
-    } else {
-      markField("api_key", "valid");
-    }
-  } else {
-    if (!server.username) {
-      markField("username", "invalid", "Enter the username.");
-      valid = false;
-    } else {
-      markField("username", "valid");
-    }
-
-    if (!server.password) {
-      markField("password", "invalid", "Enter the password.");
-      valid = false;
-    } else {
-      markField("password", "valid");
-    }
-  }
-
-  return valid;
 }
 
 function previewHeaders(): string[] {
@@ -744,7 +633,6 @@ function renderConnectedCard(showActions: boolean): string {
 
 function renderAuthForm(
   formId: "welcome-form" | "settings-form",
-  feedback: Feedback,
   submitLabel: string,
   secondaryAction: string
 ): string {
@@ -763,8 +651,6 @@ function renderAuthForm(
           <img class="auth-app-icon" src="${appIconUrl}" alt="HydroServer Streaming Data Loader icon" />
           <h1 class="page-title">Connect to HydroServer</h1>
         </div>
-
-        ${feedbackMarkup(feedback)}
         <input type="hidden" name="auth_type" value="${server.auth_type}" />
 
         ${renderAuthInputField({
@@ -830,7 +716,6 @@ function renderWelcome(): string {
     <section class="welcome-shell">
       ${renderAuthForm(
         "welcome-form",
-        state.welcomeFeedback,
         "Connect to HydroServer",
         ""
       )}
@@ -855,7 +740,6 @@ function renderSettings(): string {
         showForm
           ? renderAuthForm(
               "settings-form",
-              state.settingsFeedback,
               "Save and verify",
               connected()
                 ? '<button class="btn-ghost" type="button" data-action="cancel-credential-edit">Cancel</button>'
@@ -1514,8 +1398,7 @@ async function loadInitialStateWithRetry(): Promise<{
 }
 
 async function syncAuthenticationStatus(
-  server: ServerConfig,
-  context: "bootstrap" | "welcome" | "settings"
+  server: ServerConfig
 ): Promise<ConnectionTestResponse> {
   const result = await testConnection(server);
   state.lastAuthValidationServer = server;
@@ -1528,10 +1411,6 @@ async function syncAuthenticationStatus(
   } else {
     state.datastreams = [];
     state.datastreamsError = null;
-  }
-
-  if (context === "bootstrap" && !result.ok) {
-    state.welcomeFeedback = { tone: "error", message: result.message };
   }
 
   return result;
@@ -1553,6 +1432,8 @@ async function loadDatastreams(): Promise<void> {
 async function bootstrap(): Promise<void> {
   state.loading = true;
   state.bootstrapError = null;
+  state.welcomeFeedback = null;
+  state.settingsFeedback = null;
   render();
 
   try {
@@ -1563,7 +1444,7 @@ async function bootstrap(): Promise<void> {
     state.lastConnectionState = health.connection.state;
 
     if (serverConfigured(config.server)) {
-      await syncAuthenticationStatus(config.server, "bootstrap");
+      await syncAuthenticationStatus(config.server);
     }
   } catch (error) {
     state.bootstrapError =
@@ -1755,8 +1636,7 @@ async function browseForCsvPath(): Promise<void> {
 }
 
 async function saveAuthenticatedServerConfig(
-  form: HTMLFormElement,
-  context: "welcome" | "settings"
+  form: HTMLFormElement
 ): Promise<void> {
   if (state.authSubmitting) {
     return;
@@ -1768,49 +1648,55 @@ async function saveAuthenticatedServerConfig(
   const feedbackKey = fieldFormFeedbackTarget(form.id);
 
   state[feedbackKey] = null;
-  resetAuthFieldStates(payload.auth_type);
+  resetStateAuthFieldStates(payload.auth_type);
 
-  if (!validateAuthFieldsForSubmit(payload)) {
+  if (!validateAuthFieldsForSubmit(payload, markField)) {
     render();
     return;
   }
 
   try {
-    state.authSubmitting = true;
-    render();
+    await runAuthSubmission({
+      render,
+      setSubmitting: (value) => {
+        state.authSubmitting = value;
+      },
+      action: async () => {
+        const urlValidation = await validateServerUrl(payload.url);
+        if (!urlValidation.ok) {
+          clearAuthValidationCache();
+          markField("url", "invalid", urlValidation.message);
+          state[feedbackKey] = {
+            tone: "error",
+            message: urlValidation.message,
+          };
+          return;
+        }
 
-    const urlValidation = await validateServerUrl(payload.url);
-    if (!urlValidation.ok) {
-      clearAuthValidationCache();
-      markField("url", "invalid", urlValidation.message);
-      state[feedbackKey] = { tone: "error", message: urlValidation.message };
-      render();
-      return;
-    }
+        markField("url", "valid");
 
-    markField("url", "valid");
+        const result = await syncAuthenticationStatus(payload);
+        applyConnectionValidationResult(payload, result, markField);
+        if (!result.ok) {
+          state[feedbackKey] = { tone: "error", message: result.message };
+          return;
+        }
 
-    const result = await syncAuthenticationStatus(payload, context);
-    applyConnectionValidationResult(payload, result);
-    if (!result.ok) {
-      state[feedbackKey] = { tone: "error", message: result.message };
-      render();
-      return;
-    }
+        state.config = await updateServerConfig(payload);
+        state.authDraft = {
+          ...emptyServerConfig(),
+          ...state.config.server,
+        };
+        state[feedbackKey] = { tone: "success", message: result.message };
+        state.settingsEditMode = false;
 
-    state.config = await updateServerConfig(payload);
-    state.authDraft = {
-      ...emptyServerConfig(),
-      ...state.config.server,
-    };
-    state[feedbackKey] = { tone: "success", message: result.message };
-    state.settingsEditMode = false;
-
-    if (state.jobs.length === 0) {
-      navigate("jobs-new");
-    } else {
-      navigate("dashboard");
-    }
+        if (state.jobs.length === 0) {
+          navigate("jobs-new");
+        } else {
+          navigate("dashboard");
+        }
+      },
+    });
   } catch (error) {
     clearAuthValidationCache();
     state[feedbackKey] = {
@@ -1821,11 +1707,8 @@ async function saveAuthenticatedServerConfig(
           : "Couldn't verify the HydroServer connection.",
     };
     state.lastConnectionState = "error";
-  } finally {
-    state.authSubmitting = false;
+    render();
   }
-
-  render();
 }
 
 async function disconnectHydroServer(): Promise<void> {
@@ -1839,7 +1722,7 @@ async function disconnectHydroServer(): Promise<void> {
     state.welcomeFeedback = null;
     state.settingsFeedback = null;
     state.settingsEditMode = false;
-    resetAuthFieldStates("apikey");
+    resetStateAuthFieldStates("apikey");
     clearAuthValidationCache();
     navigate("welcome");
   } catch (error) {
@@ -1929,12 +1812,12 @@ mainContent.addEventListener("submit", (event) => {
   event.preventDefault();
 
   if (target.id === "welcome-form") {
-    void saveAuthenticatedServerConfig(target, "welcome");
+    void saveAuthenticatedServerConfig(target);
     return;
   }
 
   if (target.id === "settings-form") {
-    void saveAuthenticatedServerConfig(target, "settings");
+    void saveAuthenticatedServerConfig(target);
     return;
   }
 
@@ -2039,7 +1922,7 @@ mainContent.addEventListener("click", (event) => {
       ...nextServer,
       auth_type: nextAuthType,
     });
-    resetAuthFieldStates(nextAuthType);
+    resetStateAuthFieldStates(nextAuthType);
 
     clearAuthFormFeedback(form.id);
     clearAuthValidationCache();
