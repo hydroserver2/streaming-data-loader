@@ -350,8 +350,8 @@ function renderAuthInputField(params: {
         ${labelAction ?? ""}
       </span>
       <input class="input" type="${type}" name="${name}" value="${escapeHtml(
-        value
-      )}" placeholder="${escapeHtml(placeholder)}" />
+    value
+  )}" placeholder="${escapeHtml(placeholder)}" />
       ${helpText ? `<p class="field-hint">${escapeHtml(helpText)}</p>` : ""}
       ${authFieldErrorMarkup(name)}
     </label>
@@ -539,7 +539,9 @@ function applyPreviewColumnSelection(columnName: string): void {
 }
 
 function onboardingRoute(route: AppRoute): boolean {
-  return route === "welcome" || (route === "jobs-new" && state.jobs.length === 0);
+  return (
+    route === "welcome" || (route === "jobs-new" && state.jobs.length === 0)
+  );
 }
 
 function connectionIndicator(): { label: string; className: string } {
@@ -714,11 +716,7 @@ function renderAuthForm(
 function renderWelcome(): string {
   return `
     <section class="welcome-shell">
-      ${renderAuthForm(
-        "welcome-form",
-        "Connect to HydroServer",
-        ""
-      )}
+      ${renderAuthForm("welcome-form", "Connect to HydroServer", "")}
     </section>
   `;
 }
@@ -1018,6 +1016,29 @@ function renderPipelineMappings(): string {
   `;
 }
 
+function renderFirstPipelineOnboarding(): string {
+  return `
+    <section class="page-shell onboarding-shell animate-fade-in">
+      <form id="pipeline-form" class="onboarding-file-form" autocomplete="off">
+        <label class="field">
+          <span class="label">CSV file path</span>
+          <input class="input" type="text" name="file_path" value="${escapeHtml(
+            state.pipelineForm.filePath
+          )}" placeholder="/Users/you/datalogger/output.csv" />
+          <span class="field-hint">Select a CSV file from your system to load a preview and start configuring this data source.</span>
+        </label>
+
+        <div class="button-row">
+          <button class="btn-primary" type="button" data-action="browse-csv">Choose CSV File</button>
+        </div>
+      </form>
+
+      ${feedbackMarkup(state.pipelineFeedback)}
+      ${state.pipelinePreview ? renderPipelinePreview() : ""}
+    </section>
+  `;
+}
+
 function renderPipelineEditor(): string {
   const firstRunOnboarding = state.jobs.length === 0;
   const shellClass = firstRunOnboarding
@@ -1026,6 +1047,10 @@ function renderPipelineEditor(): string {
 
   if (!connected()) {
     return renderWelcome();
+  }
+
+  if (firstRunOnboarding) {
+    return renderFirstPipelineOnboarding();
   }
 
   if (state.datastreamsError) {
@@ -1122,8 +1147,7 @@ function renderPipelineEditor(): string {
             </label>
 
             <div class="button-row">
-              <button class="btn-ghost" type="button" data-action="browse-csv">Browse for CSV</button>
-              <button class="btn-ghost" type="button" data-action="load-preview">Load preview</button>
+              <button class="btn-primary" type="button" data-action="browse-csv">Choose CSV File</button>
             </div>
 
             <label class="field">
@@ -1475,6 +1499,9 @@ function updatePipelineField(name: string, value: string): void {
       break;
     case "file_path":
       state.pipelineForm.filePath = value;
+      state.pipelinePreview = null;
+      state.pipelineErrors = [];
+      state.pipelineSelectionTarget = null;
       break;
     case "schedule_minutes":
       state.pipelineForm.scheduleMinutes = Number(value) || 15;
@@ -1587,11 +1614,7 @@ async function loadPipelinePreview(path: string): Promise<void> {
     const preview = await getCsvPreview(path.trim(), 50);
     applyPreview(path.trim(), preview);
     state.pipelineErrors = [];
-    state.pipelineFeedback = {
-      tone: "success",
-      message:
-        "Preview loaded. Click the structure on the right to finish the form.",
-    };
+    state.pipelineFeedback = null;
   } catch (error) {
     state.pipelinePreview = null;
     state.pipelineFeedback = {
@@ -1822,6 +1845,11 @@ mainContent.addEventListener("submit", (event) => {
   }
 
   if (target.id === "pipeline-form") {
+    if (!state.pipelinePreview) {
+      void loadPipelinePreview(state.pipelineForm.filePath);
+      return;
+    }
+
     void savePipeline();
   }
 });
@@ -1889,6 +1917,26 @@ mainContent.addEventListener("input", (event) => {
   ) {
     render();
   }
+});
+
+mainContent.addEventListener("change", (event) => {
+  const target = event.target;
+
+  if (
+    !(
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLSelectElement ||
+      target instanceof HTMLTextAreaElement
+    )
+  ) {
+    return;
+  }
+
+  if (target.form?.id !== "pipeline-form" || target.name !== "file_path") {
+    return;
+  }
+
+  void loadPipelinePreview(target.value);
 });
 
 mainContent.addEventListener("click", (event) => {
@@ -1959,11 +2007,6 @@ mainContent.addEventListener("click", (event) => {
 
   if (action === "browse-csv") {
     void browseForCsvPath();
-    return;
-  }
-
-  if (action === "load-preview") {
-    void loadPipelinePreview(state.pipelineForm.filePath);
     return;
   }
 

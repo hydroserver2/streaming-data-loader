@@ -428,6 +428,10 @@
     @apply border-slate-800 bg-[#181a1d] text-slate-100 shadow-none;
   }
 
+  .onboarding-shell .preview-card {
+    @apply rounded-none border-0 bg-transparent p-0;
+  }
+
   .onboarding-shell .pipeline-subcard {
     @apply bg-[#202427];
   }
@@ -504,6 +508,14 @@
 
   .onboarding-shell .preview-bound-field-active.preview-bound-field-timestamp {
     @apply border-amber-500/60 bg-amber-950/35;
+  }
+
+  .onboarding-file-form {
+    @apply flex w-full max-w-3xl flex-col self-start gap-3;
+  }
+
+  .onboarding-file-form .button-row {
+    @apply pt-1;
   }
 
   .pipeline-layout {
