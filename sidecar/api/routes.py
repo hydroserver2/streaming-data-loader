@@ -26,6 +26,7 @@ from sidecar.api.models import (
     JobUpsertRequest,
     ServerConfig,
     ServerConfigUpdate,
+    ServerUrlValidationResponse,
 )
 from sidecar.core.loader import preview_csv
 from sidecar.core.runtime import AppRuntime
@@ -101,6 +102,18 @@ def create_app(runtime: AppRuntime) -> FastAPI:
             workspace_count=result.workspace_count,
             datastream_count=result.datastream_count,
             permissions_ok=result.permissions_ok,
+        )
+
+    @app.get("/connection/validate-url", response_model=ServerUrlValidationResponse, tags=["connection"])
+    def validate_server_url(
+        url: str = Query(..., description="HydroServer base URL"),
+        runtime: AppRuntime = Depends(get_runtime),
+    ) -> ServerUrlValidationResponse:
+        result = runtime.hydroserver.validate_url(url)
+        return ServerUrlValidationResponse(
+            ok=result.ok,
+            message=result.message,
+            instance_name=result.instance_name,
         )
 
     @app.get("/jobs", response_model=list[JobStatusSummary], tags=["jobs"])
@@ -199,7 +212,7 @@ def create_app(runtime: AppRuntime) -> FastAPI:
     @app.get("/csv/preview", response_model=CsvPreviewResponse, tags=["csv"])
     def get_csv_preview(
         path: str = Query(..., description="Absolute path to the CSV file"),
-        rows: int = Query(default=60, ge=1, le=200),
+        rows: int = Query(default=50, ge=1, le=200),
     ) -> CsvPreviewResponse:
         try:
             return preview_csv(path=path, rows=rows)

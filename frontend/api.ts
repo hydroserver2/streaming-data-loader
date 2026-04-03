@@ -66,6 +66,12 @@ export interface ConnectionTestResponse {
   permissions_ok: boolean
 }
 
+export interface ServerUrlValidationResponse {
+  ok: boolean
+  message: string
+  instance_name: string | null
+}
+
 export interface DatastreamSummary {
   id: string
   name: string
@@ -205,6 +211,11 @@ export function testConnection(server: ServerConfig): Promise<ConnectionTestResp
   })
 }
 
+export function validateServerUrl(url: string): Promise<ServerUrlValidationResponse> {
+  const params = new URLSearchParams({ url })
+  return request<ServerUrlValidationResponse>(`/connection/validate-url?${params.toString()}`)
+}
+
 export function listJobs(): Promise<JobSummary[]> {
   return request<JobSummary[]>("/jobs")
 }
@@ -220,7 +231,7 @@ export function getDatastreams(): Promise<DatastreamSummary[]> {
   return request<DatastreamSummary[]>("/datastreams")
 }
 
-export function getCsvPreview(path: string, rows = 60): Promise<CsvPreviewResponse> {
+export function getCsvPreview(path: string, rows = 50): Promise<CsvPreviewResponse> {
   const params = new URLSearchParams({
     path,
     rows: String(rows),

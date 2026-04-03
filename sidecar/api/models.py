@@ -132,6 +132,12 @@ class ConnectionTestResponse(BaseModel):
     permissions_ok: bool = False
 
 
+class ServerUrlValidationResponse(BaseModel):
+    ok: bool
+    message: str
+    instance_name: str | None = None
+
+
 class ActionResponse(BaseModel):
     ok: bool = True
     message: str

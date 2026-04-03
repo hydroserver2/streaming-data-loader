@@ -33,7 +33,7 @@
   }
 }
 
-@keyframes spin {
+@keyframes loaderSpin {
   0% {
     transform: rotate(0deg);
   }
@@ -208,10 +208,6 @@
     @apply flex items-center justify-between gap-4;
   }
 
-  .field-control {
-    @apply relative block;
-  }
-
   .field-hint {
     @apply text-xs leading-5 text-slate-500;
   }
@@ -220,33 +216,28 @@
     @apply text-xs font-medium uppercase tracking-wide text-slate-500;
   }
 
+  .preview-bound-field {
+    @apply rounded-xl border border-transparent p-3 transition-colors;
+  }
+
+  .preview-bound-field-active {
+    @apply bg-white/40;
+  }
+
+  .preview-bound-field-header.preview-bound-field-active {
+    @apply border-sky-400/70 bg-sky-50/80;
+  }
+
+  .preview-bound-field-data.preview-bound-field-active {
+    @apply border-emerald-400/70 bg-emerald-50/80;
+  }
+
+  .preview-bound-field-timestamp.preview-bound-field-active {
+    @apply border-amber-400/70 bg-amber-50/80;
+  }
+
   .input {
     @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-sky-100;
-  }
-
-  .input-with-status {
-    @apply pr-10;
-  }
-
-  .input-status {
-    @apply pointer-events-none absolute right-3 top-1/2 inline-flex -translate-y-1/2 items-center justify-center text-sm font-semibold;
-  }
-
-  .input-status-valid {
-    @apply h-5 w-5 rounded-full border border-emerald-500 bg-emerald-50 text-[11px] text-emerald-600;
-  }
-
-  .input-status-invalid {
-    @apply h-5 w-5 rounded-full border border-red-500 bg-red-50 text-[11px] text-red-600;
-  }
-
-  .input-status-checking {
-    @apply text-slate-400;
-  }
-
-  .input-spinner {
-    @apply h-4 w-4 rounded-full border-2 border-slate-300 border-t-brand-600;
-    animation: spin 650ms linear infinite;
   }
 
   .field-error {
@@ -279,6 +270,26 @@
 
   .label-link {
     @apply text-sm text-slate-500 hover:text-slate-700;
+  }
+
+  .field-picker {
+    @apply inline-flex items-center justify-center rounded-full border border-slate-300 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500 transition-colors hover:border-slate-400 hover:text-slate-700;
+  }
+
+  .field-picker-active {
+    @apply text-white;
+  }
+
+  .field-picker-header.field-picker-active {
+    @apply border-sky-400 bg-sky-500/90;
+  }
+
+  .field-picker-data.field-picker-active {
+    @apply border-emerald-400 bg-emerald-500/90;
+  }
+
+  .field-picker-timestamp.field-picker-active {
+    @apply border-amber-400 bg-amber-500/90 text-slate-950;
   }
 
   .auth-toggle-group {
@@ -321,6 +332,15 @@
 
   .welcome-shell {
     @apply flex min-h-screen w-full items-stretch bg-[#2f3133];
+  }
+
+  .loading-shell {
+    @apply flex min-h-screen w-full items-center justify-center bg-[#2f3133];
+  }
+
+  .loading-spinner {
+    @apply h-12 w-12 rounded-full border-4 border-slate-700 border-t-brand-400;
+    animation: loaderSpin 800ms linear infinite;
   }
 
   .welcome-card {
@@ -368,14 +388,6 @@
     @apply border-slate-700 bg-[#1f2022] text-slate-100 placeholder:text-slate-500 focus:border-brand-500 focus:ring-sky-950;
   }
 
-  .welcome-shell .input-status-checking {
-    @apply text-slate-500;
-  }
-
-  .welcome-shell .input-spinner {
-    @apply border-slate-600 border-t-brand-500;
-  }
-
   .welcome-shell .field-error {
     @apply text-red-400;
   }
@@ -394,6 +406,104 @@
 
   .welcome-shell .btn-ghost {
     @apply text-slate-300 hover:bg-white/6 hover:text-slate-100;
+  }
+
+  .onboarding-shell .page-title {
+    @apply text-slate-50;
+  }
+
+  .onboarding-shell .page-copy {
+    @apply text-slate-300;
+  }
+
+  .onboarding-shell .eyebrow {
+    @apply text-brand-400;
+  }
+
+  .onboarding-shell .summary-card,
+  .onboarding-shell .pipeline-form,
+  .onboarding-shell .preview-card,
+  .onboarding-shell .pipeline-subcard,
+  .onboarding-shell .empty-panel {
+    @apply border-slate-800 bg-[#181a1d] text-slate-100 shadow-none;
+  }
+
+  .onboarding-shell .pipeline-subcard {
+    @apply bg-[#202427];
+  }
+
+  .onboarding-shell .mapping-row {
+    @apply border-slate-700 bg-[#16191b];
+  }
+
+  .onboarding-shell .section-title,
+  .onboarding-shell .mapping-source {
+    @apply text-slate-100;
+  }
+
+  .onboarding-shell .section-copy,
+  .onboarding-shell .summary-meta,
+  .onboarding-shell .job-meta,
+  .onboarding-shell .mapping-help,
+  .onboarding-shell .field-hint,
+  .onboarding-shell .label {
+    @apply text-slate-400;
+  }
+
+  .onboarding-shell .input {
+    @apply border-slate-700 bg-[#111315] text-slate-100 placeholder:text-slate-500 focus:border-brand-500 focus:ring-sky-950;
+  }
+
+  .onboarding-shell .btn-ghost {
+    @apply text-slate-300 hover:bg-white/6 hover:text-slate-100;
+  }
+
+  .onboarding-shell .btn-danger {
+    @apply text-red-300 hover:bg-red-950/40;
+  }
+
+  .onboarding-shell .pill-success {
+    @apply bg-emerald-950/50 text-emerald-200;
+  }
+
+  .onboarding-shell .pill-info {
+    @apply bg-sky-950/50 text-sky-200;
+  }
+
+  .onboarding-shell .notice-error {
+    @apply bg-red-950/40 text-red-200;
+  }
+
+  .onboarding-shell .notice-info {
+    @apply bg-sky-950/40 text-sky-200;
+  }
+
+  .onboarding-shell .notice-success {
+    @apply bg-emerald-950/40 text-emerald-200;
+  }
+
+  .onboarding-shell .validation-panel {
+    @apply border-red-900/60 bg-red-950/35;
+  }
+
+  .onboarding-shell .validation-list {
+    @apply text-red-200;
+  }
+
+  .onboarding-shell .field-picker {
+    @apply border-slate-700 text-slate-300 hover:border-slate-500 hover:text-slate-100;
+  }
+
+  .onboarding-shell .preview-bound-field-active.preview-bound-field-header {
+    @apply border-sky-500/60 bg-sky-950/35;
+  }
+
+  .onboarding-shell .preview-bound-field-active.preview-bound-field-data {
+    @apply border-emerald-500/60 bg-emerald-950/35;
+  }
+
+  .onboarding-shell .preview-bound-field-active.preview-bound-field-timestamp {
+    @apply border-amber-500/60 bg-amber-950/35;
   }
 
   .pipeline-layout {
@@ -436,6 +546,10 @@
     @apply flex flex-col gap-4 border-b border-slate-100 pb-4;
   }
 
+  .preview-guidance {
+    @apply mt-2 text-sm text-slate-500;
+  }
+
   .preview-summary {
     @apply flex flex-wrap gap-2;
   }
@@ -445,7 +559,7 @@
   }
 
   .preview-raw-line {
-    @apply grid grid-cols-[2.5rem_minmax(0,1fr)] gap-3 border-b border-slate-800/80 px-1 py-1.5 last:border-b-0;
+    @apply grid w-full appearance-none grid-cols-[4.75rem_minmax(0,1fr)] gap-3 border-0 border-b border-slate-800/80 bg-transparent px-1 py-1.5 text-left transition-colors last:border-b-0;
   }
 
   .preview-raw-line-header {
@@ -456,8 +570,32 @@
     @apply bg-emerald-950/40;
   }
 
+  .preview-line-number-shell {
+    @apply flex flex-col items-start gap-1;
+  }
+
   .preview-line-number {
     @apply font-mono text-slate-400;
+  }
+
+  .preview-row-tag {
+    @apply inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em];
+  }
+
+  .preview-row-tag-header {
+    @apply bg-sky-500/20 text-sky-200;
+  }
+
+  .preview-row-tag-data {
+    @apply bg-emerald-500/20 text-emerald-200;
+  }
+
+  .preview-header-button {
+    @apply block w-full appearance-none rounded-md border-0 bg-transparent px-1 py-1 text-left font-mono transition-colors hover:bg-slate-200/70;
+  }
+
+  .preview-cell-line-number {
+    @apply w-16 whitespace-nowrap text-slate-400;
   }
 
   .preview-table-shell {
@@ -538,6 +676,52 @@
 
   .job-card-actions {
     @apply mt-5 flex flex-wrap gap-2 border-t border-slate-100 pt-4;
+  }
+
+  .onboarding-shell .preview-guidance,
+  .onboarding-shell .preview-footer,
+  .onboarding-shell .preview-cell-line-number {
+    @apply text-slate-400;
+  }
+
+  .onboarding-shell .preview-header {
+    @apply border-slate-800;
+  }
+
+  .onboarding-shell .preview-raw {
+    @apply border-slate-800;
+  }
+
+  .onboarding-shell .preview-table-shell {
+    @apply border-slate-800;
+  }
+
+  .onboarding-shell .preview-table thead {
+    @apply bg-slate-900;
+  }
+
+  .onboarding-shell .preview-table tbody tr:nth-child(odd) {
+    @apply bg-[#15181a];
+  }
+
+  .onboarding-shell .preview-table tbody tr:nth-child(even) {
+    @apply bg-[#1a1d20];
+  }
+
+  .onboarding-shell .preview-cell {
+    @apply border-slate-800 text-slate-200;
+  }
+
+  .onboarding-shell .preview-header-button {
+    @apply hover:bg-white/8;
+  }
+
+  .onboarding-shell .preview-col-timestamp {
+    @apply bg-amber-950/35 text-amber-200;
+  }
+
+  .onboarding-shell .preview-col-mapped {
+    @apply bg-emerald-950/35 text-emerald-200;
   }
 
   .pill-success,

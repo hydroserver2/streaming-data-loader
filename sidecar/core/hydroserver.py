@@ -24,7 +24,69 @@ class HydroServerCheck:
     permissions_ok: bool = False
 
 
+@dataclass
+class HydroServerUrlCheck:
+    ok: bool
+    message: str
+    instance_name: str | None = None
+
+
 class HydroServerService:
+    def validate_url(self, url: str) -> HydroServerUrlCheck:
+        normalized_url = url.strip().rstrip("/")
+        if not normalized_url:
+            return HydroServerUrlCheck(
+                ok=False,
+                message="Enter the HydroServer URL.",
+            )
+
+        auth_probe_url = f"{normalized_url}/api/auth/app/session"
+        data_probe_url = f"{normalized_url}/api/data/workspaces"
+
+        try:
+            auth_response = requests.get(
+                auth_probe_url,
+                headers={"Accept": "application/json"},
+                timeout=15,
+                allow_redirects=True,
+            )
+            if self._looks_like_hydroserver_auth_response(auth_response):
+                instance_name = self._instance_name(normalized_url)
+                return HydroServerUrlCheck(
+                    ok=True,
+                    message=f"HydroServer API detected at {instance_name}.",
+                    instance_name=instance_name,
+                )
+
+            data_response = requests.get(
+                data_probe_url,
+                headers={"Accept": "application/json"},
+                timeout=15,
+                allow_redirects=True,
+            )
+            if self._looks_like_hydroserver_data_response(data_response):
+                instance_name = self._instance_name(normalized_url)
+                return HydroServerUrlCheck(
+                    ok=True,
+                    message=f"HydroServer API detected at {instance_name}.",
+                    instance_name=instance_name,
+                )
+
+            return HydroServerUrlCheck(
+                ok=False,
+                message="That URL responded, but it doesn't look like a HydroServer instance exposing the expected API.",
+            )
+        except (requests.ConnectionError, requests.Timeout):
+            return HydroServerUrlCheck(
+                ok=False,
+                message="Couldn't reach that URL. Check the server URL and try again.",
+            )
+        except requests.RequestException:
+            return HydroServerUrlCheck(
+                ok=False,
+                message="Couldn't validate that HydroServer URL right now.",
+            )
+
     def test_connection(self, server: ServerConfig) -> HydroServerCheck:
         if not self._is_configured(server):
             return HydroServerCheck(
@@ -146,3 +208,43 @@ class HydroServerService:
         if isinstance(items, list):
             return items
         return []
+
+    def _looks_like_hydroserver_auth_response(self, response: requests.Response) -> bool:
+        if response.status_code not in {200, 401, 403, 405, 422}:
+            return False
+
+        payload = self._response_json(response)
+        if not isinstance(payload, dict):
+            return False
+
+        meta = payload.get("meta")
+        data = payload.get("data")
+        detail = payload.get("detail")
+
+        return (
+            isinstance(meta, dict)
+            and "is_authenticated" in meta
+            or isinstance(data, dict)
+            and "flows" in data
+            or isinstance(detail, list)
+        )
+
+    def _looks_like_hydroserver_data_response(self, response: requests.Response) -> bool:
+        if response.status_code not in {200, 401, 403}:
+            return False
+
+        payload = self._response_json(response)
+        return isinstance(payload, list) or (
+            isinstance(payload, dict)
+            and ("detail" in payload or "status" in payload)
+        )
+
+    def _response_json(self, response: requests.Response) -> object | None:
+        content_type = response.headers.get("content-type", "").lower()
+        if "json" not in content_type:
+            return None
+
+        try:
+            return response.json()
+        except ValueError:
+            return None
