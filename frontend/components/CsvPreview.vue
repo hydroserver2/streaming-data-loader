@@ -22,7 +22,7 @@ type ColumnDragState = {
   moved: boolean
 }
 
-type RowEntry = { lineNumber: number; button: HTMLButtonElement }
+type RowEntry = { lineNumber: number; element: HTMLElement }
 type ColEntry = { columnName: string; button: HTMLButtonElement }
 
 const model = useAppModel()
@@ -70,11 +70,11 @@ function rebuildButtonCaches(): void {
   if (!rootRef.value) return
 
   cachedRowButtons.value = Array.from(
-    rootRef.value.querySelectorAll<HTMLButtonElement>("[data-preview-line-button]")
+    rootRef.value.querySelectorAll<HTMLElement>("[data-preview-line-anchor]")
   )
-    .map((button) => {
-      const lineNumber = Number(button.dataset.previewLine)
-      return Number.isFinite(lineNumber) ? { lineNumber, button } : null
+    .map((element) => {
+      const lineNumber = Number(element.dataset.previewLine)
+      return Number.isFinite(lineNumber) ? { lineNumber, element } : null
     })
     .filter((e): e is RowEntry => e !== null)
 
@@ -102,7 +102,7 @@ function nearestLineNumber(clientY: number): number | null {
   if (buttons.length === 0) return null
   return buttons.reduce(
     (best, entry) => {
-      const rect = entry.button.getBoundingClientRect()
+      const rect = entry.element.getBoundingClientRect()
       const dist = Math.abs(clientY - (rect.top + rect.height / 2))
       return dist < best.dist ? { lineNumber: entry.lineNumber, dist } : best
     },
@@ -155,21 +155,12 @@ function rowClass(lineNumber: number): string {
   ].filter(Boolean).join(" ")
 }
 
-function lineButtonClass(lineNumber: number): string {
-  return [
-    "preview-line-button",
-    model.state.pipelineForm.hasHeaderRow && lineNumber === displayHeaderLine.value
-      ? "preview-line-button-header" : "",
-    lineNumber === displayDataStartLine.value ? "preview-line-button-data" : "",
-  ].filter(Boolean).join(" ")
-}
-
 function rowHandleClass(target: PreviewRowSelectionTarget): string {
   const dragging = rowDrag.value?.target === target
   const base =
     target === "header-row"
-      ? "preview-row-handle preview-row-handle-header"
-      : "preview-row-handle preview-row-handle-data"
+      ? "preview-tag preview-tag-row preview-tag-header"
+      : "preview-tag preview-tag-row preview-tag-data"
   return [base, dragging && "preview-row-handle-dragging"]
     .filter(Boolean).join(" ")
 }
@@ -177,7 +168,7 @@ function rowHandleClass(target: PreviewRowSelectionTarget): string {
 function timestampHandleClass(columnName: string): string {
   const dragging = columnDrag.value?.originColumnName === columnName
   return [
-    "preview-column-handle",
+    "preview-tag preview-tag-column preview-tag-timestamp",
     dragging && "preview-column-handle-dragging",
   ].filter(Boolean).join(" ")
 }
@@ -340,8 +331,8 @@ onBeforeUnmount(() => {
                   :class="timestampHandleClass(header)"
                   :style="timestampHandleStyle(header)"
                   type="button"
-                  @click.prevent
-                  @pointerdown.prevent="onColumnHandlePointerDown(header, $event)"
+                  @click.stop.prevent
+                  @pointerdown.stop.prevent="onColumnHandlePointerDown(header, $event)"
                 >
                   TIMESTAMP
                 </button>
@@ -365,15 +356,20 @@ onBeforeUnmount(() => {
             class="preview-table-row"
             :class="rowClass(entry.lineNumber)"
           >
-            <td class="preview-cell preview-cell-line-number preview-line-cell">
+            <td
+              class="preview-cell preview-cell-line-number preview-line-cell"
+              :data-preview-line="entry.lineNumber"
+              data-preview-line-anchor
+            >
               <div class="preview-line-controls">
+                <span class="preview-line-number">{{ entry.lineNumber }}</span>
                 <button
                   v-if="model.state.pipelineForm.hasHeaderRow && displayHeaderLine === entry.lineNumber"
                   :class="rowHandleClass('header-row')"
                   :style="handleOffsetStyle('header-row', entry.lineNumber)"
                   type="button"
-                  @click.prevent="onHandleClick('header-row')"
-                  @pointerdown.prevent="onHandlePointerDown('header-row', entry.lineNumber, $event)"
+                  @click.stop.prevent="onHandleClick('header-row')"
+                  @pointerdown.stop.prevent="onHandlePointerDown('header-row', entry.lineNumber, $event)"
                 >
                   HEADER
                 </button>
@@ -382,19 +378,10 @@ onBeforeUnmount(() => {
                   :class="rowHandleClass('data-start-row')"
                   :style="handleOffsetStyle('data-start-row', entry.lineNumber)"
                   type="button"
-                  @click.prevent="onHandleClick('data-start-row')"
-                  @pointerdown.prevent="onHandlePointerDown('data-start-row', entry.lineNumber, $event)"
+                  @click.stop.prevent="onHandleClick('data-start-row')"
+                  @pointerdown.stop.prevent="onHandlePointerDown('data-start-row', entry.lineNumber, $event)"
                 >
                   DATA START
-                </button>
-                <button
-                  :class="lineButtonClass(entry.lineNumber)"
-                  type="button"
-                  :data-preview-line="entry.lineNumber"
-                  data-preview-line-button
-                  @click="model.applyPreviewLineSelection(entry.lineNumber)"
-                >
-                  <span class="preview-line-number">{{ entry.lineNumber }}</span>
                 </button>
               </div>
             </td>
@@ -402,6 +389,7 @@ onBeforeUnmount(() => {
               v-for="(header, index) in headers"
               :key="`${entry.lineNumber}-${header}`"
               :class="cellClass(header)"
+              @click="model.applyPreviewLineSelection(entry.lineNumber)"
             >
               {{ entry.row[index] ?? "" }}
             </td>

@@ -1,12 +1,12 @@
-import { reactive } from "vue"
+import { reactive } from "vue";
 
 import {
   createAuthFieldStates,
   type AuthFieldName,
   type Feedback,
   type FieldValidationState,
-} from "../auth-submit"
-import { getRouteFromHash, type AppRoute } from "../router"
+} from "../auth-submit";
+import { getRouteFromHash, type AppRoute } from "../router";
 import type {
   AppConfig,
   ConnectionState,
@@ -14,52 +14,52 @@ import type {
   CsvPreviewResponse,
   HealthResponse,
   ServerConfig,
-} from "../api"
+} from "../api";
 
 export type PipelineFormState = {
-  filePath: string
-  hasHeaderRow: boolean
-  headerRow: number
-  dataStartRow: number
-  delimiter: string
-  timestampColumn: string
-}
+  filePath: string;
+  hasHeaderRow: boolean;
+  headerRow: number;
+  dataStartRow: number;
+  delimiter: string;
+  timestampColumn: string;
+};
 
 export type PreviewSelectionTarget =
   | "header-row"
   | "data-start-row"
   | "timestamp-column"
-  | null
+  | null;
 
 export type PreviewRowSelectionTarget = Exclude<
   PreviewSelectionTarget,
   "timestamp-column" | null
->
+>;
 
 type UiState = {
-  route: AppRoute
-  health: HealthResponse | null
-  config: AppConfig | null
-  connectionSummary: ConnectionTestResponse | null
-  loading: boolean
-  bootstrapError: string | null
-  welcomeFeedback: Feedback
-  settingsFeedback: Feedback
-  pipelineFeedback: Feedback
-  lastConnectionState: ConnectionState | null
-  pipelineForm: PipelineFormState
-  pipelinePreview: CsvPreviewResponse | null
-  authDraft: ServerConfig
-  authFieldStates: Record<AuthFieldName, FieldValidationState>
-  authSubmitting: boolean
-  pipelineSelectionTarget: PreviewSelectionTarget
-  pipelinePreviewRowsRequested: number
-}
+  route: AppRoute;
+  health: HealthResponse | null;
+  config: AppConfig | null;
+  connectionSummary: ConnectionTestResponse | null;
+  loading: boolean;
+  bootstrapError: string | null;
+  welcomeFeedback: Feedback;
+  settingsFeedback: Feedback;
+  pipelineFeedback: Feedback;
+  lastConnectionState: ConnectionState | null;
+  pipelineForm: PipelineFormState;
+  pipelinePreview: CsvPreviewResponse | null;
+  authDraft: ServerConfig;
+  authFieldStates: Record<AuthFieldName, FieldValidationState>;
+  authSubmitting: boolean;
+  pipelineSelectionTarget: PreviewSelectionTarget;
+  pipelinePreviewRowsRequested: number;
+};
 
-export const PREVIEW_PAGE_SIZE = 50
-export const APP_NAME = "HydroServer Streaming Data Loader"
+export const PREVIEW_PAGE_SIZE = 20;
+export const APP_NAME = "HydroServer Streaming Data Loader";
 export const API_KEY_DOCS_URL =
-  "https://hydroserver2.github.io/hydroserver/tutorials/creating-your-first-orchestration-system#create-an-api-key"
+  "https://hydroserver2.github.io/hydroserver/tutorials/creating-your-first-orchestration-system#create-an-api-key";
 
 export function emptyServerConfig(): ServerConfig {
   return {
@@ -69,7 +69,7 @@ export function emptyServerConfig(): ServerConfig {
     username: "",
     password: "",
     workspace_id: "",
-  }
+  };
 }
 
 export function createEmptyPipelineForm(): PipelineFormState {
@@ -80,7 +80,7 @@ export function createEmptyPipelineForm(): PipelineFormState {
     dataStartRow: 4,
     delimiter: ",",
     timestampColumn: "Timestamp",
-  }
+  };
 }
 
 export const state = reactive<UiState>({
@@ -101,4 +101,4 @@ export const state = reactive<UiState>({
   authSubmitting: false,
   pipelineSelectionTarget: null,
   pipelinePreviewRowsRequested: PREVIEW_PAGE_SIZE,
-})
+});
