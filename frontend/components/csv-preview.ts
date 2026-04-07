@@ -9,6 +9,8 @@ import {
   canShowMorePreviewLines,
   updateHeaderRowFromPreview,
   updateDataStartRowFromPreview,
+  applyPreviewLineSelection,
+  applyPreviewColumnSelection,
   initializeMappings,
   PREVIEW_PAGE_SIZE,
   type PreviewRowSelectionTarget,
@@ -133,13 +135,15 @@ function renderTimestampHandle(columnName: string): string {
 export function renderPipelinePreview(): string {
   if (!state.pipelinePreview) {
     return `
-      <article class="preview-card preview-placeholder">
-        <div class="empty-icon">CSV</div>
-        <h2 class="section-title">Preview a source file</h2>
-        <p class="section-copy">
-          Choose a CSV file to inspect the first 50 lines and configure
-          the source structure.
-        </p>
+      <article class="preview-card">
+        <div class="preview-placeholder">
+          <div class="empty-icon">CSV</div>
+          <h2 class="section-title">Preview a source file</h2>
+          <p class="section-copy">
+            Choose a CSV file to inspect the first 50 lines and configure
+            the source structure.
+          </p>
+        </div>
       </article>
     `;
   }
@@ -227,11 +231,13 @@ export function renderPipelinePreview(): string {
 
   return `
     <article class="preview-card">
-      <header class="preview-header">
-        <p class="eyebrow">Preview</p>
-        <h2 class="section-title">${escapeHtml(basename(state.pipelineForm.filePath))}</h2>
-        <p class="preview-guidance">${escapeHtml(previewGuidanceText())}</p>
-      </header>
+      <div class="preview-header">
+        <div>
+          <p class="eyebrow">Preview</p>
+          <h2 class="section-title">${escapeHtml(basename(state.pipelineForm.filePath))}</h2>
+          <p class="preview-guidance">${escapeHtml(previewGuidanceText())}</p>
+        </div>
+      </div>
 
       <label class="preview-toggle">
         <input

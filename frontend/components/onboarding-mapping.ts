@@ -27,7 +27,10 @@ function renderMappingRow(csvColumn: string, datastreamId: string): string {
   return `
     <div class="mapping-row ${isMapped ? "mapping-row-active" : ""}">
       <span class="mapping-source">${escapeHtml(csvColumn)}</span>
-      <span class="mapping-connector" aria-hidden="true">&#8594;</span>
+      <span class="mapping-connector" aria-hidden="true">
+        <span class="mapping-connector-line ${isMapped ? "mapping-connector-line-active" : ""}"></span>
+        <span class="mapping-connector-arrow">&#8594;</span>
+      </span>
       <select
         class="input mapping-select"
         data-mapping-column="${escapeHtml(csvColumn)}"
@@ -56,26 +59,31 @@ export function renderOnboardingMapping(): string {
   return `
     <section class="page-shell onboarding-shell animate-fade-in">
       <header class="onboarding-header">
-        <p class="eyebrow">${isFirstPipeline ? "Step 2 of 2" : "New pipeline"}</p>
-        <h1 class="page-title">Map columns to datastreams</h1>
-        <p class="page-copy">
-          Connect each CSV source column to a HydroServer datastream.
-          Leave unused columns as "Not mapped."
-        </p>
+        <div>
+          <p class="eyebrow">${isFirstPipeline ? "Step 2 of 2" : "New pipeline"}</p>
+          <h1 class="page-title">Map columns to datastreams</h1>
+          <p class="page-copy">
+            Connect each CSV source column to a HydroServer datastream.
+            Leave unused columns as "Not mapped."
+          </p>
+        </div>
         ${connectionBadge()}
       </header>
 
       <div class="mapping-card">
-        <header class="mapping-card-header">
+        <div class="mapping-card-header">
           <span class="mapping-col-label">Source column</span>
+          <span></span>
           <span class="mapping-col-label">HydroServer datastream</span>
-        </header>
+        </div>
 
         ${
           mappings.length > 0
-            ? mappings
-                .map((m) => renderMappingRow(m.csvColumn, m.datastreamId))
-                .join("")
+            ? `<div class="mapping-list">
+                ${mappings
+                  .map((m) => renderMappingRow(m.csvColumn, m.datastreamId))
+                  .join("")}
+              </div>`
             : `<p class="section-copy mapping-empty">
                 No source columns found.
                 <button class="btn-link" type="button" data-action="back-to-file-config">
