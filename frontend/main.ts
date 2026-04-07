@@ -83,12 +83,29 @@ type PreviewDragState = {
   moved: boolean;
 };
 
+type PreviewColumnDragState = {
+  columnName: string;
+  pointerId: number;
+  moved: boolean;
+};
+
 type PreviewDragVisualState = {
   handle: HTMLElement;
   startClientY: number;
   currentClientY: number;
   rowButtons: Map<number, HTMLButtonElement>;
+  rowElements: Map<number, HTMLTableRowElement>;
   rowCenters: Array<{ lineNumber: number; centerY: number }>;
+  frameRequested: boolean;
+};
+
+type PreviewColumnDragVisualState = {
+  handle: HTMLElement;
+  startClientX: number;
+  currentClientX: number;
+  headerButtons: Map<string, HTMLButtonElement>;
+  columnCells: Map<string, HTMLElement[]>;
+  headerCenters: Array<{ columnName: string; centerX: number }>;
   frameRequested: boolean;
 };
 
@@ -117,6 +134,7 @@ type UiState = {
   lastAuthValidationResult: ConnectionTestResponse | null;
   pipelineSelectionTarget: PreviewSelectionTarget;
   pipelineDrag: PreviewDragState | null;
+  pipelineColumnDrag: PreviewColumnDragState | null;
 };
 
 const shellElements = {
@@ -147,6 +165,7 @@ const { sidebar, mainContent, jobsLink, settingsLink, connectionDot } =
 let lastRenderedMarkup = "";
 let suppressPreviewHandleClick = false;
 let previewDragVisual: PreviewDragVisualState | null = null;
+let previewColumnDragVisual: PreviewColumnDragVisualState | null = null;
 
 function createEmptyPipelineForm(): PipelineFormState {
   return {
@@ -189,6 +208,7 @@ const state: UiState = {
   lastAuthValidationResult: null,
   pipelineSelectionTarget: null,
   pipelineDrag: null,
+  pipelineColumnDrag: null,
 };
 
 function emptyServerConfig(): ServerConfig {
@@ -398,21 +418,23 @@ function clearAuthValidationCache(): void {
 
 function previewHeaders(): string[] {
   const rows = parsedPreviewRows();
+  const columnCount = rows.reduce((max, row) => Math.max(max, row.length), 0);
+
   if (!state.pipelineForm.hasHeaderRow) {
     const dataRows = rows.slice(Math.max(state.pipelineForm.dataStartRow - 1, 0));
-    const columnCount = (dataRows.length > 0 ? dataRows : rows).reduce(
+    const dataColumnCount = (dataRows.length > 0 ? dataRows : rows).reduce(
       (max, row) => Math.max(max, row.length),
       0
     );
     return Array.from(
-      { length: columnCount },
+      { length: dataColumnCount },
       (_, index) => `Column ${index + 1}`
     );
   }
 
   const headerRow = rows[state.pipelineForm.headerRow - 1] ?? [];
-  return headerRow.map((cell, index) =>
-    normalizePreviewHeaderName(cell, index)
+  return Array.from({ length: columnCount }, (_, index) =>
+    normalizePreviewHeaderName(headerRow[index] ?? "", index)
   );
 }
 
@@ -496,6 +518,21 @@ function collectPreviewRowButtons(): Map<number, HTMLButtonElement> {
   );
 }
 
+function collectPreviewRowElements(): Map<number, HTMLTableRowElement> {
+  return new Map(
+    Array.from(
+      mainContent.querySelectorAll<HTMLTableRowElement>("[data-preview-line-row]")
+    )
+      .map((row) => {
+        const lineNumber = Number(row.dataset.previewLineRow);
+        return Number.isFinite(lineNumber) ? [lineNumber, row] : null;
+      })
+      .filter(
+        (entry): entry is [number, HTMLTableRowElement] => entry !== null
+      )
+  );
+}
+
 function collectPreviewRowCenters(
   rowButtons: Map<number, HTMLButtonElement>
 ): Array<{ lineNumber: number; centerY: number }> {
@@ -527,6 +564,83 @@ function nearestPreviewLineNumber(
   return bestLine;
 }
 
+function activeTimestampColumn(): string {
+  return state.pipelineColumnDrag?.columnName ?? state.pipelineForm.timestampColumn;
+}
+
+function findPreviewColumnHandleElement(columnName: string): HTMLElement | null {
+  return (
+    Array.from(
+      mainContent.querySelectorAll<HTMLElement>("[data-preview-column-handle]")
+    ).find((element) => element.dataset.previewColumnHandle === columnName) ?? null
+  );
+}
+
+function collectPreviewHeaderButtons(): Map<string, HTMLButtonElement> {
+  return new Map(
+    Array.from(
+      mainContent.querySelectorAll<HTMLButtonElement>(
+        '[data-action="pick-preview-column"][data-preview-column]'
+      )
+    )
+      .map((button) => {
+        const columnName = button.dataset.previewColumn ?? "";
+        return columnName ? [columnName, button] : null;
+      })
+      .filter(
+        (entry): entry is [string, HTMLButtonElement] => entry !== null
+      )
+  );
+}
+
+function collectPreviewColumnCells(): Map<string, HTMLElement[]> {
+  const cells = new Map<string, HTMLElement[]>();
+  mainContent
+    .querySelectorAll<HTMLElement>("[data-preview-column-cell]")
+    .forEach((element) => {
+      const columnName = element.dataset.previewColumnCell ?? "";
+      if (!columnName) {
+        return;
+      }
+
+      const columnEntries = cells.get(columnName) ?? [];
+      columnEntries.push(element);
+      cells.set(columnName, columnEntries);
+    });
+  return cells;
+}
+
+function collectPreviewHeaderCenters(
+  headerButtons: Map<string, HTMLButtonElement>
+): Array<{ columnName: string; centerX: number }> {
+  return Array.from(headerButtons.entries()).map(([columnName, button]) => {
+    const rect = button.getBoundingClientRect();
+    return { columnName, centerX: rect.left + rect.width / 2 };
+  });
+}
+
+function nearestPreviewColumnName(
+  clientX: number,
+  headerCenters: Array<{ columnName: string; centerX: number }>
+): string | null {
+  if (headerCenters.length === 0) {
+    return null;
+  }
+
+  let bestColumn = headerCenters[0].columnName;
+  let bestDistance = Math.abs(clientX - headerCenters[0].centerX);
+
+  for (const column of headerCenters.slice(1)) {
+    const distance = Math.abs(clientX - column.centerX);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      bestColumn = column.columnName;
+    }
+  }
+
+  return bestColumn;
+}
+
 function applyPreviewDragClasses(): void {
   if (!state.pipelineDrag || !previewDragVisual) {
     return;
@@ -543,10 +657,18 @@ function applyPreviewDragClasses(): void {
 
   for (const [lineNumber, button] of previewDragVisual.rowButtons.entries()) {
     button.classList.toggle(
-      "preview-raw-line-header",
+      "preview-line-button-header",
       state.pipelineForm.hasHeaderRow && headerLine === lineNumber
     );
-    button.classList.toggle("preview-raw-line-data", dataLine === lineNumber);
+    button.classList.toggle("preview-line-button-data", dataLine === lineNumber);
+  }
+
+  for (const [lineNumber, row] of previewDragVisual.rowElements.entries()) {
+    row.classList.toggle(
+      "preview-table-row-header",
+      state.pipelineForm.hasHeaderRow && headerLine === lineNumber
+    );
+    row.classList.toggle("preview-table-row-data", dataLine === lineNumber);
   }
 }
 
@@ -592,6 +714,7 @@ function beginPreviewDragVisual(pointerClientY: number): void {
     startClientY: pointerClientY,
     currentClientY: pointerClientY,
     rowButtons,
+    rowElements: collectPreviewRowElements(),
     rowCenters: collectPreviewRowCenters(rowButtons),
     frameRequested: false,
   };
@@ -625,6 +748,95 @@ function endPreviewDragVisual(): void {
   previewDragVisual = null;
 }
 
+function applyPreviewColumnDragClasses(): void {
+  if (!state.pipelineColumnDrag || !previewColumnDragVisual) {
+    return;
+  }
+
+  for (const [columnName, cells] of previewColumnDragVisual.columnCells.entries()) {
+    const active = columnName === state.pipelineColumnDrag.columnName;
+    for (const cell of cells) {
+      cell.classList.toggle("preview-col-timestamp", active);
+    }
+  }
+}
+
+function flushPreviewColumnDragVisual(): void {
+  if (!state.pipelineColumnDrag || !previewColumnDragVisual) {
+    return;
+  }
+
+  previewColumnDragVisual.frameRequested = false;
+  const offset =
+    previewColumnDragVisual.currentClientX - previewColumnDragVisual.startClientX;
+  previewColumnDragVisual.handle.style.setProperty(
+    "--preview-column-handle-offset",
+    `${offset}px`
+  );
+  applyPreviewColumnDragClasses();
+}
+
+function schedulePreviewColumnDragVisual(): void {
+  if (!previewColumnDragVisual || previewColumnDragVisual.frameRequested) {
+    return;
+  }
+
+  previewColumnDragVisual.frameRequested = true;
+  window.requestAnimationFrame(flushPreviewColumnDragVisual);
+}
+
+function beginPreviewColumnDragVisual(pointerClientX: number): void {
+  if (!state.pipelineColumnDrag) {
+    return;
+  }
+
+  const handle = findPreviewColumnHandleElement(state.pipelineColumnDrag.columnName);
+  if (!handle) {
+    return;
+  }
+
+  const headerButtons = collectPreviewHeaderButtons();
+  previewColumnDragVisual = {
+    handle,
+    startClientX: pointerClientX,
+    currentClientX: pointerClientX,
+    headerButtons,
+    columnCells: collectPreviewColumnCells(),
+    headerCenters: collectPreviewHeaderCenters(headerButtons),
+    frameRequested: false,
+  };
+
+  handle.classList.add("preview-column-handle-dragging");
+  handle.style.setProperty("--preview-column-handle-offset", "0px");
+  applyPreviewColumnDragClasses();
+}
+
+function endPreviewColumnDragVisual(): void {
+  if (!previewColumnDragVisual) {
+    return;
+  }
+
+  if (
+    state.pipelineColumnDrag &&
+    typeof previewColumnDragVisual.handle.releasePointerCapture === "function" &&
+    previewColumnDragVisual.handle.hasPointerCapture(
+      state.pipelineColumnDrag.pointerId
+    )
+  ) {
+    previewColumnDragVisual.handle.releasePointerCapture(
+      state.pipelineColumnDrag.pointerId
+    );
+  }
+
+  previewColumnDragVisual.handle.classList.remove(
+    "preview-column-handle-dragging"
+  );
+  previewColumnDragVisual.handle.style.removeProperty(
+    "--preview-column-handle-offset"
+  );
+  previewColumnDragVisual = null;
+}
+
 function pipelineMappingsByColumn(): Map<string, string> {
   return new Map(
     state.pipelineForm.mappings.map((mapping) => [
@@ -645,28 +857,12 @@ function previewColumnClass(columnName: string): string {
   return mapped ? "preview-col-mapped" : "";
 }
 
-function previewPickerButtonClass(
-  target: Exclude<PreviewSelectionTarget, null>
-): string {
-  const active = state.pipelineSelectionTarget === target;
-  const toneClass =
-    target === "header-row"
-      ? "field-picker-header"
-      : target === "data-start-row"
-      ? "field-picker-data"
-      : "field-picker-timestamp";
-
-  return active
-    ? `field-picker field-picker-active ${toneClass}`
-    : "field-picker";
-}
-
 function previewFieldClass(
   target: Exclude<PreviewSelectionTarget, null>
 ): string {
   const active =
     target === "timestamp-column"
-      ? state.pipelineSelectionTarget === target
+      ? state.pipelineSelectionTarget === target || state.pipelineColumnDrag !== null
       : activePreviewRowTarget() === target;
   const toneClass =
     target === "header-row"
@@ -691,13 +887,16 @@ function previewGuidanceText(): string {
     return "Drag the DATA START handle, or click the first data row.";
   }
 
-  if (state.pipelineSelectionTarget === "timestamp-column") {
-    return "Click a column header to set the timestamp column.";
+  if (
+    state.pipelineSelectionTarget === "timestamp-column" ||
+    state.pipelineColumnDrag
+  ) {
+    return "Drag the TIMESTAMP handle, or click a column header to place it.";
   }
 
   return state.pipelineForm.hasHeaderRow
-    ? "Drag the HEADER and DATA START handles, or click a column header to set the timestamp column."
-    : "Drag the DATA START handle, or click a column header to set the timestamp column.";
+    ? "Drag the HEADER, DATA START, and TIMESTAMP handles, or click a row or column to place them."
+    : "Drag the DATA START and TIMESTAMP handles, or click a row or column to place them.";
 }
 
 function syncPipelineSelectionsWithPreview(): void {
@@ -743,6 +942,7 @@ function applyPreview(path: string, preview: CsvPreviewResponse): void {
     preview.detected_delimiter || state.pipelineForm.delimiter;
   state.pipelineSelectionTarget = null;
   state.pipelineDrag = null;
+  state.pipelineColumnDrag = null;
 
   if (!state.pipelineForm.name.trim()) {
     const inferred = basename(path).replace(/\.[^.]+$/, "");
@@ -822,10 +1022,11 @@ function applyPreviewColumnSelection(columnName: string): void {
     return;
   }
 
-    state.pipelineForm.timestampColumn = columnName;
-    initializeMappings(previewHeaders());
-    state.pipelineSelectionTarget = null;
-    render();
+  state.pipelineForm.timestampColumn = columnName;
+  initializeMappings(previewHeaders());
+  state.pipelineSelectionTarget = null;
+  state.pipelineColumnDrag = null;
+  render();
 }
 
 function onboardingRoute(route: AppRoute): boolean {
@@ -1155,6 +1356,30 @@ function renderPreviewHandle(
   `;
 }
 
+function renderTimestampHandle(columnName: string): string {
+  if (columnName !== activeTimestampColumn()) {
+    return "";
+  }
+
+  const active =
+    state.pipelineSelectionTarget === "timestamp-column" ||
+    state.pipelineColumnDrag !== null;
+
+  return `
+    <button
+      class="${
+        active
+          ? "preview-column-handle preview-column-handle-active"
+          : "preview-column-handle"
+      }"
+      type="button"
+      data-preview-column-handle="${escapeHtml(columnName)}"
+    >
+      TIMESTAMP
+    </button>
+  `;
+}
+
 function renderPipelinePreview(): string {
   if (!state.pipelinePreview) {
     return `
@@ -1169,54 +1394,27 @@ function renderPipelinePreview(): string {
   }
 
   const headers = previewHeaders();
-  const parsedRows = parsedPreviewRows()
-    .slice(Math.max(state.pipelineForm.dataStartRow - 1, 0))
-    .map((row, index) => ({
-      lineNumber: state.pipelineForm.dataStartRow + index,
-      row,
-    }))
-    .filter(({ row }) => row.some((cell) => cell.trim()))
-    .slice(0, 8);
-  const rawRows = state.pipelinePreview.raw_lines
-    .map((line, index) => {
-      const lineNumber = index + 1;
-      const headerLine = previewHandleLine("header-row");
-      const dataStartLine = previewHandleLine("data-start-row");
-      const rowClass =
-        state.pipelineForm.hasHeaderRow && lineNumber === headerLine
-          ? "preview-raw-line preview-raw-line-header"
-          : lineNumber === dataStartLine
-          ? "preview-raw-line preview-raw-line-data"
-          : "preview-raw-line";
-
-      return `
-        <div class="preview-raw-line-shell">
-          ${
-            state.pipelineForm.hasHeaderRow
-              ? renderPreviewHandle("header-row", lineNumber)
-              : ""
-          }
-          ${renderPreviewHandle("data-start-row", lineNumber)}
-          <button class="${rowClass}" type="button" data-action="pick-preview-line" data-preview-line="${lineNumber}">
-            <span class="preview-line-number-shell">
-              <span class="preview-line-number">${lineNumber}</span>
-            </span>
-            <code>${escapeHtml(line)}</code>
-          </button>
-        </div>
-      `;
-    })
-    .join("");
+  const parsedRows = parsedPreviewRows().map((row, index) => ({
+    lineNumber: index + 1,
+    row,
+  }));
+  const headerLine = previewHandleLine("header-row");
+  const dataStartLine = previewHandleLine("data-start-row");
 
   const headerCells = headers
     .map(
       (header) =>
-        `<th class="preview-cell ${previewColumnClass(header)}">
-          <button class="preview-header-button" type="button" data-action="pick-preview-column" data-preview-column="${escapeHtml(
-            header
-          )}">
-            ${escapeHtml(header)}
-          </button>
+        `<th class="preview-cell ${previewColumnClass(
+          header
+        )}" data-preview-column-cell="${escapeHtml(header)}">
+          <div class="preview-column-header">
+            ${renderTimestampHandle(header)}
+            <button class="preview-header-button" type="button" data-action="pick-preview-column" data-preview-column="${escapeHtml(
+              header
+            )}">
+              ${escapeHtml(header)}
+            </button>
+          </div>
         </th>`
     )
     .join("");
@@ -1224,12 +1422,39 @@ function renderPipelinePreview(): string {
   const tableRows = parsedRows
     .map(
       ({ lineNumber, row }) => `
-        <tr>
-          <td class="preview-cell preview-cell-line-number">${lineNumber}</td>
-          ${row
-            .map((cell, index) => {
-              const columnName = headers[index] ?? "";
+        <tr
+          class="${
+            [
+              "preview-table-row",
+              state.pipelineForm.hasHeaderRow && lineNumber === headerLine
+                ? "preview-table-row-header"
+                : "",
+              lineNumber === dataStartLine ? "preview-table-row-data" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")
+          }"
+          data-preview-line-row="${lineNumber}"
+        >
+          <td class="preview-cell preview-cell-line-number preview-line-cell">
+            <div class="preview-line-controls">
+              ${
+                state.pipelineForm.hasHeaderRow
+                  ? renderPreviewHandle("header-row", lineNumber)
+                  : ""
+              }
+              ${renderPreviewHandle("data-start-row", lineNumber)}
+              <button class="preview-line-button" type="button" data-action="pick-preview-line" data-preview-line="${lineNumber}">
+                <span class="preview-line-number">${lineNumber}</span>
+              </button>
+            </div>
+          </td>
+          ${headers
+            .map((columnName, index) => {
+              const cell = row[index] ?? "";
               return `<td class="preview-cell ${previewColumnClass(
+                columnName
+              )}" data-preview-column-cell="${escapeHtml(
                 columnName
               )}">${escapeHtml(cell)}</td>`;
             })
@@ -1260,8 +1485,6 @@ function renderPipelinePreview(): string {
         />
         <span class="preview-toggle-label">File has a header row</span>
       </label>
-
-      <div class="preview-raw">${rawRows}</div>
 
       <div class="preview-table-shell">
         <table class="preview-table">
@@ -1547,18 +1770,6 @@ function renderPipelineEditor(): string {
             <div class="${previewFieldClass("timestamp-column")}">
               <div class="field-label-row">
                 <label class="label" for="pipeline-timestamp-column">Timestamp column</label>
-                <button
-                  class="${previewPickerButtonClass("timestamp-column")}"
-                  type="button"
-                  data-action="toggle-preview-picker"
-                  data-picker-target="timestamp-column"
-                >
-                  ${
-                    state.pipelineSelectionTarget === "timestamp-column"
-                      ? "Picking in preview"
-                      : "Pick from preview"
-                  }
-                </button>
               </div>
               ${
                 previewHeaders().length > 0
@@ -1567,7 +1778,7 @@ function renderPipelineEditor(): string {
                       state.pipelineForm.timestampColumn
                     )}" placeholder="Timestamp" />`
               }
-              <span class="field-hint">Click the matching header in the preview table to bind it.</span>
+              <span class="field-hint">Drag the amber TIMESTAMP handle in the preview, or click the matching header.</span>
             </div>
 
             <label class="field">
@@ -1824,6 +2035,7 @@ function updatePipelineField(name: string, value: string): void {
       state.pipelineErrors = [];
       state.pipelineSelectionTarget = null;
       state.pipelineDrag = null;
+      state.pipelineColumnDrag = null;
       break;
     case "schedule_minutes":
       state.pipelineForm.scheduleMinutes = Number(value) || 15;
@@ -1843,6 +2055,7 @@ function updatePipelineField(name: string, value: string): void {
     case "timestamp_column":
       state.pipelineForm.timestampColumn = value;
       initializeMappings(previewHeaders());
+      state.pipelineColumnDrag = null;
       render();
       break;
     case "timestamp_format":
@@ -1947,6 +2160,9 @@ async function loadPipelinePreview(path: string): Promise<void> {
     state.pipelineFeedback = null;
   } catch (error) {
     state.pipelinePreview = null;
+    state.pipelineSelectionTarget = null;
+    state.pipelineDrag = null;
+    state.pipelineColumnDrag = null;
     state.pipelineFeedback = {
       tone: "error",
       message:
@@ -2142,6 +2358,7 @@ async function savePipeline(): Promise<void> {
     state.pipelinePreview = null;
     state.pipelineSelectionTarget = null;
     state.pipelineDrag = null;
+    state.pipelineColumnDrag = null;
     state.pipelineErrors = [];
     state.pipelineFeedback = { tone: "success", message: "Pipeline saved." };
     navigate("dashboard");
@@ -2287,96 +2504,180 @@ mainContent.addEventListener("pointerdown", (event) => {
   }
 
   const handle = target.closest<HTMLElement>("[data-preview-handle-target]");
-  if (!handle) {
+  if (handle) {
+    const pickerTarget = handle.dataset.previewHandleTarget;
+    if (pickerTarget !== "header-row" && pickerTarget !== "data-start-row") {
+      return;
+    }
+
+    const lineNumber = Number(handle.dataset.previewLine);
+    if (!Number.isFinite(lineNumber) || lineNumber < 1) {
+      return;
+    }
+
+    state.pipelineSelectionTarget = pickerTarget;
+    state.pipelineDrag = {
+      target: pickerTarget,
+      lineNumber,
+      pointerId: event.pointerId,
+      moved: false,
+    };
+    suppressPreviewHandleClick = false;
+    if (typeof handle.setPointerCapture === "function") {
+      handle.setPointerCapture(event.pointerId);
+    }
+    beginPreviewDragVisual(event.clientY);
+    event.preventDefault();
     return;
   }
 
-  const pickerTarget = handle.dataset.previewHandleTarget;
-  if (pickerTarget !== "header-row" && pickerTarget !== "data-start-row") {
+  const columnHandle = target.closest<HTMLElement>("[data-preview-column-handle]");
+  if (!columnHandle) {
     return;
   }
 
-  const lineNumber = Number(handle.dataset.previewLine);
-  if (!Number.isFinite(lineNumber) || lineNumber < 1) {
+  const columnName = columnHandle.dataset.previewColumnHandle ?? "";
+  if (!columnName) {
     return;
   }
 
-  state.pipelineSelectionTarget = pickerTarget;
-  state.pipelineDrag = {
-    target: pickerTarget,
-    lineNumber,
+  state.pipelineSelectionTarget = "timestamp-column";
+  state.pipelineColumnDrag = {
+    columnName,
     pointerId: event.pointerId,
     moved: false,
   };
-  suppressPreviewHandleClick = false;
-  if (typeof handle.setPointerCapture === "function") {
-    handle.setPointerCapture(event.pointerId);
+  if (typeof columnHandle.setPointerCapture === "function") {
+    columnHandle.setPointerCapture(event.pointerId);
   }
-  beginPreviewDragVisual(event.clientY);
+  beginPreviewColumnDragVisual(event.clientX);
   event.preventDefault();
 });
 
 window.addEventListener("pointermove", (event) => {
-  if (!state.pipelineDrag || state.pipelineDrag.pointerId !== event.pointerId) {
+  if (state.pipelineDrag?.pointerId === event.pointerId) {
+    if (!previewDragVisual) {
+      return;
+    }
+
+    previewDragVisual.currentClientY = event.clientY;
+    const lineNumber = nearestPreviewLineNumber(
+      event.clientY,
+      previewDragVisual.rowCenters
+    );
+    if (!lineNumber) {
+      schedulePreviewDragVisual();
+      return;
+    }
+
+    if (lineNumber === state.pipelineDrag.lineNumber) {
+      schedulePreviewDragVisual();
+      return;
+    }
+
+    state.pipelineDrag = {
+      ...state.pipelineDrag,
+      lineNumber,
+      moved: true,
+    };
+    schedulePreviewDragVisual();
     return;
   }
 
-  if (!previewDragVisual) {
+  if (
+    !state.pipelineColumnDrag ||
+    state.pipelineColumnDrag.pointerId !== event.pointerId
+  ) {
     return;
   }
 
-  previewDragVisual.currentClientY = event.clientY;
-  const lineNumber = nearestPreviewLineNumber(
-    event.clientY,
-    previewDragVisual.rowCenters
+  if (!previewColumnDragVisual) {
+    return;
+  }
+
+  previewColumnDragVisual.currentClientX = event.clientX;
+  const columnName = nearestPreviewColumnName(
+    event.clientX,
+    previewColumnDragVisual.headerCenters
   );
-  if (!lineNumber) {
-    schedulePreviewDragVisual();
+  if (!columnName) {
+    schedulePreviewColumnDragVisual();
     return;
   }
 
-  if (lineNumber === state.pipelineDrag.lineNumber) {
-    schedulePreviewDragVisual();
+  if (columnName === state.pipelineColumnDrag.columnName) {
+    schedulePreviewColumnDragVisual();
     return;
   }
 
-  state.pipelineDrag = {
-    ...state.pipelineDrag,
-    lineNumber,
+  state.pipelineColumnDrag = {
+    ...state.pipelineColumnDrag,
+    columnName,
     moved: true,
   };
-  schedulePreviewDragVisual();
+  schedulePreviewColumnDragVisual();
 });
 
 window.addEventListener("pointerup", (event) => {
-  if (!state.pipelineDrag || state.pipelineDrag.pointerId !== event.pointerId) {
+  if (state.pipelineDrag?.pointerId === event.pointerId) {
+    const drag = state.pipelineDrag;
+    endPreviewDragVisual();
+    state.pipelineDrag = null;
+
+    if (drag.moved) {
+      setPreviewRowSelectionTarget(drag.target, drag.lineNumber);
+      state.pipelineSelectionTarget = null;
+      suppressPreviewHandleClick = true;
+    } else {
+      state.pipelineSelectionTarget = drag.target;
+      suppressPreviewHandleClick = false;
+    }
+
+    render();
     return;
   }
 
-  const drag = state.pipelineDrag;
-  endPreviewDragVisual();
-  state.pipelineDrag = null;
+  if (
+    !state.pipelineColumnDrag ||
+    state.pipelineColumnDrag.pointerId !== event.pointerId
+  ) {
+    return;
+  }
+
+  const drag = state.pipelineColumnDrag;
+  endPreviewColumnDragVisual();
+  state.pipelineColumnDrag = null;
 
   if (drag.moved) {
-    setPreviewRowSelectionTarget(drag.target, drag.lineNumber);
+    state.pipelineForm.timestampColumn = drag.columnName;
+    initializeMappings(previewHeaders());
     state.pipelineSelectionTarget = null;
-    suppressPreviewHandleClick = true;
   } else {
-    state.pipelineSelectionTarget = drag.target;
-    suppressPreviewHandleClick = false;
+    state.pipelineSelectionTarget = "timestamp-column";
   }
 
   render();
 });
 
 window.addEventListener("pointercancel", (event) => {
-  if (!state.pipelineDrag || state.pipelineDrag.pointerId !== event.pointerId) {
+  if (state.pipelineDrag?.pointerId === event.pointerId) {
+    endPreviewDragVisual();
+    state.pipelineDrag = null;
+    suppressPreviewHandleClick = false;
+    render();
     return;
   }
 
-  endPreviewDragVisual();
-  state.pipelineDrag = null;
-  suppressPreviewHandleClick = false;
+  if (
+    !state.pipelineColumnDrag ||
+    state.pipelineColumnDrag.pointerId !== event.pointerId
+  ) {
+    return;
+  }
+
+  endPreviewColumnDragVisual();
+  state.pipelineColumnDrag = null;
+  state.pipelineSelectionTarget = null;
   render();
 });
 
