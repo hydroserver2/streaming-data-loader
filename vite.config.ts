@@ -1,3 +1,4 @@
+import vue from "@vitejs/plugin-vue"
 import { defineConfig, loadEnv } from "vite"
 
 export default defineConfig(({ mode }) => {
@@ -10,6 +11,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     clearScreen: false,
+    plugins: [vue()],
     server: {
       host: frontendHost,
       open: true,

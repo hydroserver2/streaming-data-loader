@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "type": "module",
   "dependencies": {
-    "@tauri-apps/plugin-dialog": "^2.0.0"
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "vue": "^3.5.32"
   },
   "scripts": {
     "bootstrap:frontend": "node ./scripts/bootstrap-frontend.mjs",
@@ -21,6 +22,7 @@
     "tauri": "node ./scripts/run-tauri.mjs"
   },
   "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.1",
     "@tailwindcss/cli": "^4.1.4",
     "@tauri-apps/cli": "^2.10.1",
     "@types/node": "^22.13.10",
