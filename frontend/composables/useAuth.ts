@@ -17,10 +17,13 @@ import {
   type ServerConfig,
 } from "../api"
 import { navigate } from "../router"
-import { state, emptyServerConfig } from "./state"
-import { getDatastreams } from "../api"
+import {
+  createEmptyPipelineForm,
+  emptyServerConfig,
+  PREVIEW_PAGE_SIZE,
+  state,
+} from "./state"
 
-// ── Server config helpers ──────────────────────────────────────────────────
 export function serverConfigured(server: ServerConfig | null | undefined): boolean {
   if (!server?.url.trim()) return false
   if (server.auth_type === "userpass") {
@@ -29,7 +32,6 @@ export function serverConfigured(server: ServerConfig | null | undefined): boole
   return Boolean(server.api_key.trim())
 }
 
-// ── Auth field helpers ─────────────────────────────────────────────────────
 export function markField(
   field: AuthFieldName,
   nextState: FieldValidationState["state"],
@@ -46,24 +48,18 @@ function clearFormFeedback(formId: "welcome-form" | "settings-form"): void {
   state[fieldFormFeedbackTarget(formId)] = null
 }
 
-function clearValidationCache(): void {
-  state.lastAuthValidationServer = null
-  state.lastAuthValidationResult = null
-}
-
 function normalizeServerDraft(): ServerConfig {
-  const s = state.authDraft
+  const server = state.authDraft
   return {
-    auth_type: s.auth_type,
-    url: s.url.trim(),
-    api_key: s.auth_type === "apikey" ? s.api_key.trim() : s.api_key,
-    username: s.auth_type === "userpass" ? s.username.trim() : s.username,
-    password: s.auth_type === "userpass" ? s.password.trim() : s.password,
+    auth_type: server.auth_type,
+    url: server.url.trim(),
+    api_key: server.auth_type === "apikey" ? server.api_key.trim() : server.api_key,
+    username: server.auth_type === "userpass" ? server.username.trim() : server.username,
+    password: server.auth_type === "userpass" ? server.password.trim() : server.password,
     workspace_id: "",
   }
 }
 
-// ── Exported auth actions ─────────────────────────────────────────────────
 export function updateAuthDraftField(
   formId: "welcome-form" | "settings-form",
   field: AuthFieldName,
@@ -71,24 +67,21 @@ export function updateAuthDraftField(
 ): void {
   state.authDraft[field] = value
   clearFormFeedback(formId)
-  clearValidationCache()
   markField(field, "idle")
 }
 
 export function toggleAuthMode(formId: "welcome-form" | "settings-form"): void {
-  const next: AuthType = state.authDraft.auth_type === "apikey" ? "userpass" : "apikey"
-  state.authDraft = { ...state.authDraft, auth_type: next }
-  resetFieldStates(next)
+  const nextType: AuthType =
+    state.authDraft.auth_type === "apikey" ? "userpass" : "apikey"
+  state.authDraft = { ...state.authDraft, auth_type: nextType }
+  resetFieldStates(nextType)
   clearFormFeedback(formId)
-  clearValidationCache()
 }
 
 export async function syncAuthenticationStatus(
   server: ServerConfig
 ): Promise<ConnectionTestResponse> {
   const result = await testConnection(server)
-  state.lastAuthValidationServer = server
-  state.lastAuthValidationResult = result
   state.connectionSummary = result
   state.lastConnectionState = result.state
 
@@ -97,23 +90,7 @@ export async function syncAuthenticationStatus(
     state.authDraft.workspace_id = result.workspace_id
   }
 
-  if (!result.ok) {
-    state.datastreams = []
-    state.datastreamsError = null
-  }
-
   return result
-}
-
-export async function loadDatastreams(): Promise<void> {
-  try {
-    state.datastreams = await getDatastreams()
-    state.datastreamsError = null
-  } catch (error) {
-    state.datastreams = []
-    state.datastreamsError =
-      error instanceof Error ? error.message : "Couldn't load HydroServer datastreams."
-  }
 }
 
 export async function submitAuthConfig(
@@ -133,11 +110,12 @@ export async function submitAuthConfig(
   try {
     await runAuthSubmission({
       render: () => undefined,
-      setSubmitting: (value) => { state.authSubmitting = value },
+      setSubmitting: (value) => {
+        state.authSubmitting = value
+      },
       action: async () => {
         const urlValidation = await validateServerUrl(payload.url)
         if (!urlValidation.ok) {
-          clearValidationCache()
           markField("url", "invalid", urlValidation.message)
           state[feedbackKey] = { tone: "error", message: urlValidation.message }
           return
@@ -155,17 +133,17 @@ export async function submitAuthConfig(
         state.config = await updateServerConfig(payload)
         state.authDraft = { ...emptyServerConfig(), ...state.config.server }
         await syncAuthenticationStatus(state.config.server)
-        await loadDatastreams()
         state[feedbackKey] = { tone: "success", message: result.message }
-        state.settingsEditMode = false
-        navigate(state.jobs.length === 0 ? "jobs-new" : "dashboard")
+        navigate("jobs-new")
       },
     })
   } catch (error) {
-    clearValidationCache()
     state[feedbackKey] = {
       tone: "error",
-      message: error instanceof Error ? error.message : "Couldn't verify the HydroServer connection.",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Couldn't verify the HydroServer connection.",
     }
     state.lastConnectionState = "error"
   }
@@ -177,29 +155,22 @@ export async function disconnectHydroServer(): Promise<void> {
     state.authDraft = emptyServerConfig()
     state.connectionSummary = null
     state.lastConnectionState = "not_configured"
-    state.datastreams = []
-    state.datastreamsError = null
     state.welcomeFeedback = null
     state.settingsFeedback = null
-    state.settingsEditMode = false
+    state.pipelineFeedback = null
+    state.pipelineForm = createEmptyPipelineForm()
+    state.pipelinePreview = null
+    state.pipelineSelectionTarget = null
+    state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE
     resetFieldStates("apikey")
-    clearValidationCache()
     navigate("welcome")
   } catch (error) {
-    state.settingsFeedback = {
+    state.welcomeFeedback = {
       tone: "error",
-      message: error instanceof Error ? error.message : "Couldn't disconnect from HydroServer right now.",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Couldn't disconnect from HydroServer right now.",
     }
   }
-}
-
-export function changeCredentials(): void {
-  state.authDraft = { ...emptyServerConfig(), ...(state.config?.server ?? {}) }
-  state.settingsEditMode = true
-  navigate("settings")
-}
-
-export function cancelCredentialEdit(): void {
-  state.authDraft = { ...emptyServerConfig(), ...(state.config?.server ?? {}) }
-  state.settingsEditMode = false
 }

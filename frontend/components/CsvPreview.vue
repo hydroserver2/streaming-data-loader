@@ -183,14 +183,10 @@ function timestampHandleClass(columnName: string): string {
 }
 
 function cellClass(columnName: string): string {
-  const isTimestamp = columnName === model.state.pipelineForm.timestampColumn
-  const isMapped = model.state.pipelineForm.mappings.some(
-    (mapping) => mapping.csvColumn === columnName && mapping.datastreamId
-  )
   return [
     "preview-cell",
-    isTimestamp && "preview-col-timestamp",
-    !isTimestamp && isMapped && "preview-col-mapped",
+    columnName === model.state.pipelineForm.timestampColumn &&
+      "preview-col-timestamp",
   ].filter(Boolean).join(" ")
 }
 

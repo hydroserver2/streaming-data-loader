@@ -1,7 +1,6 @@
 import { apiBaseUrl } from "./config"
 
 export type ConnectionState = "not_configured" | "configured" | "connected" | "error"
-export type JobStatus = "healthy" | "warning" | "error" | "disabled" | "pending" | "running"
 export type AuthType = "apikey" | "userpass"
 
 export interface ServerConfig {
@@ -13,35 +12,9 @@ export interface ServerConfig {
   workspace_id: string
 }
 
-export interface FileConfig {
-  header_row: number
-  data_start_row: number
-  delimiter: string
-  timestamp_column: string
-  timestamp_format: string
-  timezone: string
-}
-
-export interface ColumnMapping {
-  csv_column: string
-  datastream_id: string
-  datastream_name: string
-}
-
-export interface JobConfig {
-  id: string
-  name: string
-  enabled: boolean
-  file_path: string
-  schedule_minutes: number
-  file_config: FileConfig
-  column_mappings: ColumnMapping[]
-}
-
 export interface AppConfig {
   version: number
   server: ServerConfig
-  jobs: JobConfig[]
 }
 
 export interface ConnectionStatus {
@@ -74,11 +47,6 @@ export interface ServerUrlValidationResponse {
   instance_name: string | null
 }
 
-export interface DatastreamSummary {
-  id: string
-  name: string
-}
-
 export interface CsvPreviewResponse {
   raw_lines: string[]
   parsed_rows: string[][]
@@ -87,29 +55,6 @@ export interface CsvPreviewResponse {
   detected_delimiter: string
   total_lines: number
   encoding: string
-}
-
-export interface JobSummary extends JobConfig {
-  status: JobStatus
-  status_message: string
-  last_pushed_timestamp: string | null
-  last_run_at: string | null
-  last_error: string | null
-}
-
-export interface JobLogEntry {
-  timestamp: string
-  level: "info" | "warning" | "error"
-  message: string
-}
-
-export interface JobDetail extends JobSummary {
-  recent_logs: JobLogEntry[]
-}
-
-export interface ActionResponse {
-  ok: boolean
-  message: string
 }
 
 function buildApiUrl(path: string): string {
@@ -123,10 +68,8 @@ function formatErrorDetail(detail: unknown): string | null {
 
   if (Array.isArray(detail)) {
     const firstMessage = detail
-      .map(item => {
-        if (typeof item === "string") {
-          return item
-        }
+      .map((item) => {
+        if (typeof item === "string") return item
         if (
           item &&
           typeof item === "object" &&
@@ -215,22 +158,9 @@ export function testConnection(server: ServerConfig): Promise<ConnectionTestResp
 
 export function validateServerUrl(url: string): Promise<ServerUrlValidationResponse> {
   const params = new URLSearchParams({ url })
-  return request<ServerUrlValidationResponse>(`/connection/validate-url?${params.toString()}`)
-}
-
-export function listJobs(): Promise<JobSummary[]> {
-  return request<JobSummary[]>("/jobs")
-}
-
-export function createJob(job: Omit<JobConfig, "id">): Promise<JobDetail> {
-  return request<JobDetail>("/jobs", {
-    method: "POST",
-    body: JSON.stringify(job),
-  })
-}
-
-export function getDatastreams(): Promise<DatastreamSummary[]> {
-  return request<DatastreamSummary[]>("/datastreams")
+  return request<ServerUrlValidationResponse>(
+    `/connection/validate-url?${params.toString()}`
+  )
 }
 
 export function getCsvPreview(path: string, rows = 50): Promise<CsvPreviewResponse> {
@@ -239,28 +169,4 @@ export function getCsvPreview(path: string, rows = 50): Promise<CsvPreviewRespon
     rows: String(rows),
   })
   return request<CsvPreviewResponse>(`/csv/preview?${params.toString()}`)
-}
-
-export function runJob(jobId: string): Promise<ActionResponse> {
-  return request<ActionResponse>(`/jobs/${jobId}/run`, {
-    method: "POST",
-  })
-}
-
-export function enableJob(jobId: string): Promise<ActionResponse> {
-  return request<ActionResponse>(`/jobs/${jobId}/enable`, {
-    method: "POST",
-  })
-}
-
-export function disableJob(jobId: string): Promise<ActionResponse> {
-  return request<ActionResponse>(`/jobs/${jobId}/disable`, {
-    method: "POST",
-  })
-}
-
-export function deleteJob(jobId: string): Promise<ActionResponse> {
-  return request<ActionResponse>(`/jobs/${jobId}`, {
-    method: "DELETE",
-  })
 }

@@ -1,20 +1,16 @@
-export type AppRoute = "dashboard" | "settings" | "welcome" | "jobs-new"
+export type AppRoute = "welcome" | "jobs-new"
 
-const DEFAULT_ROUTE: AppRoute = "dashboard"
+const DEFAULT_ROUTE: AppRoute = "welcome"
 
 export function getRouteFromHash(hash = window.location.hash): AppRoute {
   const normalized = hash.replace(/^#/, "").trim()
 
   switch (normalized) {
-    case "settings":
-      return "settings"
-    case "welcome":
-      return "welcome"
     case "jobs/new":
       return "jobs-new"
-    case "dashboard":
+    case "welcome":
     case "":
-      return DEFAULT_ROUTE
+      return "welcome"
     default:
       return DEFAULT_ROUTE
   }
@@ -22,15 +18,11 @@ export function getRouteFromHash(hash = window.location.hash): AppRoute {
 
 export function routeHref(route: AppRoute): string {
   switch (route) {
-    case "settings":
-      return "#settings"
-    case "welcome":
-      return "#welcome"
     case "jobs-new":
       return "#jobs/new"
-    case "dashboard":
+    case "welcome":
     default:
-      return "#dashboard"
+      return "#welcome"
   }
 }
 
