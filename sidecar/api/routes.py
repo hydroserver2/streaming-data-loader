@@ -81,8 +81,21 @@ def create_app(runtime: AppRuntime) -> FastAPI:
         payload: ServerConfigUpdate,
         runtime: AppRuntime = Depends(get_runtime),
     ) -> AppConfig:
-        config = runtime.config_store.update_server(payload)
-        return config
+        server = ServerConfig(**payload.model_dump())
+        connection = runtime.hydroserver.test_connection(server)
+        if not connection.ok:
+            status_code = (
+                502
+                if connection.message.startswith("Couldn't reach HydroServer")
+                or connection.message.startswith("HydroServer returned an error")
+                or connection.message.startswith("Couldn't complete")
+                else 400
+            )
+            raise HTTPException(status_code=status_code, detail=connection.message)
+
+        return runtime.config_store.set_server(
+            server.model_copy(update={"workspace_id": connection.workspace_id or ""})
+        )
 
     @app.delete("/config/server", response_model=AppConfig, tags=["config"])
     def clear_server_config(runtime: AppRuntime = Depends(get_runtime)) -> AppConfig:
@@ -99,6 +112,7 @@ def create_app(runtime: AppRuntime) -> FastAPI:
             state=result.state,  # type: ignore[arg-type]
             message=result.message,
             instance_name=result.instance_name,
+            workspace_id=result.workspace_id,
             workspace_count=result.workspace_count,
             datastream_count=result.datastream_count,
             permissions_ok=result.permissions_ok,

@@ -22,6 +22,7 @@ function createServerConfig(
     api_key: "valid-key",
     username: "",
     password: "",
+    workspace_id: "",
     ...overrides,
   };
 }
@@ -48,6 +49,7 @@ function createResult(
     state: "error",
     message: "Generic auth error",
     instance_name: "example.com",
+    workspace_id: null,
     workspace_count: 0,
     datastream_count: 0,
     permissions_ok: false,

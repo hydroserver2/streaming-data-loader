@@ -18,6 +18,7 @@ class ServerConfig(BaseModel):
     api_key: str = ""
     username: str = ""
     password: str = ""
+    workspace_id: str = ""
 
 
 class FileConfig(BaseModel):
@@ -88,6 +89,7 @@ class ServerConfigUpdate(BaseModel):
     api_key: str
     username: str = ""
     password: str = ""
+    workspace_id: str = ""
 
     @model_validator(mode="after")
     def validate_auth_fields(self) -> "ServerConfigUpdate":
@@ -108,6 +110,7 @@ class ConnectionTestRequest(BaseModel):
     api_key: str
     username: str = ""
     password: str = ""
+    workspace_id: str = ""
 
     @model_validator(mode="after")
     def validate_auth_fields(self) -> "ConnectionTestRequest":
@@ -127,6 +130,7 @@ class ConnectionTestResponse(BaseModel):
     state: ConnectionState
     message: str
     instance_name: str | None = None
+    workspace_id: str | None = None
     workspace_count: int = 0
     datastream_count: int = 0
     permissions_ok: bool = False

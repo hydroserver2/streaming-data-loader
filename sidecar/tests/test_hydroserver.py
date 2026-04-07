@@ -19,9 +19,6 @@ class HydroServerServiceTests(unittest.TestCase):
             workspaces=SimpleNamespace(
                 list=lambda **_: SimpleNamespace(total_count=0, items=[])
             ),
-            datastreams=SimpleNamespace(
-                list=lambda **_: SimpleNamespace(total_count=3, items=[object()] * 3)
-            ),
         )
 
         with patch.object(self.service, "_build_client", return_value=client):
@@ -39,16 +36,14 @@ class HydroServerServiceTests(unittest.TestCase):
         self.assertEqual(result.state, "error")
         self.assertIn("invalid or is not attached", result.message)
 
-    def test_api_key_with_associated_workspace_and_datastreams_connects(self) -> None:
+    def test_api_key_with_associated_workspace_connects_without_checking_datastreams(self) -> None:
+        workspace = SimpleNamespace(uid="workspace-123")
         client = SimpleNamespace(
             workspaces=SimpleNamespace(
                 list=lambda **kwargs: SimpleNamespace(
                     total_count=1 if kwargs.get("is_associated") else 99,
-                    items=[object()],
+                    items=[workspace],
                 )
-            ),
-            datastreams=SimpleNamespace(
-                list=lambda **_: SimpleNamespace(total_count=2, items=[object(), object()])
             ),
         )
 
@@ -65,8 +60,40 @@ class HydroServerServiceTests(unittest.TestCase):
 
         self.assertTrue(result.ok)
         self.assertEqual(result.state, "connected")
+        self.assertEqual(result.workspace_id, "workspace-123")
         self.assertEqual(result.workspace_count, 1)
-        self.assertEqual(result.datastream_count, 2)
+        self.assertEqual(result.datastream_count, 0)
+
+    def test_list_datastreams_uses_stored_workspace_scope(self) -> None:
+        datastream_calls: list[dict[str, object]] = []
+
+        def list_datastreams(**kwargs):
+            datastream_calls.append(kwargs)
+            return SimpleNamespace(
+                total_count=1,
+                items=[SimpleNamespace(uid="stream-1", name="Datastream 1")],
+            )
+
+        client = SimpleNamespace(
+            datastreams=SimpleNamespace(
+                list=list_datastreams
+            )
+        )
+
+        with patch.object(self.service, "_build_client", return_value=client):
+            result = self.service.list_datastreams(
+                ServerConfig(
+                    auth_type="apikey",
+                    url="https://example.com",
+                    api_key="good-key",
+                    username="",
+                    password="",
+                    workspace_id="workspace-123",
+                )
+            )
+
+        self.assertEqual(datastream_calls, [{"page_size": 100, "workspace": "workspace-123"}])
+        self.assertEqual(result[0].id, "stream-1")
 
     def test_connection_error_returns_url_message(self) -> None:
         with patch.object(

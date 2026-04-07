@@ -10,6 +10,7 @@ export interface ServerConfig {
   api_key: string
   username: string
   password: string
+  workspace_id: string
 }
 
 export interface FileConfig {
@@ -61,6 +62,7 @@ export interface ConnectionTestResponse {
   state: ConnectionState
   message: string
   instance_name: string | null
+  workspace_id: string | null
   workspace_count: number
   datastream_count: number
   permissions_ok: boolean

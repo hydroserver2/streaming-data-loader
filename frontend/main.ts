@@ -198,6 +198,7 @@ function emptyServerConfig(): ServerConfig {
     api_key: "",
     username: "",
     password: "",
+    workspace_id: "",
   };
 }
 
@@ -334,6 +335,7 @@ function readServerConfigForm(
       authType === "userpass"
         ? String(data.get("password") ?? "").trim()
         : base.password,
+    workspace_id: "",
   };
 }
 
@@ -594,6 +596,12 @@ function beginPreviewDragVisual(pointerClientY: number): void {
     frameRequested: false,
   };
 
+  mainContent
+    .querySelectorAll<HTMLElement>(".preview-row-handle-active")
+    .forEach((element) =>
+      element.classList.remove("preview-row-handle-active")
+    );
+  handle.classList.add("preview-row-handle-active");
   handle.classList.add("preview-row-handle-dragging");
   handle.style.setProperty("--preview-handle-offset", "0px");
   applyPreviewDragClasses();
@@ -602,6 +610,14 @@ function beginPreviewDragVisual(pointerClientY: number): void {
 function endPreviewDragVisual(): void {
   if (!previewDragVisual) {
     return;
+  }
+
+  if (
+    state.pipelineDrag &&
+    typeof previewDragVisual.handle.releasePointerCapture === "function" &&
+    previewDragVisual.handle.hasPointerCapture(state.pipelineDrag.pointerId)
+  ) {
+    previewDragVisual.handle.releasePointerCapture(state.pipelineDrag.pointerId);
   }
 
   previewDragVisual.handle.classList.remove("preview-row-handle-dragging");
@@ -1723,9 +1739,14 @@ async function syncAuthenticationStatus(
   state.connectionSummary = result;
   state.lastConnectionState = result.state;
 
-  if (result.ok) {
-    await loadDatastreams();
-  } else {
+  if (result.ok && result.workspace_id) {
+    if (state.config) {
+      state.config.server.workspace_id = result.workspace_id;
+    }
+    state.authDraft.workspace_id = result.workspace_id;
+  }
+
+  if (!result.ok) {
     state.datastreams = [];
     state.datastreamsError = null;
   }
@@ -1757,11 +1778,18 @@ async function bootstrap(): Promise<void> {
     const { health, config, jobs } = await loadInitialStateWithRetry();
     state.health = health;
     state.config = config;
+    state.authDraft = {
+      ...emptyServerConfig(),
+      ...config.server,
+    };
     state.jobs = jobs;
     state.lastConnectionState = health.connection.state;
 
     if (serverConfigured(config.server)) {
-      await syncAuthenticationStatus(config.server);
+      const result = await syncAuthenticationStatus(config.server);
+      if (result.ok) {
+        await loadDatastreams();
+      }
     }
   } catch (error) {
     state.bootstrapError =
@@ -2012,6 +2040,8 @@ async function saveAuthenticatedServerConfig(
           ...emptyServerConfig(),
           ...state.config.server,
         };
+        await syncAuthenticationStatus(state.config.server);
+        await loadDatastreams();
         state[feedbackKey] = { tone: "success", message: result.message };
         state.settingsEditMode = false;
 
@@ -2279,7 +2309,9 @@ mainContent.addEventListener("pointerdown", (event) => {
     moved: false,
   };
   suppressPreviewHandleClick = false;
-  render();
+  if (typeof handle.setPointerCapture === "function") {
+    handle.setPointerCapture(event.pointerId);
+  }
   beginPreviewDragVisual(event.clientY);
   event.preventDefault();
 });

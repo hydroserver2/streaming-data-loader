@@ -19,6 +19,7 @@ class HydroServerCheck:
     message: str
     state: str
     instance_name: str | None = None
+    workspace_id: str | None = None
     workspace_count: int = 0
     datastream_count: int = 0
     permissions_ok: bool = False
@@ -97,13 +98,9 @@ class HydroServerService:
 
         try:
             client = self._build_client(server)
-            workspaces = self._list_associated_workspaces(client)
-            datastreams = client.datastreams.list(page_size=100)
+            workspace_id, workspace_count = self._get_associated_workspace_id(client)
 
-            workspace_count = self._collection_count(workspaces)
-            datastream_count = self._collection_count(datastreams)
-
-            if workspace_count == 0:
+            if not workspace_id:
                 return HydroServerCheck(
                     ok=False,
                     state="error",
@@ -112,19 +109,9 @@ class HydroServerService:
                         "Check the API key permissions and try again."
                     ),
                     instance_name=self._instance_name(server.url),
+                    workspace_id=None,
                     workspace_count=workspace_count,
-                    datastream_count=datastream_count,
-                    permissions_ok=False,
-                )
-
-            if datastream_count == 0:
-                return HydroServerCheck(
-                    ok=False,
-                    state="error",
-                    message="No datastreams are available to this API key. Create a datastream in HydroServer or update the key permissions, then try again.",
-                    instance_name=self._instance_name(server.url),
-                    workspace_count=workspace_count,
-                    datastream_count=datastream_count,
+                    datastream_count=0,
                     permissions_ok=False,
                 )
 
@@ -132,10 +119,11 @@ class HydroServerService:
             return HydroServerCheck(
                 ok=True,
                 state="connected",
-                message=f"Connected to {instance_name}. {datastream_count} datastreams are available for mapping.",
+                message=f"Connected to {instance_name}.",
                 instance_name=instance_name,
+                workspace_id=workspace_id,
                 workspace_count=workspace_count,
-                datastream_count=datastream_count,
+                datastream_count=0,
                 permissions_ok=True,
             )
         except requests.ConnectionError:
@@ -169,7 +157,14 @@ class HydroServerService:
             return []
 
         client = self._build_client(server)
-        datastreams = client.datastreams.list(page_size=100)
+        workspace_id = server.workspace_id.strip()
+        if not workspace_id:
+            workspace_id, _ = self._get_associated_workspace_id(client)
+
+        if not workspace_id:
+            return []
+
+        datastreams = client.datastreams.list(page_size=100, workspace=workspace_id)
         return [self._to_summary(item) for item in self._collection_items(datastreams)]
 
     def _build_client(self, server: ServerConfig):
@@ -186,6 +181,14 @@ class HydroServerService:
     def _list_associated_workspaces(self, client):
         return client.workspaces.list(page_size=25, is_associated=True)
 
+    def _get_associated_workspace_id(self, client) -> tuple[str | None, int]:
+        workspaces = self._list_associated_workspaces(client)
+        workspace_count = self._collection_count(workspaces)
+        first_workspace = next(iter(self._collection_items(workspaces)), None)
+        if first_workspace is None:
+            return None, workspace_count
+        return self._resource_id(first_workspace), workspace_count
+
     def _is_configured(self, server: ServerConfig) -> bool:
         if not server.url.strip():
             return False
@@ -197,6 +200,10 @@ class HydroServerService:
         datastream_id = getattr(item, "uid", None) or getattr(item, "id", "")
         name = getattr(item, "name", "Unnamed datastream")
         return DatastreamSummary(id=str(datastream_id), name=str(name))
+
+    def _resource_id(self, item: object) -> str:
+        resource_id = getattr(item, "uid", None) or getattr(item, "id", "")
+        return str(resource_id)
 
     def _instance_name(self, url: str) -> str:
         parsed = urlparse(url)

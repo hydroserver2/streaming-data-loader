@@ -5,7 +5,13 @@ import threading
 from pathlib import Path
 from uuid import uuid4
 
-from sidecar.api.models import AppConfig, JobConfig, JobUpsertRequest, ServerConfig, ServerConfigUpdate
+from sidecar.api.models import (
+    AppConfig,
+    JobConfig,
+    JobUpsertRequest,
+    ServerConfig,
+    ServerConfigUpdate,
+)
 
 
 class ConfigStore:
@@ -29,21 +35,31 @@ class ConfigStore:
         self._write(config)
         return config
 
+    def set_server(self, server: ServerConfig) -> AppConfig:
+        config = self.load()
+        config.server = ServerConfig.model_validate(server)
+        return self.save(config)
+
     def _write(self, config: AppConfig) -> None:
         payload = json.dumps(config.model_dump(mode="json"), indent=2)
         with self._lock:
             self.config_path.write_text(f"{payload}\n", encoding="utf-8")
 
     def update_server(self, update: ServerConfigUpdate) -> AppConfig:
-        config = self.load()
-        config.server = ServerConfig(
-            auth_type=update.auth_type,
-            url=update.url.strip(),
-            api_key=update.api_key.strip() if update.auth_type == "apikey" else "",
-            username=update.username.strip() if update.auth_type == "userpass" else "",
-            password=update.password.strip() if update.auth_type == "userpass" else "",
+        return self.set_server(
+            ServerConfig(
+                auth_type=update.auth_type,
+                url=update.url.strip(),
+                api_key=update.api_key.strip() if update.auth_type == "apikey" else "",
+                username=update.username.strip()
+                if update.auth_type == "userpass"
+                else "",
+                password=update.password.strip()
+                if update.auth_type == "userpass"
+                else "",
+                workspace_id=update.workspace_id.strip(),
+            )
         )
-        return self.save(config)
 
     def clear_server(self) -> AppConfig:
         config = self.load()
