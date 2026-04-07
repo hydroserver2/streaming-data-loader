@@ -176,7 +176,7 @@ function timestampHandleClass(columnName: string): string {
 function cellClass(columnName: string): string {
   return [
     "preview-cell",
-    columnName === model.state.pipelineForm.timestampColumn &&
+    columnName === displayTimestampColumn.value &&
       "preview-col-timestamp",
   ].filter(Boolean).join(" ")
 }
