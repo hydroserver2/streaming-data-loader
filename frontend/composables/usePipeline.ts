@@ -4,11 +4,8 @@ import { getCsvPreview, createJob } from "../api";
 import { navigate } from "../router";
 import {
   state,
-  emptyServerConfig,
   createEmptyPipelineForm,
   PREVIEW_PAGE_SIZE,
-  type PreviewRowSelectionTarget,
-  type PreviewSelectionTarget,
 } from "./state";
 
 // ── Utilities (pipeline-local) ─────────────────────────────────────────────
@@ -104,70 +101,6 @@ function syncSelectionsWithPreview(): void {
     ? state.pipelineForm.timestampColumn
     : preferred;
   initializeMappings(headers);
-}
-
-// ── Preview field/column helpers (used by CsvPreview.vue) ─────────────────
-export function activePreviewRowTarget(): PreviewRowSelectionTarget | null {
-  return state.pipelineSelectionTarget === "header-row" ||
-    state.pipelineSelectionTarget === "data-start-row"
-    ? state.pipelineSelectionTarget
-    : null;
-}
-
-export function previewHandleLine(
-  target: PreviewRowSelectionTarget
-): number | null {
-  if (target === "header-row") {
-    return state.pipelineForm.hasHeaderRow
-      ? state.pipelineForm.headerRow
-      : null;
-  }
-  return state.pipelineForm.dataStartRow;
-}
-
-export function activeTimestampColumn(): string {
-  return state.pipelineForm.timestampColumn;
-}
-
-export function previewColumnClass(columnName: string): string {
-  if (columnName === state.pipelineForm.timestampColumn)
-    return "preview-col-timestamp";
-  const mapped = state.pipelineForm.mappings.find(
-    (m) => m.csvColumn === columnName && m.datastreamId
-  );
-  return mapped ? "preview-col-mapped" : "";
-}
-
-export function previewFieldClass(
-  target: Exclude<PreviewSelectionTarget, null>
-): string {
-  const active =
-    target === "timestamp-column"
-      ? state.pipelineSelectionTarget === target
-      : activePreviewRowTarget() === target;
-  const toneClass =
-    target === "header-row"
-      ? "preview-bound-field-header"
-      : target === "data-start-row"
-      ? "preview-bound-field-data"
-      : "preview-bound-field-timestamp";
-  return active
-    ? `field preview-bound-field preview-bound-field-active ${toneClass}`
-    : "field preview-bound-field";
-}
-
-export function previewGuidanceText(): string {
-  const active = activePreviewRowTarget();
-  if (active === "header-row")
-    return "Drag the HEADER handle, or click a row to place it.";
-  if (active === "data-start-row")
-    return "Drag the DATA START handle, or click the first data row.";
-  if (state.pipelineSelectionTarget === "timestamp-column") {
-    return "Drag the TIMESTAMP handle, or click a column header to place it.";
-  }
-  return state.pipelineForm.hasHeaderRow
-    ? "Drag the HEADER, DATA START, and TIMESTAMP handles, or click a row or column to place them."
-    : "Drag the DATA START and TIMESTAMP handles, or click a row or column to place them.";
 }
 
 export function canShowMorePreviewLines(): boolean {

@@ -216,26 +216,6 @@
     @apply text-xs font-medium uppercase tracking-wide text-slate-500;
   }
 
-  .preview-bound-field {
-    @apply rounded-xl border border-transparent p-3 transition-colors;
-  }
-
-  .preview-bound-field-active {
-    @apply bg-white/40;
-  }
-
-  .preview-bound-field-header.preview-bound-field-active {
-    @apply border-sky-400/70 bg-sky-50/80;
-  }
-
-  .preview-bound-field-data.preview-bound-field-active {
-    @apply border-emerald-400/70 bg-emerald-50/80;
-  }
-
-  .preview-bound-field-timestamp.preview-bound-field-active {
-    @apply border-amber-400/70 bg-amber-50/80;
-  }
-
   .input {
     @apply w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-sky-100;
   }
@@ -498,18 +478,6 @@
     @apply border-slate-700 text-slate-300 hover:border-slate-500 hover:text-slate-100;
   }
 
-  .onboarding-shell .preview-bound-field-active.preview-bound-field-header {
-    @apply border-sky-500/60 bg-sky-950/35;
-  }
-
-  .onboarding-shell .preview-bound-field-active.preview-bound-field-data {
-    @apply border-emerald-500/60 bg-emerald-950/35;
-  }
-
-  .onboarding-shell .preview-bound-field-active.preview-bound-field-timestamp {
-    @apply border-amber-500/60 bg-amber-950/35;
-  }
-
   .onboarding-file-form {
     @apply flex w-full max-w-3xl flex-col self-start gap-3;
   }
@@ -592,10 +560,6 @@
     @apply cursor-grabbing;
   }
 
-  .preview-column-handle-active {
-    @apply border-amber-400 bg-amber-200 text-amber-800;
-  }
-
   .preview-column-handle-dragging {
     @apply transition-none;
   }
@@ -652,14 +616,6 @@
 
   .preview-row-handle-data {
     @apply border-emerald-300 bg-emerald-100 text-emerald-700;
-  }
-
-  .preview-row-handle-active.preview-row-handle-header {
-    @apply border-sky-400 bg-sky-200 text-sky-800;
-  }
-
-  .preview-row-handle-active.preview-row-handle-data {
-    @apply border-emerald-400 bg-emerald-200 text-emerald-800;
   }
 
   .preview-header-button {
@@ -809,20 +765,8 @@
     @apply border-emerald-500/50 bg-emerald-950 text-emerald-200;
   }
 
-  .onboarding-shell .preview-row-handle-active.preview-row-handle-header {
-    @apply bg-sky-900 text-sky-100;
-  }
-
-  .onboarding-shell .preview-row-handle-active.preview-row-handle-data {
-    @apply bg-emerald-900 text-emerald-100;
-  }
-
   .onboarding-shell .preview-column-handle {
     @apply border-amber-500/50 bg-amber-950 text-amber-200;
-  }
-
-  .onboarding-shell .preview-column-handle-active {
-    @apply bg-amber-900 text-amber-100;
   }
 
   .onboarding-shell .preview-table-shell {

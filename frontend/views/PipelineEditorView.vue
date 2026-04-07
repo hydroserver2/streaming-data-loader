@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { computed } from "vue";
-
 import ConnectedCard from "../components/ConnectedCard.vue";
 import CsvPreview from "../components/CsvPreview.vue";
 import FeedbackBanner from "../components/FeedbackBanner.vue";
@@ -12,16 +10,14 @@ import {
 } from "../composables/useAppModel";
 
 const model = useAppModel();
-const isFirstRunOnboarding = computed(() => model.state.jobs.length === 0);
-const previewHeaders = computed(() => model.previewHeaders.value);
 </script>
 
 <template>
   <section
     class="page-shell animate-fade-in"
-    :class="{ 'onboarding-shell': isFirstRunOnboarding }"
+    :class="{ 'onboarding-shell': model.state.jobs.length === 0 }"
   >
-    <template v-if="isFirstRunOnboarding">
+    <template v-if="model.state.jobs.length === 0">
       <form
         id="pipeline-form"
         class="onboarding-file-form"
@@ -214,7 +210,7 @@ const previewHeaders = computed(() => model.previewHeaders.value);
 
             <div class="split-fields">
               <template v-if="model.state.pipelineForm.hasHeaderRow">
-                <div :class="model.previewFieldClass('header-row')">
+                <div class="field">
                   <div class="field-label-row">
                     <label class="label" for="pipeline-header-row"
                       >Header row</label
@@ -250,7 +246,7 @@ const previewHeaders = computed(() => model.previewHeaders.value);
                 </div>
               </template>
 
-              <div :class="model.previewFieldClass('data-start-row')">
+              <div class="field">
                 <div class="field-label-row">
                   <label class="label" for="pipeline-data-start-row"
                     >Data start row</label
@@ -309,14 +305,14 @@ const previewHeaders = computed(() => model.previewHeaders.value);
               </label>
             </div>
 
-            <div :class="model.previewFieldClass('timestamp-column')">
+            <div class="field">
               <div class="field-label-row">
                 <label class="label" for="pipeline-timestamp-column"
                   >Timestamp column</label
                 >
               </div>
               <select
-                v-if="previewHeaders.length > 0"
+                v-if="model.previewHeaders.value.length > 0"
                 id="pipeline-timestamp-column"
                 :value="model.state.pipelineForm.timestampColumn"
                 class="input"
@@ -328,7 +324,7 @@ const previewHeaders = computed(() => model.previewHeaders.value);
                 "
               >
                 <option
-                  v-for="header in previewHeaders"
+                  v-for="header in model.previewHeaders.value"
                   :key="header"
                   :value="header"
                 >

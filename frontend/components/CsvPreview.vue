@@ -49,15 +49,17 @@ const nextPageSize = computed(() => {
 const displayHeaderLine = computed(() =>
   rowDrag.value?.target === "header-row"
     ? rowDrag.value.lineNumber
-    : model.previewHandleLine("header-row")
+    : model.state.pipelineForm.hasHeaderRow
+      ? model.state.pipelineForm.headerRow
+      : null
 )
 const displayDataStartLine = computed(() =>
   rowDrag.value?.target === "data-start-row"
     ? rowDrag.value.lineNumber
-    : model.previewHandleLine("data-start-row")
+    : model.state.pipelineForm.dataStartRow
 )
 const displayTimestampColumn = computed(
-  () => columnDrag.value?.columnName ?? model.activeTimestampColumn()
+  () => columnDrag.value?.columnName ?? model.state.pipelineForm.timestampColumn
 )
 const previewFileName = computed(
   () => model.state.pipelineForm.filePath.split(/[\\/]/).filter(Boolean).at(-1) ?? ""
@@ -163,31 +165,33 @@ function lineButtonClass(lineNumber: number): string {
 }
 
 function rowHandleClass(target: PreviewRowSelectionTarget): string {
-  const active =
-    model.state.pipelineSelectionTarget === target || rowDrag.value?.target === target
   const dragging = rowDrag.value?.target === target
   const base =
     target === "header-row"
       ? "preview-row-handle preview-row-handle-header"
       : "preview-row-handle preview-row-handle-data"
-  return [base, active && "preview-row-handle-active", dragging && "preview-row-handle-dragging"]
+  return [base, dragging && "preview-row-handle-dragging"]
     .filter(Boolean).join(" ")
 }
 
 function timestampHandleClass(columnName: string): string {
-  const active =
-    displayTimestampColumn.value === columnName &&
-    (model.state.pipelineSelectionTarget === "timestamp-column" || columnDrag.value !== null)
   const dragging = columnDrag.value?.originColumnName === columnName
   return [
     "preview-column-handle",
-    active && "preview-column-handle-active",
     dragging && "preview-column-handle-dragging",
   ].filter(Boolean).join(" ")
 }
 
 function cellClass(columnName: string): string {
-  return ["preview-cell", model.previewColumnClass(columnName)].filter(Boolean).join(" ")
+  const isTimestamp = columnName === model.state.pipelineForm.timestampColumn
+  const isMapped = model.state.pipelineForm.mappings.some(
+    (mapping) => mapping.csvColumn === columnName && mapping.datastreamId
+  )
+  return [
+    "preview-cell",
+    isTimestamp && "preview-col-timestamp",
+    !isTimestamp && isMapped && "preview-col-mapped",
+  ].filter(Boolean).join(" ")
 }
 
 // ── Pointer event handlers ─────────────────────────────────────────────────
@@ -306,7 +310,10 @@ onBeforeUnmount(() => {
       <div>
         <p class="eyebrow">Preview</p>
         <h2 class="section-title">{{ previewFileName }}</h2>
-        <p class="preview-guidance">{{ model.previewGuidanceText() }}</p>
+        <p class="preview-guidance">
+          Use this preview to set the header row, the first data row, and the
+          timestamp column.
+        </p>
       </div>
     </div>
 
@@ -329,7 +336,7 @@ onBeforeUnmount(() => {
               v-for="header in headers"
               :key="header"
               class="preview-cell"
-              :class="model.previewColumnClass(header)"
+              :class="cellClass(header)"
             >
               <div class="preview-column-header">
                 <button
@@ -337,7 +344,7 @@ onBeforeUnmount(() => {
                   :class="timestampHandleClass(header)"
                   :style="timestampHandleStyle(header)"
                   type="button"
-                  @click.prevent="model.state.pipelineSelectionTarget = 'timestamp-column'"
+                  @click.prevent
                   @pointerdown.prevent="onColumnHandlePointerDown(header, $event)"
                 >
                   TIMESTAMP
@@ -365,7 +372,7 @@ onBeforeUnmount(() => {
             <td class="preview-cell preview-cell-line-number preview-line-cell">
               <div class="preview-line-controls">
                 <button
-                  v-if="model.state.pipelineForm.hasHeaderRow && model.previewHandleLine('header-row') === entry.lineNumber"
+                  v-if="model.state.pipelineForm.hasHeaderRow && displayHeaderLine === entry.lineNumber"
                   :class="rowHandleClass('header-row')"
                   :style="handleOffsetStyle('header-row', entry.lineNumber)"
                   type="button"
@@ -375,7 +382,7 @@ onBeforeUnmount(() => {
                   HEADER
                 </button>
                 <button
-                  v-if="model.previewHandleLine('data-start-row') === entry.lineNumber"
+                  v-if="displayDataStartLine === entry.lineNumber"
                   :class="rowHandleClass('data-start-row')"
                   :style="handleOffsetStyle('data-start-row', entry.lineNumber)"
                   type="button"
