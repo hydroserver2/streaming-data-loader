@@ -13,8 +13,12 @@
     "windows": [
       {
         "title": "Streaming Data Loader",
-        "width": 800,
-        "height": 600,
+        "width": 1280,
+        "height": 840,
+        "minWidth": 1024,
+        "minHeight": 720,
+        "center": true,
+        "resizable": true,
         "theme": "Dark",
         "titleBarStyle": "Transparent",
         "backgroundColor": "#2f3133",
