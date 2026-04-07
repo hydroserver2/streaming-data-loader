@@ -518,6 +518,36 @@
     @apply pt-1;
   }
 
+  .onboarding-header {
+    @apply grid gap-x-4 gap-y-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-start;
+  }
+
+  .onboarding-header .eyebrow,
+  .onboarding-header .page-title,
+  .onboarding-header .page-copy {
+    @apply md:col-start-1;
+  }
+
+  .onboarding-header .page-copy {
+    @apply mt-0 max-w-3xl;
+  }
+
+  .onboarding-connection-badge {
+    @apply inline-flex w-fit items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-200 md:col-start-2 md:row-span-3 md:justify-self-end;
+  }
+
+  .form-divider {
+    @apply -mx-5 border-slate-800/80;
+  }
+
+  .form-action {
+    @apply self-start;
+  }
+
+  .form-action-end {
+    @apply sm:self-end;
+  }
+
   .pipeline-layout {
     @apply grid gap-6 xl:grid-cols-[minmax(0,28rem)_minmax(0,1fr)];
   }
@@ -526,12 +556,20 @@
     @apply flex flex-col gap-4 p-5;
   }
 
-  .pipeline-subcard {
-    @apply rounded-xl border border-slate-200 bg-slate-50/40 p-4;
-  }
-
   .split-fields {
     @apply grid gap-4 sm:grid-cols-2;
+  }
+
+  .mapping-card {
+    @apply rounded-2xl border border-slate-800 bg-[#181a1d];
+  }
+
+  .mapping-card-header {
+    @apply hidden border-b border-slate-800 px-5 py-3 text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 md:grid md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] md:gap-3;
+  }
+
+  .mapping-col-label:last-child {
+    @apply text-right;
   }
 
   .mapping-grid {
@@ -539,11 +577,23 @@
   }
 
   .mapping-row {
-    @apply grid items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)];
+    @apply grid items-center gap-3 border-t border-slate-800 px-5 py-4 first:border-t-0 md:grid-cols-[minmax(0,12rem)_auto_minmax(0,1fr)];
   }
 
   .mapping-source {
     @apply text-sm font-medium text-slate-800;
+  }
+
+  .mapping-connector {
+    @apply hidden text-slate-500 md:inline;
+  }
+
+  .mapping-summary {
+    @apply border-t border-slate-800 px-5 py-3 text-sm text-slate-400;
+  }
+
+  .mapping-empty {
+    @apply px-5 py-6;
   }
 
   .mapping-help {
@@ -555,7 +605,7 @@
   }
 
   .preview-header {
-    @apply flex flex-col gap-4 border-b border-slate-100 pb-4;
+    @apply flex flex-col gap-2 border-b border-slate-100 pb-4;
   }
 
   .preview-guidance {
@@ -739,7 +789,7 @@
   }
 
   .preview-placeholder {
-    @apply flex h-full min-h-[20rem] flex-col items-center justify-center gap-4 text-center;
+    @apply h-full min-h-[20rem] items-center justify-center gap-4 text-center;
   }
 
   .validation-panel {
