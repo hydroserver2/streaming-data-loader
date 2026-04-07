@@ -731,7 +731,11 @@
   }
 
   .preview-footer {
-    @apply mt-4 text-xs text-slate-500;
+    @apply mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500;
+  }
+
+  .preview-more-button {
+    @apply px-3 py-1.5 text-xs;
   }
 
   .preview-placeholder {
@@ -871,6 +875,10 @@
 
   .onboarding-shell .preview-col-mapped {
     @apply bg-emerald-950/35 text-emerald-200;
+  }
+
+  .onboarding-shell .preview-more-button {
+    @apply border-slate-700 text-slate-200 hover:bg-white/8;
   }
 
   .pill-success,

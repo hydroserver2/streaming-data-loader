@@ -41,7 +41,9 @@ def create_app(runtime: AppRuntime) -> FastAPI:
         runtime.config_store.ensure()
         runtime.state_store.ensure()
         runtime.scheduler.start()
-        runtime.scheduler.sync_jobs([job.id for job in runtime.config_store.list_jobs()])
+        runtime.scheduler.sync_jobs(
+            [job.id for job in runtime.config_store.list_jobs()]
+        )
         app.state.runtime = runtime
         try:
             yield
@@ -101,12 +103,16 @@ def create_app(runtime: AppRuntime) -> FastAPI:
     def clear_server_config(runtime: AppRuntime = Depends(get_runtime)) -> AppConfig:
         return runtime.config_store.clear_server()
 
-    @app.post("/connection/test", response_model=ConnectionTestResponse, tags=["connection"])
+    @app.post(
+        "/connection/test", response_model=ConnectionTestResponse, tags=["connection"]
+    )
     def test_connection(
         payload: ConnectionTestRequest,
         runtime: AppRuntime = Depends(get_runtime),
     ) -> ConnectionTestResponse:
-        result = runtime.hydroserver.test_connection(ServerConfig(**payload.model_dump()))
+        result = runtime.hydroserver.test_connection(
+            ServerConfig(**payload.model_dump())
+        )
         return ConnectionTestResponse(
             ok=result.ok,
             state=result.state,  # type: ignore[arg-type]
@@ -118,7 +124,11 @@ def create_app(runtime: AppRuntime) -> FastAPI:
             permissions_ok=result.permissions_ok,
         )
 
-    @app.get("/connection/validate-url", response_model=ServerUrlValidationResponse, tags=["connection"])
+    @app.get(
+        "/connection/validate-url",
+        response_model=ServerUrlValidationResponse,
+        tags=["connection"],
+    )
     def validate_server_url(
         url: str = Query(..., description="HydroServer base URL"),
         runtime: AppRuntime = Depends(get_runtime),
@@ -132,7 +142,9 @@ def create_app(runtime: AppRuntime) -> FastAPI:
 
     @app.get("/jobs", response_model=list[JobStatusSummary], tags=["jobs"])
     def list_jobs(runtime: AppRuntime = Depends(get_runtime)) -> list[JobStatusSummary]:
-        return [_build_job_summary(runtime, job) for job in runtime.config_store.list_jobs()]
+        return [
+            _build_job_summary(runtime, job) for job in runtime.config_store.list_jobs()
+        ]
 
     @app.post("/jobs", response_model=JobDetail, tags=["jobs"])
     def create_job(
@@ -141,7 +153,9 @@ def create_app(runtime: AppRuntime) -> FastAPI:
     ) -> JobDetail:
         job = runtime.config_store.create_job(payload)
         runtime.state_store.append_log(job.id, "Job created")
-        runtime.scheduler.sync_jobs([item.id for item in runtime.config_store.list_jobs()])
+        runtime.scheduler.sync_jobs(
+            [item.id for item in runtime.config_store.list_jobs()]
+        )
         return _build_job_detail(runtime, job)
 
     @app.get("/jobs/{job_id}", response_model=JobDetail, tags=["jobs"])
@@ -161,16 +175,22 @@ def create_app(runtime: AppRuntime) -> FastAPI:
         if job is None:
             raise HTTPException(status_code=404, detail="That job could not be found.")
         runtime.state_store.append_log(job.id, "Job updated")
-        runtime.scheduler.sync_jobs([item.id for item in runtime.config_store.list_jobs()])
+        runtime.scheduler.sync_jobs(
+            [item.id for item in runtime.config_store.list_jobs()]
+        )
         return _build_job_detail(runtime, job)
 
     @app.delete("/jobs/{job_id}", response_model=ActionResponse, tags=["jobs"])
-    def delete_job(job_id: str, runtime: AppRuntime = Depends(get_runtime)) -> ActionResponse:
+    def delete_job(
+        job_id: str, runtime: AppRuntime = Depends(get_runtime)
+    ) -> ActionResponse:
         deleted = runtime.config_store.delete_job(job_id)
         if not deleted:
             raise HTTPException(status_code=404, detail="That job could not be found.")
         runtime.state_store.delete_job(job_id)
-        runtime.scheduler.sync_jobs([item.id for item in runtime.config_store.list_jobs()])
+        runtime.scheduler.sync_jobs(
+            [item.id for item in runtime.config_store.list_jobs()]
+        )
         return ActionResponse(message="Job deleted.")
 
     @app.post("/jobs/{job_id}/run", response_model=ActionResponse, tags=["jobs"])
@@ -190,7 +210,9 @@ def create_app(runtime: AppRuntime) -> FastAPI:
         return ActionResponse(message="Job started.")
 
     @app.post("/jobs/{job_id}/enable", response_model=ActionResponse, tags=["jobs"])
-    def enable_job(job_id: str, runtime: AppRuntime = Depends(get_runtime)) -> ActionResponse:
+    def enable_job(
+        job_id: str, runtime: AppRuntime = Depends(get_runtime)
+    ) -> ActionResponse:
         job = runtime.config_store.set_job_enabled(job_id, True)
         if job is None:
             raise HTTPException(status_code=404, detail="That job could not be found.")
@@ -198,7 +220,9 @@ def create_app(runtime: AppRuntime) -> FastAPI:
         return ActionResponse(message="Job enabled.")
 
     @app.post("/jobs/{job_id}/disable", response_model=ActionResponse, tags=["jobs"])
-    def disable_job(job_id: str, runtime: AppRuntime = Depends(get_runtime)) -> ActionResponse:
+    def disable_job(
+        job_id: str, runtime: AppRuntime = Depends(get_runtime)
+    ) -> ActionResponse:
         job = runtime.config_store.set_job_enabled(job_id, False)
         if job is None:
             raise HTTPException(status_code=404, detail="That job could not be found.")
@@ -206,13 +230,19 @@ def create_app(runtime: AppRuntime) -> FastAPI:
         return ActionResponse(message="Job disabled.")
 
     @app.get("/jobs/{job_id}/logs", response_model=list[JobLogEntry], tags=["jobs"])
-    def get_job_logs(job_id: str, runtime: AppRuntime = Depends(get_runtime)) -> list[JobLogEntry]:
+    def get_job_logs(
+        job_id: str, runtime: AppRuntime = Depends(get_runtime)
+    ) -> list[JobLogEntry]:
         if runtime.config_store.get_job(job_id) is None:
             raise HTTPException(status_code=404, detail="That job could not be found.")
         return runtime.state_store.logs_for(job_id)
 
-    @app.get("/datastreams", response_model=list[DatastreamSummary], tags=["hydroserver"])
-    def get_datastreams(runtime: AppRuntime = Depends(get_runtime)) -> list[DatastreamSummary]:
+    @app.get(
+        "/datastreams", response_model=list[DatastreamSummary], tags=["hydroserver"]
+    )
+    def get_datastreams(
+        runtime: AppRuntime = Depends(get_runtime),
+    ) -> list[DatastreamSummary]:
         config = runtime.config_store.load()
         try:
             return runtime.hydroserver.list_datastreams(config.server)
@@ -226,7 +256,7 @@ def create_app(runtime: AppRuntime) -> FastAPI:
     @app.get("/csv/preview", response_model=CsvPreviewResponse, tags=["csv"])
     def get_csv_preview(
         path: str = Query(..., description="Absolute path to the CSV file"),
-        rows: int = Query(default=50, ge=1, le=200),
+        rows: int = Query(default=50, ge=1, le=500),
     ) -> CsvPreviewResponse:
         try:
             return preview_csv(path=path, rows=rows)
@@ -247,7 +277,9 @@ def get_runtime(request: Request) -> AppRuntime:
 
 def _build_job_summary(runtime: AppRuntime, job: JobConfig) -> JobStatusSummary:
     cursor = runtime.state_store.cursor_for(job.id)
-    status, status_message = _derive_job_status(job, cursor, job.id in runtime.running_jobs)
+    status, status_message = _derive_job_status(
+        job, cursor, job.id in runtime.running_jobs
+    )
     return JobStatusSummary(
         **job.model_dump(),
         status=status,
@@ -260,10 +292,14 @@ def _build_job_summary(runtime: AppRuntime, job: JobConfig) -> JobStatusSummary:
 
 def _build_job_detail(runtime: AppRuntime, job: JobConfig) -> JobDetail:
     summary = _build_job_summary(runtime, job)
-    return JobDetail(**summary.model_dump(), recent_logs=runtime.state_store.logs_for(job.id))
+    return JobDetail(
+        **summary.model_dump(), recent_logs=runtime.state_store.logs_for(job.id)
+    )
 
 
-def _derive_job_status(job: JobConfig, cursor: JobCursor, is_running: bool) -> tuple[str, str]:
+def _derive_job_status(
+    job: JobConfig, cursor: JobCursor, is_running: bool
+) -> tuple[str, str]:
     if is_running:
         return "running", "Running now"
     if not job.enabled:
@@ -281,7 +317,9 @@ def _derive_job_status(job: JobConfig, cursor: JobCursor, is_running: bool) -> t
 
 def _connection_status(server: ServerConfig) -> ConnectionStatus:
     if not _server_is_configured(server):
-        return ConnectionStatus(state="not_configured", message="HydroServer not configured")
+        return ConnectionStatus(
+            state="not_configured", message="HydroServer not configured"
+        )
     return ConnectionStatus(state="configured", message="HydroServer configured")
 
 

@@ -45,6 +45,7 @@ const API_KEY_DOCS_URL =
 const APP_NAME = "HydroServer Streaming Data Loader";
 const STARTUP_RETRY_ATTEMPTS = 12;
 const STARTUP_RETRY_DELAY_MS = 350;
+const PREVIEW_PAGE_SIZE = 50;
 
 type PipelineMappingDraft = {
   csvColumn: string;
@@ -135,6 +136,7 @@ type UiState = {
   pipelineSelectionTarget: PreviewSelectionTarget;
   pipelineDrag: PreviewDragState | null;
   pipelineColumnDrag: PreviewColumnDragState | null;
+  pipelinePreviewRowsRequested: number;
 };
 
 const shellElements = {
@@ -209,6 +211,7 @@ const state: UiState = {
   pipelineSelectionTarget: null,
   pipelineDrag: null,
   pipelineColumnDrag: null,
+  pipelinePreviewRowsRequested: PREVIEW_PAGE_SIZE,
 };
 
 function emptyServerConfig(): ServerConfig {
@@ -952,6 +955,14 @@ function applyPreview(path: string, preview: CsvPreviewResponse): void {
   syncPipelineSelectionsWithPreview();
 }
 
+function canShowMorePreviewLines(): boolean {
+  if (!state.pipelinePreview) {
+    return false;
+  }
+
+  return state.pipelinePreview.raw_lines.length < state.pipelinePreview.total_lines;
+}
+
 function updateHeaderRowFromPreview(lineNumber: number): void {
   state.pipelineForm.hasHeaderRow = true;
   state.pipelineForm.headerRow = lineNumber;
@@ -1463,6 +1474,16 @@ function renderPipelinePreview(): string {
       `
     )
     .join("");
+  const shownLines = state.pipelinePreview.raw_lines.length;
+  const remainingLines = Math.max(state.pipelinePreview.total_lines - shownLines, 0);
+  const nextPageSize = Math.min(PREVIEW_PAGE_SIZE, remainingLines);
+  const showMoreButton = canShowMorePreviewLines()
+    ? `
+      <button class="btn-ghost preview-more-button" type="button" data-action="show-more-preview-lines">
+        Show ${nextPageSize} more line${nextPageSize === 1 ? "" : "s"}
+      </button>
+    `
+    : "";
 
   return `
     <article class="preview-card">
@@ -1501,10 +1522,10 @@ function renderPipelinePreview(): string {
       </div>
 
       <footer class="preview-footer">
-        Showing the first ${Math.min(
-          state.pipelinePreview.total_lines,
-          state.pipelinePreview.raw_lines.length
-        )} lines of ${state.pipelinePreview.total_lines}
+        <span>
+          Showing the first ${shownLines} lines of ${state.pipelinePreview.total_lines}
+        </span>
+        ${showMoreButton}
       </footer>
     </article>
   `;
@@ -2036,6 +2057,7 @@ function updatePipelineField(name: string, value: string): void {
       state.pipelineSelectionTarget = null;
       state.pipelineDrag = null;
       state.pipelineColumnDrag = null;
+      state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE;
       break;
     case "schedule_minutes":
       state.pipelineForm.scheduleMinutes = Number(value) || 15;
@@ -2143,7 +2165,10 @@ function validatePipeline(): string[] {
   return errors;
 }
 
-async function loadPipelinePreview(path: string): Promise<void> {
+async function loadPipelinePreview(
+  path: string,
+  rows = PREVIEW_PAGE_SIZE
+): Promise<void> {
   if (!path.trim()) {
     state.pipelineFeedback = {
       tone: "error",
@@ -2154,8 +2179,9 @@ async function loadPipelinePreview(path: string): Promise<void> {
   }
 
   try {
-    const preview = await getCsvPreview(path.trim(), 50);
+    const preview = await getCsvPreview(path.trim(), rows);
     applyPreview(path.trim(), preview);
+    state.pipelinePreviewRowsRequested = rows;
     state.pipelineErrors = [];
     state.pipelineFeedback = null;
   } catch (error) {
@@ -2163,6 +2189,7 @@ async function loadPipelinePreview(path: string): Promise<void> {
     state.pipelineSelectionTarget = null;
     state.pipelineDrag = null;
     state.pipelineColumnDrag = null;
+    state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE;
     state.pipelineFeedback = {
       tone: "error",
       message:
@@ -2359,6 +2386,7 @@ async function savePipeline(): Promise<void> {
     state.pipelineSelectionTarget = null;
     state.pipelineDrag = null;
     state.pipelineColumnDrag = null;
+    state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE;
     state.pipelineErrors = [];
     state.pipelineFeedback = { tone: "success", message: "Pipeline saved." };
     navigate("dashboard");
@@ -2749,6 +2777,19 @@ mainContent.addEventListener("click", (event) => {
 
   if (action === "browse-csv") {
     void browseForCsvPath();
+    return;
+  }
+
+  if (action === "show-more-preview-lines") {
+    if (!state.pipelinePreview) {
+      return;
+    }
+
+    const nextRows = Math.min(
+      state.pipelinePreviewRowsRequested + PREVIEW_PAGE_SIZE,
+      state.pipelinePreview.total_lines
+    );
+    void loadPipelinePreview(state.pipelineForm.filePath, nextRows);
     return;
   }
 
