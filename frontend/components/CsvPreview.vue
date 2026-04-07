@@ -327,6 +327,15 @@ onBeforeUnmount(() => {
             >
               <div class="preview-column-header">
                 <button
+                  class="preview-header-button"
+                  type="button"
+                  :data-preview-column="header"
+                  data-preview-column-button
+                  @click="model.applyPreviewColumnSelection(header)"
+                >
+                  {{ header }}
+                </button>
+                <button
                   v-if="displayTimestampColumn === header"
                   :class="timestampHandleClass(header)"
                   :style="timestampHandleStyle(header)"
@@ -335,15 +344,6 @@ onBeforeUnmount(() => {
                   @pointerdown.stop.prevent="onColumnHandlePointerDown(header, $event)"
                 >
                   TIMESTAMP
-                </button>
-                <button
-                  class="preview-header-button"
-                  type="button"
-                  :data-preview-column="header"
-                  data-preview-column-button
-                  @click="model.applyPreviewColumnSelection(header)"
-                >
-                  {{ header }}
                 </button>
               </div>
             </th>

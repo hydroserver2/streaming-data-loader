@@ -577,7 +577,7 @@
   }
 
   .preview-column-header {
-    @apply flex min-w-[9rem] flex-row items-center gap-2;
+    @apply flex min-w-[9rem] flex-col items-start gap-2 pb-2;
   }
 
   .preview-tag {
@@ -617,7 +617,7 @@
   }
 
   .preview-tag-column {
-    @apply cursor-grab;
+    @apply cursor-grab self-start;
     transform: translateX(var(--preview-column-handle-offset, 0px));
     will-change: transform;
   }
