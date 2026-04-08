@@ -15,10 +15,6 @@ const previewFileName = computed(
     model.state.pipelineForm.filePath
 )
 
-const mappedCount = computed(() => model.state.validatedColumnMappings.length)
-
-const totalSourceCount = computed(() => model.pipelineMappingRows.value.length)
-
 const hasDatastreamInventory = computed(
   () => model.state.pipelineDatastreams.length > 0
 )
@@ -64,39 +60,20 @@ function unitLabel(datastream: DatastreamSummary): string {
   <section class="page-shell animate-fade-in onboarding-shell">
     <header class="page-header">
       <div>
+        <div class="button-row button-row-tight">
+          <button class="btn-ghost" type="button" @click="navigate('jobs-new')">
+            <span aria-hidden="true">&larr;</span>
+            <span>Back to CSV Setup</span>
+          </button>
+        </div>
         <p class="eyebrow">Step 2</p>
-        <h1 class="page-title">Column mapping</h1>
+        <h1 class="page-title">Column mapping for {{ previewFileName }}</h1>
         <p class="page-copy">
           Filter HydroServer datastreams by thing first, then choose the target
           datastream for each source column.
         </p>
       </div>
-
-      <div class="button-row button-row-end">
-        <button class="btn-ghost" type="button" @click="navigate('jobs-new')">
-          Back to CSV Setup
-        </button>
-      </div>
     </header>
-
-    <article class="summary-card">
-      <div class="summary-card-copy">
-        <p class="eyebrow">Validated file</p>
-        <h2 class="section-title">{{ previewFileName }}</h2>
-        <div class="summary-inline">
-          <span class="summary-meta">
-            Source columns: {{ totalSourceCount }}
-          </span>
-          <span class="summary-meta">
-            Mapped: {{ mappedCount }}
-          </span>
-          <span class="summary-meta">
-            Timestamp:
-            {{ validatedSettings?.timestamp.key ?? model.state.pipelineForm.timestamp.key }}
-          </span>
-        </div>
-      </div>
-    </article>
 
     <article class="pipeline-subcard">
       <div class="transformer-section-header">
