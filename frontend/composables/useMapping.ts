@@ -217,8 +217,7 @@ export function updatePipelineMappingDatastream(
   }
 
   if (owner) {
-    owner.thingId = ""
-    owner.datastreamId = ""
+    return
   }
 
   draft.thingId = datastream.thing_id

@@ -1,13 +1,87 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import {
+  computed,
+  onBeforeUnmount,
+  onMounted,
+  ref,
+  watch,
+  type CSSProperties,
+} from "vue"
 
 import type { DatastreamSummary } from "../api"
+import type {
+  MappingDatastreamBrowserEntry,
+  PipelineMappingRow,
+} from "../composables/useMapping"
 import { useAppModel } from "../composables/useAppModel"
 import { navigate } from "../router"
 
-const THING_HEADER_HEIGHT = 34
-const DATASTREAM_CARD_HEIGHT = 64
-const VIRTUAL_OVERSCAN = 320
+const SECTION_HEADER_HEIGHT = 40
+const DIVIDER_HEIGHT = 20
+const THING_HEADER_HEIGHT = 30
+const DATASTREAM_CARD_HEIGHT = 72
+const VIRTUAL_OVERSCAN = 360
+
+const MAPPING_PALETTE = [
+  {
+    surface: "#dbeafe",
+    border: "#7fb5ff",
+    text: "#184d8f",
+    badge: "#3b82f6",
+  },
+  {
+    surface: "#d7f3ea",
+    border: "#6dd4b2",
+    text: "#115c4b",
+    badge: "#10b981",
+  },
+  {
+    surface: "#f9ecd0",
+    border: "#f2be5d",
+    text: "#80541b",
+    badge: "#f59e0b",
+  },
+  {
+    surface: "#f3dce8",
+    border: "#e58ab7",
+    text: "#7a3f57",
+    badge: "#ec4899",
+  },
+  {
+    surface: "#d9e8fb",
+    border: "#84b7f7",
+    text: "#315f99",
+    badge: "#6366f1",
+  },
+] as const
+
+type ConnectorEntry =
+  | {
+      kind: "section"
+      key: string
+      label: string
+    }
+  | {
+      kind: "divider"
+      key: string
+    }
+  | {
+      kind: "thing"
+      key: string
+      thingName: string
+    }
+  | {
+      kind: "datastream"
+      key: string
+      datastream: DatastreamSummary
+      mappedCsvColumn: string | null
+      disabled: boolean
+      current: boolean
+    }
+
+const emit = defineEmits<{
+  "update:mappings": [Record<string, string>]
+}>()
 
 const model = useAppModel()
 
@@ -41,45 +115,65 @@ const mappedColumnCount = computed(
   () => mappingRows.value.filter((row) => row.datastreamId).length
 )
 
-const datastreamVirtualEntries = computed(() => {
+const mappingRecord = computed<Record<string, string>>(() =>
+  Object.fromEntries(
+    mappingRows.value.flatMap((row) =>
+      row.datastreamId ? [[row.csvColumn, row.datastreamId]] : []
+    )
+  )
+)
+
+const sourceOrderByColumn = computed(
+  () => new Map(mappingRows.value.map((row, index) => [row.csvColumn, index]))
+)
+
+const rightPanelHint = computed(() => {
+  if (!activeMappingRow.value) return "Select a column to begin"
+  if (activeMappingRow.value.datastreamId) return "Click again to unmap"
+  return "Now click a datastream"
+})
+
+const connectorEntries = computed<ConnectorEntry[]>(() =>
+  buildConnectorEntries(browserEntries.value, activeMappingRow.value)
+)
+
+const virtualEntries = computed(() => {
   let top = 0
 
-  return browserEntries.value.map((entry) => {
+  return connectorEntries.value.map((entry) => {
     const height =
-      entry.kind === "thing" ? THING_HEADER_HEIGHT : DATASTREAM_CARD_HEIGHT
+      entry.kind === "section"
+        ? SECTION_HEADER_HEIGHT
+        : entry.kind === "divider"
+        ? DIVIDER_HEIGHT
+        : entry.kind === "thing"
+        ? THING_HEADER_HEIGHT
+        : DATASTREAM_CARD_HEIGHT
+
     const next = {
       ...entry,
-      height,
       top,
+      height,
     }
+
     top += height
     return next
   })
 })
 
-const datastreamVirtualHeight = computed(() => {
-  const lastEntry = datastreamVirtualEntries.value.at(-1)
+const virtualHeight = computed(() => {
+  const lastEntry = virtualEntries.value.at(-1)
   return lastEntry ? lastEntry.top + lastEntry.height : 0
 })
 
-const visibleDatastreamEntries = computed(() => {
+const visibleEntries = computed(() => {
   const start = Math.max(datastreamScrollTop.value - VIRTUAL_OVERSCAN, 0)
   const end =
     datastreamScrollTop.value + datastreamViewportHeight.value + VIRTUAL_OVERSCAN
 
-  return datastreamVirtualEntries.value.filter(
+  return virtualEntries.value.filter(
     (entry) => entry.top + entry.height >= start && entry.top <= end
   )
-})
-
-const activeMappingPrompt = computed(() => {
-  if (!activeMappingRow.value) return "Select a CSV column to start mapping."
-
-  if (activeMappingRow.value.selectedDatastream) {
-    return `Click another datastream to remap ${activeMappingRow.value.label}.`
-  }
-
-  return `Click a datastream to map ${activeMappingRow.value.label}.`
 })
 
 watch(
@@ -98,13 +192,31 @@ watch(
       return
     }
 
-    const hasActiveRow = rows.some((row) => row.csvColumn === activeCsvColumn.value)
-    if (hasActiveRow) return
+    if (
+      activeCsvColumn.value &&
+      rows.some((row) => row.csvColumn === activeCsvColumn.value)
+    ) {
+      return
+    }
 
-    activeCsvColumn.value =
-      rows.find((row) => !row.datastreamId)?.csvColumn ?? rows[0].csvColumn
+    activeCsvColumn.value = ""
   },
   { immediate: true }
+)
+
+watch(
+  mappingRecord,
+  (next) => {
+    emit("update:mappings", next)
+  },
+  { immediate: true }
+)
+
+watch(
+  [activeCsvColumn, () => activeMappingRow.value?.datastreamId ?? ""],
+  () => {
+    resetDatastreamScroll()
+  }
 )
 
 onMounted(() => {
@@ -124,8 +236,82 @@ onBeforeUnmount(() => {
   datastreamResizeObserver?.disconnect()
 })
 
+function buildConnectorEntries(
+  entries: MappingDatastreamBrowserEntry[],
+  activeRow: PipelineMappingRow | null
+): ConnectorEntry[] {
+  const list: ConnectorEntry[] = []
+  const otherEntries: ConnectorEntry[] = []
+  let pendingThingName = ""
+
+  if (activeRow?.selectedDatastream) {
+    list.push({
+      kind: "section",
+      key: "currently-mapped",
+      label: "Currently mapped",
+    })
+    list.push({
+      kind: "datastream",
+      key: `current-${activeRow.selectedDatastream.id}`,
+      datastream: activeRow.selectedDatastream,
+      mappedCsvColumn: activeRow.csvColumn,
+      disabled: false,
+      current: true,
+    })
+  }
+
+  for (const entry of entries) {
+    if (entry.kind === "thing") {
+      pendingThingName = entry.thingName
+      continue
+    }
+
+    if (activeRow?.datastreamId && entry.datastream.id === activeRow.datastreamId) {
+      continue
+    }
+
+    const disabled = !isDatastreamAvailable(entry.datastream.id, entry.mappedCsvColumn)
+
+    if (pendingThingName) {
+      otherEntries.push({
+        kind: "thing",
+        key: `thing-${entry.datastream.thing_id}-${entry.datastream.id}`,
+        thingName: pendingThingName,
+      })
+      pendingThingName = ""
+    }
+
+    otherEntries.push({
+      kind: "datastream",
+      key: entry.key,
+      datastream: entry.datastream,
+      mappedCsvColumn: entry.mappedCsvColumn,
+      disabled,
+      current: false,
+    })
+  }
+
+  if (list.length > 0 && otherEntries.length > 0) {
+    list.push({ kind: "divider", key: "connector-divider" })
+    list.push({
+      kind: "section",
+      key: "other-datastreams",
+      label: "Other datastreams",
+    })
+  }
+
+  return [...list, ...otherEntries]
+}
+
 function measureDatastreamViewport(): void {
   datastreamViewportHeight.value = datastreamViewportRef.value?.clientHeight ?? 640
+}
+
+function resetDatastreamScroll(): void {
+  datastreamScrollTop.value = 0
+  if (datastreamViewportRef.value) {
+    datastreamViewportRef.value.scrollTop = 0
+  }
 }
 
 function onDatastreamScroll(event: Event): void {
@@ -134,7 +320,7 @@ function onDatastreamScroll(event: Event): void {
 }
 
 function selectMappingColumn(csvColumn: string): void {
-  activeCsvColumn.value = csvColumn
+  activeCsvColumn.value = activeCsvColumn.value === csvColumn ? "" : csvColumn
 }
 
 function connectDatastream(datastreamId: string): void {
@@ -142,34 +328,62 @@ function connectDatastream(datastreamId: string): void {
   model.updatePipelineMappingDatastream(activeMappingRow.value.csvColumn, datastreamId)
 }
 
-function clearActiveMapping(): void {
-  if (!activeMappingRow.value) return
-  model.clearPipelineMapping(activeMappingRow.value.csvColumn)
-}
-
 function datastreamTitle(datastream: DatastreamSummary): string {
   return datastream.observed_property_name || datastream.name
 }
 
-function datastreamMeta(datastream: DatastreamSummary): string {
-  return [
-    datastream.processing_level_definition,
-    datastream.unit_symbol || datastream.unit_name,
-    datastream.sampled_medium,
-  ]
-    .filter(Boolean)
-    .join(" · ")
+function datastreamThing(datastream: DatastreamSummary): string {
+  return datastream.thing_name
 }
 
-function isDatastreamMappedToActive(datastreamId: string): boolean {
-  return activeMappingRow.value?.datastreamId === datastreamId
+function columnTargetLabel(row: PipelineMappingRow): string {
+  if (!row.selectedDatastream) return ""
+  return datastreamTitle(row.selectedDatastream)
 }
 
-function isDatastreamMappedElsewhere(
+function mappingNumber(csvColumn: string | null): number | null {
+  if (!csvColumn) return null
+  const index = sourceOrderByColumn.value.get(csvColumn)
+  return index === undefined ? null : index + 1
+}
+
+function mappingToneStyle(csvColumn: string | null): CSSProperties | undefined {
+  const number = mappingNumber(csvColumn)
+  if (number === null) return undefined
+
+  const tone = MAPPING_PALETTE[(number - 1) % MAPPING_PALETTE.length]
+  return {
+    "--mapping-surface": tone.surface,
+    "--mapping-border": tone.border,
+    "--mapping-text": tone.text,
+    "--mapping-badge": tone.badge,
+    "--mapping-badge-text": "#ffffff",
+  } as CSSProperties
+}
+
+function isDatastreamAvailable(
   datastreamId: string,
   mappedCsvColumn: string | null
 ): boolean {
-  return Boolean(mappedCsvColumn && mappedCsvColumn !== activeMappingRow.value?.csvColumn)
+  if (!activeMappingRow.value) return false
+
+  if (activeMappingRow.value.datastreamId) {
+    return activeMappingRow.value.datastreamId === datastreamId
+  }
+
+  return !mappedCsvColumn
+}
+
+function isColumnMapped(row: PipelineMappingRow): boolean {
+  return Boolean(row.datastreamId)
+}
+
+function isColumnSelected(row: PipelineMappingRow): boolean {
+  return row.csvColumn === activeCsvColumn.value
+}
+
+function isDatastreamMapped(entry: ConnectorEntry): boolean {
+  return entry.kind === "datastream" && Boolean(entry.mappedCsvColumn)
 }
 </script>
 
@@ -213,67 +427,69 @@ function isDatastreamMappedElsewhere(
         </p>
       </div>
 
-      <div v-else class="mapping-board">
-        <aside class="mapping-column-pane">
-          <div class="mapping-pane-header">
-            <div>
-              <p class="mapping-pane-label">CSV columns</p>
-              <p class="mapping-pane-copy">
+      <div v-else class="mapping-connector-shell">
+        <section class="mapping-connector-panel">
+          <header class="mapping-connector-header">
+            <div class="mapping-connector-header-row">
+              <p class="mapping-connector-title">CSV columns</p>
+              <p class="mapping-connector-header-meta">
                 {{ mappedColumnCount }} of {{ mappingRows.length }} mapped
               </p>
             </div>
-            <button
-              v-if="activeMappingRow?.datastreamId"
-              class="btn-ghost mapping-pane-action"
-              type="button"
-              @click="clearActiveMapping()"
-            >
-              Clear selected
-            </button>
-          </div>
+          </header>
 
-          <div class="mapping-column-list">
-            <button
-              v-for="row in mappingRows"
-              :key="row.csvColumn"
-              class="mapping-column-button"
-              :class="{
-                'mapping-column-button-active':
-                  row.csvColumn === activeCsvColumn,
-                'mapping-column-button-mapped':
-                  row.csvColumn !== activeCsvColumn && !!row.datastreamId,
-              }"
-              type="button"
-              @click="selectMappingColumn(row.csvColumn)"
-            >
-              <span class="mapping-column-dot" />
-              <span class="mapping-column-name">{{ row.label }}</span>
-            </button>
-          </div>
-        </aside>
-
-        <section class="mapping-datastream-pane">
-          <div class="mapping-pane-header">
-            <div>
-              <p class="mapping-pane-label">Datastreams</p>
-              <p class="mapping-pane-copy">{{ activeMappingPrompt }}</p>
-            </div>
-            <div v-if="activeMappingRow" class="mapping-pane-chip">
-              {{ activeMappingRow.label }}
+          <div class="mapping-connector-body">
+            <div class="mapping-column-scroll">
+              <button
+                v-for="row in mappingRows"
+                :key="row.csvColumn"
+                class="mapping-column-item"
+                :class="{
+                  'mapping-column-item-selected': isColumnSelected(row),
+                  'mapping-connector-item-mapped': isColumnMapped(row),
+                }"
+                :style="isColumnMapped(row) ? mappingToneStyle(row.csvColumn) : undefined"
+                type="button"
+                @click="selectMappingColumn(row.csvColumn)"
+              >
+                <span
+                  class="mapping-item-badge"
+                  :class="{ 'mapping-item-badge-filled': isColumnMapped(row) }"
+                >
+                  {{ isColumnMapped(row) ? mappingNumber(row.csvColumn) : "" }}
+                </span>
+                <span class="mapping-column-item-copy">
+                  <span class="mapping-column-item-name">{{ row.label }}</span>
+                  <span v-if="row.selectedDatastream" class="mapping-column-item-target">
+                    <span aria-hidden="true">-&gt;</span>
+                    <span>{{ columnTargetLabel(row) }}</span>
+                  </span>
+                </span>
+              </button>
             </div>
           </div>
+
+          <footer class="mapping-connector-footer">
+            {{ mappedColumnCount }} of {{ mappingRows.length }} mapped
+          </footer>
+        </section>
+
+        <section class="mapping-connector-panel">
+          <header class="mapping-connector-header">
+            <p class="mapping-connector-title">Datastreams</p>
+          </header>
 
           <div
             ref="datastreamViewportRef"
-            class="mapping-datastream-viewport"
+            class="mapping-connector-body mapping-datastream-scroll"
             @scroll="onDatastreamScroll"
           >
             <div
               class="mapping-virtual-stage"
-              :style="{ height: `${datastreamVirtualHeight}px` }"
+              :style="{ height: `${virtualHeight}px` }"
             >
               <div
-                v-for="entry in visibleDatastreamEntries"
+                v-for="entry in visibleEntries"
                 :key="entry.key"
                 class="mapping-virtual-item"
                 :style="{
@@ -281,49 +497,55 @@ function isDatastreamMappedElsewhere(
                   height: `${entry.height}px`,
                 }"
               >
-                <div v-if="entry.kind === 'thing'" class="mapping-thing-header">
+                <div v-if="entry.kind === 'section'" class="mapping-connector-section">
+                  {{ entry.label }}
+                </div>
+
+                <div v-else-if="entry.kind === 'divider'" class="mapping-connector-divider" />
+
+                <div v-else-if="entry.kind === 'thing'" class="mapping-thing-group">
                   {{ entry.thingName }}
                 </div>
 
                 <button
                   v-else
-                  class="mapping-datastream-card"
+                  class="mapping-datastream-item"
                   :class="{
-                    'mapping-datastream-card-active':
-                      isDatastreamMappedToActive(entry.datastream.id),
-                    'mapping-datastream-card-occupied':
-                      isDatastreamMappedElsewhere(
-                        entry.datastream.id,
-                        entry.mappedCsvColumn
-                      ),
+                    'mapping-connector-item-mapped': isDatastreamMapped(entry),
+                    'mapping-datastream-item-current': entry.current,
+                    'mapping-datastream-item-disabled': entry.disabled,
                   }"
+                  :style="
+                    isDatastreamMapped(entry)
+                      ? mappingToneStyle(entry.mappedCsvColumn)
+                      : undefined
+                  "
+                  :disabled="entry.disabled"
                   type="button"
                   @click="connectDatastream(entry.datastream.id)"
                 >
-                  <div class="mapping-datastream-copy">
-                    <p class="mapping-datastream-title">
+                  <span
+                    class="mapping-item-badge"
+                    :class="{ 'mapping-item-badge-filled': isDatastreamMapped(entry) }"
+                  >
+                    {{ isDatastreamMapped(entry) ? mappingNumber(entry.mappedCsvColumn) : "" }}
+                  </span>
+                  <span class="mapping-datastream-item-copy">
+                    <span class="mapping-datastream-item-name">
                       {{ datastreamTitle(entry.datastream) }}
-                    </p>
-                    <p class="mapping-datastream-meta">
-                      {{ datastreamMeta(entry.datastream) }}
-                    </p>
-                  </div>
-
-                  <div class="mapping-datastream-status">
-                    <span
-                      v-if="isDatastreamMappedToActive(entry.datastream.id)"
-                      class="mapping-linked-badge"
-                    >
-                      mapped
                     </span>
-                    <span v-else-if="entry.mappedColumnLabel" class="mapping-occupied-label">
-                      {{ entry.mappedColumnLabel }}
-                    </span>
-                  </div>
+                  </span>
+                  <span class="mapping-datastream-item-thing">
+                    {{ datastreamThing(entry.datastream) }}
+                  </span>
                 </button>
               </div>
             </div>
           </div>
+
+          <footer class="mapping-connector-footer">
+            {{ rightPanelHint }}
+          </footer>
         </section>
       </div>
     </article>

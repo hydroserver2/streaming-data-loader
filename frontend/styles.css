@@ -534,6 +534,83 @@
     @apply bg-sky-900/50 text-sky-200;
   }
 
+  .onboarding-shell .mapping-connector-shell {
+    border-color: rgb(255 255 255 / 0.12);
+    background: #323334;
+  }
+
+  .onboarding-shell .mapping-connector-panel + .mapping-connector-panel,
+  .onboarding-shell .mapping-connector-header,
+  .onboarding-shell .mapping-connector-footer {
+    border-color: rgb(255 255 255 / 0.1);
+  }
+
+  .onboarding-shell .mapping-connector-title,
+  .onboarding-shell .mapping-connector-header-meta,
+  .onboarding-shell .mapping-connector-footer,
+  .onboarding-shell .mapping-connector-section,
+  .onboarding-shell .mapping-thing-group,
+  .onboarding-shell .mapping-datastream-item-thing {
+    color: #aca79f;
+  }
+
+  .onboarding-shell .mapping-column-item,
+  .onboarding-shell .mapping-datastream-item {
+    border-color: rgb(255 255 255 / 0.08);
+    background: #252628;
+  }
+
+  .onboarding-shell .mapping-column-item:hover,
+  .onboarding-shell .mapping-datastream-item:hover {
+    border-color: rgb(255 255 255 / 0.12);
+    background: #2a2b2d;
+  }
+
+  .onboarding-shell .mapping-column-item-selected {
+    border-color: rgb(255 255 255 / 0.14);
+    background: #2b2c2f;
+  }
+
+  .onboarding-shell .mapping-item-badge {
+    border-color: rgb(255 255 255 / 0.12);
+    color: #8f8a82;
+  }
+
+  .onboarding-shell .mapping-column-item-name,
+  .onboarding-shell .mapping-datastream-item-name {
+    @apply text-slate-100;
+  }
+
+  .onboarding-shell .mapping-column-item-target {
+    color: #d5d1cb;
+  }
+
+  .onboarding-shell .mapping-connector-item-mapped {
+    background-color: var(--mapping-surface);
+    border-color: var(--mapping-border);
+    color: var(--mapping-text);
+  }
+
+  .onboarding-shell .mapping-connector-item-mapped:hover {
+    background-color: var(--mapping-surface);
+    border-color: var(--mapping-border);
+  }
+
+  .onboarding-shell .mapping-connector-item-mapped .mapping-column-item-name,
+  .onboarding-shell .mapping-connector-item-mapped .mapping-column-item-target,
+  .onboarding-shell .mapping-connector-item-mapped .mapping-datastream-item-name,
+  .onboarding-shell .mapping-connector-item-mapped .mapping-datastream-item-thing {
+    color: var(--mapping-text);
+  }
+
+  .onboarding-shell .mapping-datastream-item-disabled {
+    opacity: 0.58;
+  }
+
+  .onboarding-shell .mapping-connector-divider {
+    background: rgb(255 255 255 / 0.08);
+  }
+
   .onboarding-shell .mapping-row {
     @apply border-0 bg-[#16191b];
   }
@@ -814,6 +891,135 @@
 
   .mapping-occupied-label {
     @apply inline-flex max-w-40 truncate rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700;
+  }
+
+  .mapping-connector-shell {
+    @apply grid overflow-hidden rounded-[2rem] border border-slate-200 bg-transparent lg:grid-cols-2;
+    height: calc(100vh - 13rem);
+    min-height: 38rem;
+  }
+
+  .mapping-connector-panel {
+    @apply grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] bg-transparent;
+  }
+
+  .mapping-connector-panel + .mapping-connector-panel {
+    @apply border-t border-slate-200 lg:border-t-0 lg:border-l;
+  }
+
+  .mapping-connector-header {
+    @apply border-b border-slate-200 px-6 py-5;
+  }
+
+  .mapping-connector-header-row {
+    @apply flex items-center justify-between gap-4;
+  }
+
+  .mapping-connector-title {
+    @apply text-xs font-semibold uppercase tracking-[0.18em] text-slate-500;
+  }
+
+  .mapping-connector-header-meta {
+    @apply text-sm font-medium text-slate-500;
+  }
+
+  .mapping-connector-body {
+    @apply min-h-0 overflow-hidden px-5 py-5;
+  }
+
+  .mapping-column-scroll {
+    @apply flex h-full flex-col gap-3 overflow-auto pr-2;
+  }
+
+  .mapping-datastream-scroll {
+    @apply overflow-auto;
+  }
+
+  .mapping-connector-footer {
+    @apply border-t border-slate-200 px-6 py-4 text-sm text-slate-500;
+  }
+
+  .mapping-column-item,
+  .mapping-datastream-item {
+    @apply flex w-full items-center gap-4 rounded-2xl border border-slate-200 bg-slate-50/40 px-4 py-4 text-left transition-colors;
+  }
+
+  .mapping-column-item:hover,
+  .mapping-datastream-item:hover {
+    @apply border-slate-300 bg-slate-50/50;
+  }
+
+  .mapping-column-item-selected {
+    @apply border-slate-400 bg-slate-100/60;
+  }
+
+  .mapping-column-item-copy {
+    @apply flex min-w-0 flex-1 items-center justify-between gap-4;
+  }
+
+  .mapping-column-item-name,
+  .mapping-datastream-item-name {
+    @apply truncate text-base font-medium text-slate-900;
+  }
+
+  .mapping-column-item-target {
+    @apply inline-flex shrink-0 items-center gap-2 text-sm font-medium text-slate-600;
+  }
+
+  .mapping-item-badge {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-transparent text-sm font-semibold text-slate-500;
+  }
+
+  .mapping-item-badge-filled {
+    background-color: var(--mapping-badge);
+    border-color: var(--mapping-badge);
+    color: var(--mapping-badge-text);
+  }
+
+  .mapping-connector-item-mapped {
+    background-color: var(--mapping-surface);
+    border-color: var(--mapping-border);
+    color: var(--mapping-text);
+  }
+
+  .mapping-connector-item-mapped:hover {
+    background-color: var(--mapping-surface);
+    border-color: var(--mapping-border);
+  }
+
+  .mapping-connector-item-mapped .mapping-column-item-name,
+  .mapping-connector-item-mapped .mapping-column-item-target,
+  .mapping-connector-item-mapped .mapping-datastream-item-name,
+  .mapping-connector-item-mapped .mapping-datastream-item-thing {
+    color: var(--mapping-text);
+  }
+
+  .mapping-datastream-item-disabled {
+    @apply cursor-not-allowed opacity-45;
+  }
+
+  .mapping-datastream-item-current {
+    @apply shadow-sm;
+  }
+
+  .mapping-datastream-item-copy {
+    @apply min-w-0 flex-1;
+  }
+
+  .mapping-datastream-item-thing {
+    @apply shrink-0 text-sm text-slate-500;
+  }
+
+  .mapping-connector-section {
+    @apply px-1 py-2 text-[1.1rem] font-medium text-slate-500;
+  }
+
+  .mapping-connector-divider {
+    @apply mx-1 h-px bg-slate-200;
+  }
+
+  .mapping-thing-group {
+    @apply px-1 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-500;
   }
 
   .preview-card {

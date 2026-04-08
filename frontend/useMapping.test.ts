@@ -130,7 +130,7 @@ test("changing the selected thing clears a datastream from a different thing", (
   )
 })
 
-test("selecting a datastream for a new column moves the mapping instead of duplicating it", () => {
+test("selecting a datastream that is already mapped leaves the existing mapping in place", () => {
   state.pipelineDatastreams = [
     datastream({}),
     datastream({
@@ -149,12 +149,12 @@ test("selecting a datastream for a new column moves the mapping instead of dupli
   assert.equal(
     state.pipelineMappingDrafts.find((draft) => draft.csvColumn === "stage_cfs")
       ?.datastreamId,
-    ""
+    "stream-1"
   )
   assert.equal(
     state.pipelineMappingDrafts.find((draft) => draft.csvColumn === "temp_c")
       ?.datastreamId,
-    "stream-1"
+    ""
   )
 })
 
