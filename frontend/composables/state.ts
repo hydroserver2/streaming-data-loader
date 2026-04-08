@@ -12,13 +12,12 @@ import type {
   ConnectionState,
   ConnectionTestResponse,
   CsvPreviewResponse,
+  CsvTransformerTimestampSettings,
   HealthResponse,
   ServerConfig,
 } from "../api";
 
 export type PipelineIdentifierType = "name" | "index";
-export type PipelineTimestampType = "iso" | "custom";
-export type PipelineTimezoneType = "" | "utc" | "offset" | "iana";
 
 export type PipelineFormState = {
   filePath: string;
@@ -27,11 +26,7 @@ export type PipelineFormState = {
   dataStartRow: number;
   delimiter: string;
   identifierType: PipelineIdentifierType;
-  timestampKey: string;
-  timestampType: PipelineTimestampType;
-  timestampFormat: string;
-  timezoneType: PipelineTimezoneType;
-  timezone: string;
+  timestamp: CsvTransformerTimestampSettings;
 };
 
 export type PreviewSelectionTarget =
@@ -89,11 +84,11 @@ export function createEmptyPipelineForm(): PipelineFormState {
     dataStartRow: 2,
     delimiter: ",",
     identifierType: "name",
-    timestampKey: "timestamp",
-    timestampType: "iso",
-    timestampFormat: "",
-    timezoneType: "",
-    timezone: "",
+    timestamp: {
+      key: "timestamp",
+      format: "ISO8601",
+      timezoneMode: "embeddedOffset",
+    },
   };
 }
 

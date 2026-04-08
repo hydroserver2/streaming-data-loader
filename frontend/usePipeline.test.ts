@@ -4,13 +4,13 @@ import assert from "node:assert/strict"
 import type { CsvPreviewResponse } from "./api"
 import {
   applyPreviewColumnSelection,
+  buildPipelineTransformerSettings,
   loadPipelinePreview,
   selectedPreviewTimestampColumn,
   setPipelineHasHeaderRow,
   showMorePreviewLines,
   updatePipelineField,
 } from "./composables/usePipeline"
-import { serializePipelineFormToCsvTransformerSettings } from "./composables/csvTransformerSettings"
 import {
   createEmptyPipelineForm,
   PREVIEW_PAGE_SIZE,
@@ -70,13 +70,13 @@ test("disabling the header row forces index mode and preserves the timestamp sel
   state.pipelineForm.headerRow = 1
   state.pipelineForm.dataStartRow = 2
   state.pipelineForm.identifierType = "name"
-  state.pipelineForm.timestampKey = "recorded_at"
+  state.pipelineForm.timestamp.key = "recorded_at"
 
   setPipelineHasHeaderRow(false)
 
   assert.equal(state.pipelineForm.hasHeaderRow, false)
   assert.equal(state.pipelineForm.identifierType, "index")
-  assert.equal(state.pipelineForm.timestampKey, "1")
+  assert.equal(state.pipelineForm.timestamp.key, "1")
 })
 
 test("preview column selection stores a 1-based index in index mode", () => {
@@ -85,11 +85,11 @@ test("preview column selection stores a 1-based index in index mode", () => {
   state.pipelineForm.headerRow = 1
   state.pipelineForm.dataStartRow = 2
   state.pipelineForm.identifierType = "index"
-  state.pipelineForm.timestampKey = "1"
+  state.pipelineForm.timestamp.key = "1"
 
   applyPreviewColumnSelection("value")
 
-  assert.equal(state.pipelineForm.timestampKey, "2")
+  assert.equal(state.pipelineForm.timestamp.key, "2")
   assert.equal(selectedPreviewTimestampColumn.value, "value")
 })
 
@@ -126,13 +126,36 @@ test("loading more preview rows does not overwrite manual transformer fixes", as
 })
 
 test("custom timestamp formats default to UTC timezone handling", () => {
-  assert.equal(state.pipelineForm.timezoneType, "")
+  assert.equal(state.pipelineForm.timestamp.format, "ISO8601")
+  assert.equal(state.pipelineForm.timestamp.timezoneMode, "embeddedOffset")
 
-  updatePipelineField("timestamp_type", "custom")
+  updatePipelineField("timestamp_format", "custom")
 
-  assert.equal(state.pipelineForm.timestampType, "custom")
-  assert.equal(state.pipelineForm.timezoneType, "utc")
-  assert.equal(state.pipelineForm.timestampFormat, "%Y-%m-%d %H:%M:%S")
+  assert.equal(state.pipelineForm.timestamp.format, "custom")
+  assert.equal(state.pipelineForm.timestamp.timezoneMode, "utc")
+  assert.equal(
+    state.pipelineForm.timestamp.customFormat,
+    "%Y-%m-%d %H:%M:%S"
+  )
+})
+
+test("selecting daylight-savings mode defaults to an IANA timezone", () => {
+  updatePipelineField("timestamp_format", "naive")
+  updatePipelineField("timezone_mode", "daylightSavings")
+
+  assert.equal(state.pipelineForm.timestamp.format, "naive")
+  assert.equal(state.pipelineForm.timestamp.timezoneMode, "daylightSavings")
+  assert.equal(state.pipelineForm.timestamp.timezone, "America/Denver")
+})
+
+test("switching timezone modes resets the controlled vocabulary selection", () => {
+  updatePipelineField("timestamp_format", "naive")
+  updatePipelineField("timezone_mode", "fixedOffset")
+  updatePipelineField("timezone", "-0600")
+  updatePipelineField("timezone_mode", "daylightSavings")
+
+  assert.equal(state.pipelineForm.timestamp.timezoneMode, "daylightSavings")
+  assert.equal(state.pipelineForm.timestamp.timezone, "America/Denver")
 })
 
 test("serializing the pipeline form matches hydroserver csv transformer settings", () => {
@@ -141,13 +164,15 @@ test("serializing the pipeline form matches hydroserver csv transformer settings
   state.pipelineForm.dataStartRow = 2
   state.pipelineForm.delimiter = "|"
   state.pipelineForm.identifierType = "name"
-  state.pipelineForm.timestampKey = "recorded_at"
-  state.pipelineForm.timestampType = "custom"
-  state.pipelineForm.timestampFormat = "%m/%d/%Y %H:%M:%S"
-  state.pipelineForm.timezoneType = "iana"
-  state.pipelineForm.timezone = "America/Denver"
+  state.pipelineForm.timestamp = {
+    key: "recorded_at",
+    format: "custom",
+    customFormat: "%m/%d/%Y %H:%M:%S",
+    timezoneMode: "daylightSavings",
+    timezone: "America/Denver",
+  }
 
-  assert.deepEqual(serializePipelineFormToCsvTransformerSettings(state.pipelineForm), {
+  assert.deepEqual(buildPipelineTransformerSettings(), {
     headerRow: 1,
     dataStartRow: 2,
     delimiter: "|",
@@ -167,9 +192,9 @@ test("serializing index mode clears headerRow so hydroserverpy skips file header
   state.pipelineForm.headerRow = 1
   state.pipelineForm.dataStartRow = 2
   state.pipelineForm.identifierType = "index"
-  state.pipelineForm.timestampKey = "1"
+  state.pipelineForm.timestamp.key = "1"
 
-  assert.deepEqual(serializePipelineFormToCsvTransformerSettings(state.pipelineForm), {
+  assert.deepEqual(buildPipelineTransformerSettings(), {
     headerRow: null,
     dataStartRow: 2,
     delimiter: ",",

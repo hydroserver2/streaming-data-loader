@@ -1,4 +1,5 @@
 import { apiBaseUrl } from "./config"
+import type { Timestamp } from "./models/timestamp"
 
 export type ConnectionState = "not_configured" | "configured" | "connected" | "error"
 export type AuthType = "apikey" | "userpass"
@@ -58,19 +59,8 @@ export interface CsvPreviewResponse {
 }
 
 export type CsvTransformerIdentifierType = "name" | "index"
-export type CsvTransformerTimestampFormat = "ISO8601" | "naive" | "custom"
-export type CsvTransformerTimezoneMode =
-  | "embeddedOffset"
-  | "utc"
-  | "fixedOffset"
-  | "daylightSavings"
-
-export interface CsvTransformerTimestampSettings {
+export interface CsvTransformerTimestampSettings extends Timestamp {
   key: string
-  format: CsvTransformerTimestampFormat
-  customFormat?: string
-  timezoneMode: CsvTransformerTimezoneMode
-  timezone?: string
 }
 
 export interface CsvTransformerSettings {

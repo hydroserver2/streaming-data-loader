@@ -1,13 +1,16 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed } from "vue"
 
-import { useAppModel } from "../composables/useAppModel";
-import type {
-  PipelineIdentifierType,
-  PipelineTimezoneType,
-} from "../composables/state";
+import { useAppModel } from "../composables/useAppModel"
+import type { PipelineIdentifierType } from "../composables/state"
+import {
+  DST_AWARE_TIMEZONES,
+  FIXED_OFFSET_TIMEZONES,
+  TIMESTAMP_FORMATS,
+  type TimezoneMode,
+} from "../models/timestamp"
 
-const model = useAppModel();
+const model = useAppModel()
 
 const delimiterOptions = [
   { value: ",", label: "Comma (,)" },
@@ -15,31 +18,25 @@ const delimiterOptions = [
   { value: "\t", label: "Tab" },
   { value: "|", label: "Pipe (|)" },
   { value: " ", label: "Space" },
-] as const;
+] as const
 
-const timestampTypeOptions = [
-  { value: "iso", label: "ISO / inferred" },
-  { value: "custom", label: "Custom format" },
-] as const;
-
-const allTimezoneTypeOptions = [
-  { value: "", label: "Embedded / auto" },
-  { value: "utc", label: "Treat as UTC" },
-  { value: "offset", label: "Fixed UTC offset" },
-  { value: "iana", label: "IANA timezone" },
-] as const;
+const timezoneModeOptions = [
+  { value: "utc", label: "UTC" },
+  { value: "fixedOffset", label: "Fixed offset" },
+  { value: "daylightSavings", label: "Daylight savings aware" },
+] as const
 
 const timestampKeyLabel = computed(() =>
   model.state.pipelineForm.identifierType === "index"
     ? "Timestamp column number"
     : "Timestamp column name"
-);
+)
 
 const timestampKeyHint = computed(() =>
   model.state.pipelineForm.identifierType === "index"
     ? "Pick the 1-based column number that contains timestamps."
     : "Pick the header name that contains timestamps."
-);
+)
 
 const timestampOptions = computed(() =>
   model.previewHeaders.value.map((header, index) => ({
@@ -53,47 +50,45 @@ const timestampOptions = computed(() =>
         ? `${index + 1} · ${header}`
         : header,
   }))
-);
-
-const timezoneTypeOptions = computed(() =>
-  model.state.pipelineForm.timestampType === "custom"
-    ? allTimezoneTypeOptions.filter((option) => option.value !== "")
-    : allTimezoneTypeOptions
-);
+)
 
 const timezoneLabel = computed(() =>
-  model.state.pipelineForm.timezoneType === "offset"
+  model.state.pipelineForm.timestamp.timezoneMode === "fixedOffset"
     ? "UTC offset"
     : "Timezone"
-);
+)
 
-const timezoneValueHint = computed(() => {
-  if (model.state.pipelineForm.timezoneType === "offset") {
-    return "Use ±HHMM or ±HH:MM, for example -0700 or -07:00."
-  }
-
-  return "Use a valid IANA timezone such as America/Denver."
-});
+const timezoneValueHint = computed(() =>
+  model.state.pipelineForm.timestamp.timezoneMode === "fixedOffset"
+    ? "Select a fixed UTC offset to apply to the timestamp column."
+    : "Select an IANA timezone such as America/Denver."
+)
 
 const timezoneModeHint = computed(() => {
-  if (model.state.pipelineForm.timestampType === "custom") {
+  if (model.state.pipelineForm.timestamp.format === "custom") {
     return "Custom formats must be interpreted as UTC, a fixed offset, or an IANA timezone."
   }
 
-  return "Leave this on embedded / auto when timestamps already include their own timezone offset."
-});
+  return "Timezone-naive timestamps need an explicit timezone rule."
+})
+
+const timezoneOptions = computed(() =>
+  model.state.pipelineForm.timestamp.timezoneMode === "fixedOffset"
+    ? FIXED_OFFSET_TIMEZONES
+    : DST_AWARE_TIMEZONES
+)
 
 function updateIdentifierType(event: Event): void {
   model.setPipelineIdentifierType(
     (event.target as HTMLSelectElement).value as PipelineIdentifierType
-  );
+  )
 }
 
-function updateTimezoneType(event: Event): void {
+function updateTimezoneMode(event: Event): void {
   model.updatePipelineField(
-    "timezone_type",
-    (event.target as HTMLSelectElement).value as PipelineTimezoneType
-  );
+    "timezone_mode",
+    (event.target as HTMLSelectElement).value as TimezoneMode
+  )
 }
 </script>
 
@@ -226,7 +221,7 @@ function updateTimezoneType(event: Event): void {
           <select
             class="input"
             :key="model.state.pipelineForm.identifierType"
-            :value="model.state.pipelineForm.timestampKey"
+            :value="model.state.pipelineForm.timestamp.key"
             @change="
               model.updatePipelineField(
                 'timestamp_key',
@@ -246,33 +241,34 @@ function updateTimezoneType(event: Event): void {
         </label>
 
         <label class="field">
-          <span class="label">Timestamp type</span>
+          <span class="label">Timestamp format</span>
           <select
             class="input"
-            :value="model.state.pipelineForm.timestampType"
+            :value="model.state.pipelineForm.timestamp.format"
             @change="
               model.updatePipelineField(
-                'timestamp_type',
+                'timestamp_format',
                 ($event.target as HTMLSelectElement).value
               )
             "
           >
             <option
-              v-for="option in timestampTypeOptions"
+              v-for="option in TIMESTAMP_FORMATS"
               :key="option.value"
               :value="option.value"
             >
-              {{ option.label }}
+              {{ option.text }}
             </option>
           </select>
           <span class="field-hint">
-            Use a custom format only when the timestamp values are not standard
-            ISO strings.
+            Choose ISO 8601 when timestamps already contain their timezone
+            offset. Use a custom format only when the values don't match the
+            built-in options.
           </span>
         </label>
 
         <label
-          v-if="model.state.pipelineForm.timestampType === 'custom'"
+          v-if="model.state.pipelineForm.timestamp.format === 'custom'"
           class="field transformer-field-span"
         >
           <span class="label">Custom timestamp format</span>
@@ -280,10 +276,10 @@ function updateTimezoneType(event: Event): void {
             class="input"
             type="text"
             placeholder="%Y-%m-%d %H:%M:%S"
-            :value="model.state.pipelineForm.timestampFormat"
+            :value="model.state.pipelineForm.timestamp.customFormat ?? ''"
             @input="
               model.updatePipelineField(
-                'timestamp_format',
+                'custom_timestamp_format',
                 ($event.target as HTMLInputElement).value
               )
             "
@@ -293,16 +289,19 @@ function updateTimezoneType(event: Event): void {
           </span>
         </label>
 
-        <label class="field">
-          <span class="label">Timezone handling</span>
+        <label
+          v-if="model.state.pipelineForm.timestamp.format !== 'ISO8601'"
+          class="field"
+        >
+          <span class="label">Timezone</span>
           <select
             class="input"
-            :value="model.state.pipelineForm.timezoneType"
-            @change="updateTimezoneType"
+            :value="model.state.pipelineForm.timestamp.timezoneMode"
+            @change="updateTimezoneMode"
           >
             <option
-              v-for="option in timezoneTypeOptions"
-              :key="option.label"
+              v-for="option in timezoneModeOptions"
+              :key="option.value"
               :value="option.value"
             >
               {{ option.label }}
@@ -313,28 +312,31 @@ function updateTimezoneType(event: Event): void {
 
         <label
           v-if="
-            model.state.pipelineForm.timezoneType === 'offset' ||
-            model.state.pipelineForm.timezoneType === 'iana'
+            model.state.pipelineForm.timestamp.timezoneMode === 'fixedOffset' ||
+            model.state.pipelineForm.timestamp.timezoneMode ===
+              'daylightSavings'
           "
           class="field"
         >
           <span class="label">{{ timezoneLabel }}</span>
-          <input
+          <select
             class="input"
-            :placeholder="
-              model.state.pipelineForm.timezoneType === 'offset'
-                ? '-07:00'
-                : 'America/Denver'
-            "
-            type="text"
-            :value="model.state.pipelineForm.timezone"
-            @input="
+            :value="model.state.pipelineForm.timestamp.timezone"
+            @change="
               model.updatePipelineField(
                 'timezone',
-                ($event.target as HTMLInputElement).value
+                ($event.target as HTMLSelectElement).value
               )
             "
-          />
+          >
+            <option
+              v-for="option in timezoneOptions"
+              :key="option.value"
+              :value="option.value"
+            >
+              {{ option.title }}
+            </option>
+          </select>
           <span class="field-hint">{{ timezoneValueHint }}</span>
         </label>
       </div>

@@ -1,15 +1,13 @@
 import { computed } from "vue"
 
+import type { CsvTransformerSettings } from "../api"
 import { getCsvPreview } from "../api"
-import {
-  normalizePipelineTimezoneType,
-  serializePipelineFormToCsvTransformerSettings,
-} from "./csvTransformerSettings"
 import {
   PREVIEW_PAGE_SIZE,
   state,
   type PipelineIdentifierType,
 } from "./state"
+import type { TimezoneMode, TimestampFormat } from "../models/timestamp"
 
 function parseDelimitedLine(line: string, delimiter: string): string[] {
   if (!delimiter) return [line]
@@ -107,7 +105,7 @@ export const selectedPreviewTimestampColumn = computed(() =>
   resolveTimestampColumnName(
     previewHeaders.value,
     state.pipelineForm.identifierType,
-    state.pipelineForm.timestampKey
+    state.pipelineForm.timestamp.key
   )
 )
 
@@ -123,19 +121,19 @@ function syncSelectionsWithPreview(): void {
   }
 
   if (state.pipelineForm.identifierType === "index") {
-    const currentIndex = Number(state.pipelineForm.timestampKey)
+    const currentIndex = Number(state.pipelineForm.timestamp.key)
     if (
       !Number.isInteger(currentIndex) ||
       currentIndex < 1 ||
       currentIndex > headers.length
     ) {
-      state.pipelineForm.timestampKey = String(preferredIndex + 1)
+      state.pipelineForm.timestamp.key = String(preferredIndex + 1)
     }
     return
   }
 
-  if (!headers.includes(state.pipelineForm.timestampKey)) {
-    state.pipelineForm.timestampKey = preferredHeader
+  if (!headers.includes(state.pipelineForm.timestamp.key)) {
+    state.pipelineForm.timestamp.key = preferredHeader
   }
 }
 
@@ -185,7 +183,7 @@ export function applyPreviewColumnSelection(columnName: string): void {
     return
   }
 
-  state.pipelineForm.timestampKey =
+  state.pipelineForm.timestamp.key =
     state.pipelineForm.identifierType === "index"
       ? String(previewHeaders.value.indexOf(columnName) + 1)
       : columnName
@@ -197,7 +195,7 @@ export function setPipelineHasHeaderRow(enabled: boolean): void {
   const currentVisibleTimestampColumn = resolveTimestampColumnName(
     headersBeforeToggle,
     state.pipelineForm.identifierType,
-    state.pipelineForm.timestampKey
+    state.pipelineForm.timestamp.key
   )
 
   state.pipelineForm.hasHeaderRow = enabled
@@ -210,7 +208,7 @@ export function setPipelineHasHeaderRow(enabled: boolean): void {
     if (currentVisibleTimestampColumn) {
       const currentIndex = headersBeforeToggle.indexOf(currentVisibleTimestampColumn)
       if (currentIndex >= 0) {
-        state.pipelineForm.timestampKey = String(currentIndex + 1)
+        state.pipelineForm.timestamp.key = String(currentIndex + 1)
       }
     }
     state.pipelineForm.dataStartRow = Math.max(1, state.pipelineForm.dataStartRow)
@@ -238,25 +236,56 @@ export function setPipelineIdentifierType(identifierType: PipelineIdentifierType
   const currentVisibleTimestampColumn = resolveTimestampColumnName(
     headers,
     state.pipelineForm.identifierType,
-    state.pipelineForm.timestampKey
+    state.pipelineForm.timestamp.key
   )
 
   state.pipelineForm.identifierType = identifierType
 
   if (headers.length === 0) {
-    state.pipelineForm.timestampKey = identifierType === "index" ? "1" : "timestamp"
+    state.pipelineForm.timestamp.key =
+      identifierType === "index" ? "1" : "timestamp"
     return
   }
 
   if (identifierType === "index") {
     const currentIndex = headers.indexOf(currentVisibleTimestampColumn)
-    state.pipelineForm.timestampKey =
+    state.pipelineForm.timestamp.key =
       currentIndex >= 0
         ? String(currentIndex + 1)
         : String(preferredTimestampColumnIndex(headers) + 1)
   } else {
-    state.pipelineForm.timestampKey =
+    state.pipelineForm.timestamp.key =
       currentVisibleTimestampColumn || headers[preferredTimestampColumnIndex(headers)]
+  }
+}
+
+function syncTimestampFormat(format: TimestampFormat): void {
+  const timestamp = state.pipelineForm.timestamp
+  timestamp.format = format
+
+  if (format === "custom") {
+    timestamp.customFormat = timestamp.customFormat || "%Y-%m-%d %H:%M:%S"
+  } else {
+    timestamp.customFormat = undefined
+  }
+
+  if (format === "ISO8601") {
+    syncTimestampTimezone("embeddedOffset")
+  } else {
+    syncTimestampTimezone("utc")
+  }
+}
+
+function syncTimestampTimezone(mode: TimezoneMode): void {
+  const timestamp = state.pipelineForm.timestamp
+  timestamp.timezoneMode = mode
+
+  if (mode === "utc" || mode === "embeddedOffset") {
+    timestamp.timezone = undefined
+  } else if (mode === "fixedOffset") {
+    timestamp.timezone = "-0700"
+  } else if (mode === "daylightSavings") {
+    timestamp.timezone = "America/Denver"
   }
 }
 
@@ -298,38 +327,29 @@ export function updatePipelineField(name: string, value: string): void {
       syncSelectionsWithPreview()
       break
     case "timestamp_key":
-      state.pipelineForm.timestampKey = value
+      state.pipelineForm.timestamp.key = value
       syncSelectionsWithPreview()
       break
-    case "timestamp_type":
-      state.pipelineForm.timestampType = value === "custom" ? "custom" : "iso"
-      if (state.pipelineForm.timestampType !== "custom") {
-        state.pipelineForm.timestampFormat = ""
-      } else if (!state.pipelineForm.timestampFormat.trim()) {
-        state.pipelineForm.timestampFormat = "%Y-%m-%d %H:%M:%S"
-      }
-      state.pipelineForm.timezoneType = normalizePipelineTimezoneType(
-        state.pipelineForm.timestampType,
-        state.pipelineForm.timezoneType
-      )
-      break
     case "timestamp_format":
-      state.pipelineForm.timestampFormat = value
+      if (value === "ISO8601" || value === "naive" || value === "custom") {
+        syncTimestampFormat(value)
+      }
       break
-    case "timezone_type":
-      state.pipelineForm.timezoneType = normalizePipelineTimezoneType(
-        state.pipelineForm.timestampType,
-        value === "utc" || value === "offset" || value === "iana" ? value : ""
-      )
+    case "custom_timestamp_format":
+      state.pipelineForm.timestamp.customFormat = value
+      break
+    case "timezone_mode":
       if (
-        state.pipelineForm.timezoneType !== "offset" &&
-        state.pipelineForm.timezoneType !== "iana"
+        value === "embeddedOffset" ||
+        value === "utc" ||
+        value === "fixedOffset" ||
+        value === "daylightSavings"
       ) {
-        state.pipelineForm.timezone = ""
+        syncTimestampTimezone(value)
       }
       break
     case "timezone":
-      state.pipelineForm.timezone = value
+      state.pipelineForm.timestamp.timezone = value
       break
   }
 }
@@ -418,5 +438,29 @@ export async function browseForCsvPath(): Promise<void> {
 }
 
 export function buildPipelineTransformerSettings() {
-  return serializePipelineFormToCsvTransformerSettings(state.pipelineForm)
+  const settings: CsvTransformerSettings = {
+    headerRow:
+      state.pipelineForm.hasHeaderRow && state.pipelineForm.identifierType === "name"
+        ? state.pipelineForm.headerRow
+        : null,
+    dataStartRow: state.pipelineForm.dataStartRow,
+    delimiter: state.pipelineForm.delimiter,
+    identifierType: state.pipelineForm.identifierType,
+    timestamp: {
+      ...state.pipelineForm.timestamp,
+    },
+  }
+
+  if (settings.timestamp.format !== "custom") {
+    delete settings.timestamp.customFormat
+  }
+
+  if (
+    settings.timestamp.timezoneMode !== "fixedOffset" &&
+    settings.timestamp.timezoneMode !== "daylightSavings"
+  ) {
+    delete settings.timestamp.timezone
+  }
+
+  return settings
 }
