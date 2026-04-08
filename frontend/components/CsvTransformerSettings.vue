@@ -189,7 +189,7 @@ function updateTimezoneMode(event: Event): void {
       </header>
 
       <div class="transformer-section-body">
-        <div class="split-fields">
+        <div class="transformer-field-stack">
           <label class="field">
             <span class="label">{{ timestampKeyLabel }}</span>
             <select
@@ -240,7 +240,7 @@ function updateTimezoneMode(event: Event): void {
 
           <label
             v-if="model.state.pipelineForm.timestamp.format === 'custom'"
-            class="field transformer-field-span"
+            class="field"
           >
             <span class="label">Custom timestamp format</span>
             <input

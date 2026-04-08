@@ -897,12 +897,12 @@
     @apply mt-0;
   }
 
-  .transformer-field-span {
-    @apply sm:col-span-2;
-  }
-
   .split-fields {
     @apply grid gap-3;
+  }
+
+  .transformer-field-stack {
+    @apply flex flex-col gap-3;
   }
 
   .mapping-grid {
