@@ -159,6 +159,7 @@ import {
 
 import {
   buildPipelineColumnMappings,
+  pipelineDatastreamBrowserEntries,
   clearPipelineMapping,
   datastreamOptionsForThing,
   loadPipelineDatastreams,
@@ -184,6 +185,7 @@ const model = {
   buildPipelineColumnMappings,
   submitPipelineConfig,
   canShowMorePreviewLines,
+  pipelineDatastreamBrowserEntries,
   pipelineMappingRows,
   pipelineMappingSourceColumns,
   pipelineThingOptions,

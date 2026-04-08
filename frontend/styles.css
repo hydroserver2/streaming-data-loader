@@ -476,6 +476,64 @@
     @apply bg-transparent p-0;
   }
 
+  .onboarding-shell .mapping-pane-label {
+    @apply text-slate-500;
+  }
+
+  .onboarding-shell .mapping-pane-copy {
+    @apply text-slate-400;
+  }
+
+  .onboarding-shell .mapping-pane-chip {
+    @apply bg-sky-950/50 text-sky-200;
+  }
+
+  .onboarding-shell .mapping-column-button {
+    @apply border-slate-800 bg-[#141719] hover:border-slate-700 hover:bg-[#181c1f];
+  }
+
+  .onboarding-shell .mapping-column-button-active {
+    @apply border-emerald-500 bg-emerald-950/30;
+  }
+
+  .onboarding-shell .mapping-column-button-mapped {
+    @apply border-sky-700 bg-sky-950/25;
+  }
+
+  .onboarding-shell .mapping-column-dot {
+    @apply bg-slate-600;
+  }
+
+  .onboarding-shell .mapping-column-name,
+  .onboarding-shell .mapping-thing-header,
+  .onboarding-shell .mapping-datastream-title {
+    @apply text-slate-100;
+  }
+
+  .onboarding-shell .mapping-datastream-card {
+    @apply border-slate-800 bg-[#141719] hover:border-slate-700 hover:bg-[#181c1f];
+  }
+
+  .onboarding-shell .mapping-datastream-card-active {
+    @apply border-emerald-500 bg-emerald-950/30;
+  }
+
+  .onboarding-shell .mapping-datastream-card-occupied {
+    @apply border-sky-700 bg-sky-950/25;
+  }
+
+  .onboarding-shell .mapping-datastream-meta {
+    @apply text-slate-400;
+  }
+
+  .onboarding-shell .mapping-linked-badge {
+    @apply bg-emerald-900/50 text-emerald-200;
+  }
+
+  .onboarding-shell .mapping-occupied-label {
+    @apply bg-sky-900/50 text-sky-200;
+  }
+
   .onboarding-shell .mapping-row {
     @apply border-0 bg-[#16191b];
   }
@@ -637,6 +695,125 @@
 
   .mapping-help {
     @apply mt-1 text-xs text-slate-500;
+  }
+
+  .mapping-board {
+    @apply grid gap-8 xl:grid-cols-[minmax(0,22rem)_minmax(0,1fr)];
+  }
+
+  .mapping-column-pane,
+  .mapping-datastream-pane {
+    @apply flex min-h-0 flex-col gap-4;
+  }
+
+  .mapping-pane-header {
+    @apply flex items-start justify-between gap-4;
+  }
+
+  .mapping-pane-label {
+    @apply text-xs font-semibold uppercase tracking-[0.18em] text-slate-500;
+  }
+
+  .mapping-pane-copy {
+    @apply mt-1 text-sm text-slate-500;
+  }
+
+  .mapping-pane-action {
+    @apply shrink-0 px-3 py-1.5;
+  }
+
+  .mapping-pane-chip {
+    @apply inline-flex items-center rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700;
+  }
+
+  .mapping-column-list,
+  .mapping-datastream-viewport {
+    height: calc(100vh - 17rem);
+    min-height: 28rem;
+  }
+
+  .mapping-column-list {
+    @apply flex flex-col gap-3 overflow-auto pr-2;
+  }
+
+  .mapping-column-button {
+    @apply flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:border-slate-300 hover:bg-slate-50;
+  }
+
+  .mapping-column-button-active {
+    @apply border-emerald-400 bg-emerald-50/80;
+  }
+
+  .mapping-column-button-mapped {
+    @apply border-sky-300 bg-sky-50/70;
+  }
+
+  .mapping-column-dot {
+    @apply h-3 w-3 rounded-full bg-slate-400;
+  }
+
+  .mapping-column-button-active .mapping-column-dot {
+    @apply bg-emerald-500;
+  }
+
+  .mapping-column-button-mapped .mapping-column-dot {
+    @apply bg-sky-500;
+  }
+
+  .mapping-column-name {
+    @apply text-base font-medium text-slate-900;
+  }
+
+  .mapping-datastream-viewport {
+    @apply overflow-auto pr-2;
+  }
+
+  .mapping-virtual-stage {
+    @apply relative;
+  }
+
+  .mapping-virtual-item {
+    @apply absolute inset-x-0 top-0;
+  }
+
+  .mapping-thing-header {
+    @apply px-1 pt-2 text-sm font-medium uppercase tracking-[0.14em] text-slate-500;
+  }
+
+  .mapping-datastream-card {
+    @apply mt-2 flex w-full items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-left transition-colors hover:border-slate-300 hover:bg-slate-50;
+  }
+
+  .mapping-datastream-card-active {
+    @apply border-emerald-400 bg-emerald-50/80;
+  }
+
+  .mapping-datastream-card-occupied {
+    @apply border-sky-300 bg-sky-50/70;
+  }
+
+  .mapping-datastream-copy {
+    @apply min-w-0 flex-1;
+  }
+
+  .mapping-datastream-title {
+    @apply truncate text-base font-medium text-slate-900;
+  }
+
+  .mapping-datastream-meta {
+    @apply mt-0.5 truncate text-xs text-slate-500;
+  }
+
+  .mapping-datastream-status {
+    @apply shrink-0;
+  }
+
+  .mapping-linked-badge {
+    @apply inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-700;
+  }
+
+  .mapping-occupied-label {
+    @apply inline-flex max-w-40 truncate rounded-full bg-sky-100 px-2.5 py-0.5 text-xs font-medium text-sky-700;
   }
 
   .preview-card {

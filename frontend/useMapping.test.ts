@@ -5,6 +5,7 @@ import type { CsvPreviewResponse, DatastreamSummary } from "./api"
 import { createPipelineFieldStates } from "./pipeline-submit"
 import {
   buildPipelineColumnMappings,
+  buildDatastreamBrowserEntries,
   buildMappingSourceColumns,
   loadPipelineDatastreams,
   pipelineThingOptions,
@@ -129,6 +130,34 @@ test("changing the selected thing clears a datastream from a different thing", (
   )
 })
 
+test("selecting a datastream for a new column moves the mapping instead of duplicating it", () => {
+  state.pipelineDatastreams = [
+    datastream({}),
+    datastream({
+      id: "stream-2",
+      name: "Temperature Datastream",
+      observed_property_name: "Temperature",
+      unit_name: "degree Celsius",
+      unit_symbol: "degC",
+    }),
+  ]
+
+  syncPipelineMappingDrafts()
+  updatePipelineMappingDatastream("stage_cfs", "stream-1")
+  updatePipelineMappingDatastream("temp_c", "stream-1")
+
+  assert.equal(
+    state.pipelineMappingDrafts.find((draft) => draft.csvColumn === "stage_cfs")
+      ?.datastreamId,
+    ""
+  )
+  assert.equal(
+    state.pipelineMappingDrafts.find((draft) => draft.csvColumn === "temp_c")
+      ?.datastreamId,
+    "stream-1"
+  )
+})
+
 test("buildPipelineColumnMappings uses the selected datastream names", () => {
   state.pipelineDatastreams = [
     datastream({}),
@@ -188,5 +217,66 @@ test("loadPipelineDatastreams sorts thing options by thing name", async () => {
   assert.deepEqual(pipelineThingOptions.value, [
     { id: "thing-1", name: "Alpha Site" },
     { id: "thing-2", name: "Zulu Site" },
+  ])
+})
+
+test("buildDatastreamBrowserEntries groups datastreams by thing name and includes mapped labels", () => {
+  const entries = buildDatastreamBrowserEntries(
+    [
+      datastream({
+        id: "stream-2",
+        thing_id: "thing-2",
+        thing_name: "Zulu Site",
+        observed_property_name: "Temperature",
+      }),
+      datastream({
+        id: "stream-1",
+        thing_id: "thing-1",
+        thing_name: "Alpha Site",
+      }),
+    ],
+    [{ csvColumn: "stage_cfs", thingId: "thing-1", datastreamId: "stream-1" }],
+    [
+      { csvColumn: "stage_cfs", label: "stage_cfs" },
+      { csvColumn: "temp_c", label: "temp_c" },
+    ]
+  )
+
+  assert.deepEqual(entries, [
+    {
+      kind: "thing",
+      key: "thing-thing-1",
+      thingId: "thing-1",
+      thingName: "Alpha Site",
+    },
+    {
+      kind: "datastream",
+      key: "datastream-stream-1",
+      datastream: datastream({
+        id: "stream-1",
+        thing_id: "thing-1",
+        thing_name: "Alpha Site",
+      }),
+      mappedCsvColumn: "stage_cfs",
+      mappedColumnLabel: "stage_cfs",
+    },
+    {
+      kind: "thing",
+      key: "thing-thing-2",
+      thingId: "thing-2",
+      thingName: "Zulu Site",
+    },
+    {
+      kind: "datastream",
+      key: "datastream-stream-2",
+      datastream: datastream({
+        id: "stream-2",
+        thing_id: "thing-2",
+        thing_name: "Zulu Site",
+        observed_property_name: "Temperature",
+      }),
+      mappedCsvColumn: null,
+      mappedColumnLabel: null,
+    },
   ])
 })

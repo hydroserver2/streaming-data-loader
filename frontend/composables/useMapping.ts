@@ -24,6 +24,21 @@ export type PipelineMappingRow = MappingSourceColumn & {
   selectedDatastream: DatastreamSummary | null
 }
 
+export type MappingDatastreamBrowserEntry =
+  | {
+      kind: "thing"
+      key: string
+      thingId: string
+      thingName: string
+    }
+  | {
+      kind: "datastream"
+      key: string
+      datastream: DatastreamSummary
+      mappedCsvColumn: string | null
+      mappedColumnLabel: string | null
+    }
+
 export function buildMappingSourceColumns(
   headers: string[],
   identifierType: "name" | "index",
@@ -86,6 +101,15 @@ export const pipelineMappingRows = computed<PipelineMappingRow[]>(() =>
     }
   })
 )
+
+export const pipelineDatastreamBrowserEntries =
+  computed<MappingDatastreamBrowserEntry[]>(() =>
+    buildDatastreamBrowserEntries(
+      state.pipelineDatastreams,
+      state.pipelineMappingDrafts,
+      pipelineMappingSourceColumns.value
+    )
+  )
 
 export async function loadPipelineDatastreams(force = false): Promise<void> {
   if (state.pipelineDatastreamsLoading) return
@@ -180,6 +204,23 @@ export function updatePipelineMappingDatastream(
   const datastream = datastreamById(datastreamId)
   if (!datastream) return
 
+  const owner = state.pipelineMappingDrafts.find(
+    (candidate) =>
+      candidate.csvColumn !== csvColumn && candidate.datastreamId === datastream.id
+  )
+
+  if (draft.datastreamId === datastream.id) {
+    draft.thingId = ""
+    draft.datastreamId = ""
+    syncValidatedColumnMappings()
+    return
+  }
+
+  if (owner) {
+    owner.thingId = ""
+    owner.datastreamId = ""
+  }
+
   draft.thingId = datastream.thing_id
   draft.datastreamId = datastream.id
 
@@ -256,4 +297,47 @@ function sortDatastreams(
 
     return a.name.localeCompare(b.name)
   })
+}
+
+export function buildDatastreamBrowserEntries(
+  datastreams: DatastreamSummary[],
+  drafts: PipelineMappingDraft[],
+  sourceColumns: MappingSourceColumn[]
+): MappingDatastreamBrowserEntry[] {
+  const sourceLabelByColumn = new Map(
+    sourceColumns.map((source) => [source.csvColumn, source.label])
+  )
+  const mappedColumnByDatastream = new Map(
+    drafts
+      .filter((draft) => draft.datastreamId)
+      .map((draft) => [draft.datastreamId, draft.csvColumn])
+  )
+  const entries: MappingDatastreamBrowserEntry[] = []
+  let currentThingId = ""
+
+  for (const datastream of sortDatastreams(datastreams)) {
+    if (datastream.thing_id !== currentThingId) {
+      currentThingId = datastream.thing_id
+      entries.push({
+        kind: "thing",
+        key: `thing-${datastream.thing_id}`,
+        thingId: datastream.thing_id,
+        thingName: datastream.thing_name,
+      })
+    }
+
+    const mappedCsvColumn = mappedColumnByDatastream.get(datastream.id) ?? null
+
+    entries.push({
+      kind: "datastream",
+      key: `datastream-${datastream.id}`,
+      datastream,
+      mappedCsvColumn,
+      mappedColumnLabel: mappedCsvColumn
+        ? sourceLabelByColumn.get(mappedCsvColumn) ?? mappedCsvColumn
+        : null,
+    })
+  }
+
+  return entries
 }
