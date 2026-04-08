@@ -16,10 +16,10 @@ import type {
 import { useAppModel } from "../composables/useAppModel"
 import { navigate } from "../router"
 
-const SECTION_HEADER_HEIGHT = 40
-const DIVIDER_HEIGHT = 20
-const THING_HEADER_HEIGHT = 30
-const DATASTREAM_CARD_HEIGHT = 72
+const SECTION_HEADER_HEIGHT = 28
+const DIVIDER_HEIGHT = 12
+const THING_HEADER_HEIGHT = 26
+const DATASTREAM_CARD_HEIGHT = 48
 const VIRTUAL_OVERSCAN = 360
 
 const MAPPING_PALETTE = [
@@ -433,7 +433,10 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
             <div class="mapping-connector-header-row">
               <p class="mapping-connector-title">CSV columns</p>
               <p class="mapping-connector-header-meta">
-                {{ mappedColumnCount }} of {{ mappingRows.length }} mapped
+                <span class="mapping-connector-header-count">
+                  {{ mappedColumnCount }}
+                </span>
+                <span>of {{ mappingRows.length }} mapped</span>
               </p>
             </div>
           </header>
