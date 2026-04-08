@@ -18,40 +18,40 @@ import { navigate } from "../router"
 
 const SECTION_HEADER_HEIGHT = 28
 const DIVIDER_HEIGHT = 12
-const THING_HEADER_HEIGHT = 26
+const THING_HEADER_HEIGHT = 34
 const DATASTREAM_CARD_HEIGHT = 48
 const VIRTUAL_OVERSCAN = 360
 
 const MAPPING_PALETTE = [
   {
-    surface: "#dbeafe",
-    border: "#7fb5ff",
-    text: "#184d8f",
-    badge: "#3b82f6",
+    surface: "#d9ebe7",
+    border: "#6ea79d",
+    text: "#214943",
+    badge: "#2f7d6f",
   },
   {
-    surface: "#d7f3ea",
-    border: "#6dd4b2",
-    text: "#115c4b",
-    badge: "#10b981",
+    surface: "#dbe7ef",
+    border: "#7699b6",
+    text: "#24465e",
+    badge: "#426e92",
   },
   {
-    surface: "#f9ecd0",
-    border: "#f2be5d",
-    text: "#80541b",
-    badge: "#f59e0b",
+    surface: "#eee2d3",
+    border: "#b79262",
+    text: "#62462a",
+    badge: "#9a6d35",
   },
   {
-    surface: "#f3dce8",
-    border: "#e58ab7",
-    text: "#7a3f57",
-    badge: "#ec4899",
+    surface: "#eadde3",
+    border: "#ab7e90",
+    text: "#5e3949",
+    badge: "#8e556c",
   },
   {
-    surface: "#d9e8fb",
-    border: "#84b7f7",
-    text: "#315f99",
-    badge: "#6366f1",
+    surface: "#e4e1ef",
+    border: "#8f88af",
+    text: "#494264",
+    badge: "#696185",
   },
 ] as const
 
@@ -435,6 +435,10 @@ function datastreamThing(datastream: DatastreamSummary): string {
   return datastream.name
 }
 
+function isMapped(csvColumn: string | null): boolean {
+  return mappingNumber(csvColumn) !== null
+}
+
 function columnTargetLabel(row: PipelineMappingRow): string {
   if (!row.selectedDatastream) return ""
   return datastreamTitle(row.selectedDatastream)
@@ -576,11 +580,13 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
                 @click="selectMappingColumn(row.csvColumn)"
               >
                 <span
+                  v-if="isColumnMapped(row)"
                   class="mapping-item-badge"
                   :class="{ 'mapping-item-badge-filled': isColumnMapped(row) }"
                 >
-                  {{ isColumnMapped(row) ? mappingNumber(row.csvColumn) : "" }}
+                  {{ mappingNumber(row.csvColumn) }}
                 </span>
+                <span v-else class="mapping-item-dot" aria-hidden="true" />
                 <span class="mapping-column-item-copy">
                   <span class="mapping-column-item-name">{{ row.label }}</span>
                   <span v-if="row.selectedDatastream" class="mapping-column-item-target">
@@ -686,11 +692,13 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
                   @click="connectDatastream(entry.datastream.id)"
                 >
                   <span
+                    v-if="isMapped(entry.mappedCsvColumn)"
                     class="mapping-item-badge"
                     :class="{ 'mapping-item-badge-filled': isDatastreamMapped(entry) }"
                   >
-                    {{ isDatastreamMapped(entry) ? mappingNumber(entry.mappedCsvColumn) : "" }}
+                    {{ mappingNumber(entry.mappedCsvColumn) }}
                   </span>
+                  <span v-else class="mapping-item-dot" aria-hidden="true" />
                   <span class="mapping-datastream-item-copy">
                     <span class="mapping-datastream-item-name">
                       {{ datastreamTitle(entry.datastream) }}
