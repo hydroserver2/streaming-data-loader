@@ -101,251 +101,261 @@ function updateTimezoneMode(event: Event): void {
 <template>
   <section class="transformer-settings">
     <article class="pipeline-subcard transformer-section">
-      <h2 class="section-title">CSV structure</h2>
+      <header class="transformer-section-header">
+        <p class="transformer-section-kicker">Structure</p>
+        <h2 class="section-title">CSV structure</h2>
+      </header>
 
-      <label class="preview-toggle transformer-toggle">
-        <input
-          class="preview-toggle-input"
-          type="checkbox"
-          :checked="model.state.pipelineForm.hasHeaderRow"
-          @change="
-            model.setPipelineHasHeaderRow(
-              ($event.target as HTMLInputElement).checked
-            )
-          "
-        />
-        <span class="preview-toggle-label">File has a header row</span>
-      </label>
-
-      <div class="split-fields">
-        <label class="field">
-          <span class="label">Delimiter</span>
-          <select
-            class="input"
-            :value="model.state.pipelineForm.delimiter"
+      <div class="transformer-section-body">
+        <label class="preview-toggle transformer-toggle">
+          <input
+            class="preview-toggle-input"
+            type="checkbox"
+            :checked="model.state.pipelineForm.hasHeaderRow"
             @change="
-              model.updatePipelineField(
-                'delimiter',
-                ($event.target as HTMLSelectElement).value
+              model.setPipelineHasHeaderRow(
+                ($event.target as HTMLInputElement).checked
               )
             "
-          >
-            <option
-              v-for="option in delimiterOptions"
-              :key="option.label"
-              :value="option.value"
+          />
+          <span class="preview-toggle-label">File has a header row</span>
+        </label>
+
+        <div class="split-fields">
+          <label class="field">
+            <span class="label">Delimiter</span>
+            <select
+              class="input"
+              :value="model.state.pipelineForm.delimiter"
+              @change="
+                model.updatePipelineField(
+                  'delimiter',
+                  ($event.target as HTMLSelectElement).value
+                )
+              "
             >
-              {{ option.label }}
-            </option>
-          </select>
-          <span class="field-hint">
-            The preview re-parses immediately when you change this.
-          </span>
-        </label>
+              <option
+                v-for="option in delimiterOptions"
+                :key="option.label"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+            <span class="field-hint">
+              The preview re-parses immediately when you change this.
+            </span>
+          </label>
 
-        <label class="field">
-          <span class="label">Column identifiers</span>
-          <select
-            class="input"
-            :value="model.state.pipelineForm.identifierType"
-            @change="updateIdentifierType"
-          >
-            <option :disabled="!model.state.pipelineForm.hasHeaderRow" value="name">
-              Header names
-            </option>
-            <option value="index">Column numbers</option>
-          </select>
-          <span class="field-hint">
-            Name mode requires a real header row. Index mode uses 1-based column
-            numbers.
-          </span>
-        </label>
+          <label class="field">
+            <span class="label">Column identifiers</span>
+            <select
+              class="input"
+              :value="model.state.pipelineForm.identifierType"
+              @change="updateIdentifierType"
+            >
+              <option :disabled="!model.state.pipelineForm.hasHeaderRow" value="name">
+                Header names
+              </option>
+              <option value="index">Column numbers</option>
+            </select>
+            <span class="field-hint">
+              Name mode requires a real header row. Index mode uses 1-based column
+              numbers.
+            </span>
+          </label>
 
-        <label class="field">
-          <span class="label">Header row number</span>
-          <input
-            class="input"
-            :disabled="!model.state.pipelineForm.hasHeaderRow"
-            min="1"
-            step="1"
-            type="number"
-            :value="model.state.pipelineForm.headerRow"
-            @input="
-              model.updatePipelineField(
-                'header_row',
-                ($event.target as HTMLInputElement).value
-              )
-            "
-          />
-          <span class="field-hint">
-            Pick the 1-based line that contains the column names.
-          </span>
-          <p v-if="fieldError('header_row')" class="field-error">
-            {{ fieldError("header_row") }}
-          </p>
-        </label>
+          <label class="field">
+            <span class="label">Header row number</span>
+            <input
+              class="input"
+              :disabled="!model.state.pipelineForm.hasHeaderRow"
+              min="1"
+              step="1"
+              type="number"
+              :value="model.state.pipelineForm.headerRow"
+              @input="
+                model.updatePipelineField(
+                  'header_row',
+                  ($event.target as HTMLInputElement).value
+                )
+              "
+            />
+            <span class="field-hint">
+              Pick the 1-based line that contains the column names.
+            </span>
+            <p v-if="fieldError('header_row')" class="field-error">
+              {{ fieldError("header_row") }}
+            </p>
+          </label>
 
-        <label class="field">
-          <span class="label">Data start row number</span>
-          <input
-            class="input"
-            :min="model.state.pipelineForm.hasHeaderRow ? 2 : 1"
-            step="1"
-            type="number"
-            :value="model.state.pipelineForm.dataStartRow"
-            @input="
-              model.updatePipelineField(
-                'data_start_row',
-                ($event.target as HTMLInputElement).value
-              )
-            "
-          />
-          <span class="field-hint">
-            Pick the 1-based line where observation values begin.
-          </span>
-          <p v-if="fieldError('data_start_row')" class="field-error">
-            {{ fieldError("data_start_row") }}
-          </p>
-        </label>
+          <label class="field">
+            <span class="label">Data start row number</span>
+            <input
+              class="input"
+              :min="model.state.pipelineForm.hasHeaderRow ? 2 : 1"
+              step="1"
+              type="number"
+              :value="model.state.pipelineForm.dataStartRow"
+              @input="
+                model.updatePipelineField(
+                  'data_start_row',
+                  ($event.target as HTMLInputElement).value
+                )
+              "
+            />
+            <span class="field-hint">
+              Pick the 1-based line where observation values begin.
+            </span>
+            <p v-if="fieldError('data_start_row')" class="field-error">
+              {{ fieldError("data_start_row") }}
+            </p>
+          </label>
+        </div>
       </div>
     </article>
 
     <article class="pipeline-subcard transformer-section">
-      <h2 class="section-title">Timestamp parsing</h2>
+      <header class="transformer-section-header">
+        <p class="transformer-section-kicker">Timestamp</p>
+        <h2 class="section-title">Timestamp parsing</h2>
+      </header>
 
-      <div class="split-fields">
-        <label class="field">
-          <span class="label">{{ timestampKeyLabel }}</span>
-          <select
-            class="input"
-            :key="model.state.pipelineForm.identifierType"
-            :value="model.state.pipelineForm.timestamp.key"
-            @change="
-              model.updatePipelineField(
-                'timestamp_key',
-                ($event.target as HTMLSelectElement).value
-              )
-            "
-          >
-            <option
-              v-for="option in timestampOptions"
-              :key="option.id"
-              :value="option.value"
+      <div class="transformer-section-body">
+        <div class="split-fields">
+          <label class="field">
+            <span class="label">{{ timestampKeyLabel }}</span>
+            <select
+              class="input"
+              :key="model.state.pipelineForm.identifierType"
+              :value="model.state.pipelineForm.timestamp.key"
+              @change="
+                model.updatePipelineField(
+                  'timestamp_key',
+                  ($event.target as HTMLSelectElement).value
+                )
+              "
             >
-              {{ option.label }}
-            </option>
-          </select>
-          <span class="field-hint">{{ timestampKeyHint }}</span>
-          <p v-if="fieldError('timestamp_key')" class="field-error">
-            {{ fieldError("timestamp_key") }}
-          </p>
-        </label>
+              <option
+                v-for="option in timestampOptions"
+                :key="option.id"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+            <span class="field-hint">{{ timestampKeyHint }}</span>
+            <p v-if="fieldError('timestamp_key')" class="field-error">
+              {{ fieldError("timestamp_key") }}
+            </p>
+          </label>
 
-        <label class="field">
-          <span class="label">Timestamp format</span>
-          <select
-            class="input"
-            :value="model.state.pipelineForm.timestamp.format"
-            @change="
-              model.updatePipelineField(
-                'timestamp_format',
-                ($event.target as HTMLSelectElement).value
-              )
-            "
-          >
-            <option
-              v-for="option in TIMESTAMP_FORMATS"
-              :key="option.value"
-              :value="option.value"
+          <label class="field">
+            <span class="label">Timestamp format</span>
+            <select
+              class="input"
+              :value="model.state.pipelineForm.timestamp.format"
+              @change="
+                model.updatePipelineField(
+                  'timestamp_format',
+                  ($event.target as HTMLSelectElement).value
+                )
+              "
             >
-              {{ option.text }}
-            </option>
-          </select>
-          <span class="field-hint">
-            Choose ISO 8601 when timestamps already contain their timezone
-            offset. Use a custom format only when the values don't match the
-            built-in options.
-          </span>
-        </label>
+              <option
+                v-for="option in TIMESTAMP_FORMATS"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.text }}
+              </option>
+            </select>
+            <span class="field-hint">
+              Choose ISO 8601 when timestamps already contain their timezone
+              offset. Use a custom format only when the values don't match the
+              built-in options.
+            </span>
+          </label>
 
-        <label
-          v-if="model.state.pipelineForm.timestamp.format === 'custom'"
-          class="field transformer-field-span"
-        >
-          <span class="label">Custom timestamp format</span>
-          <input
-            class="input"
-            type="text"
-            placeholder="%Y-%m-%d %H:%M:%S"
-            :value="model.state.pipelineForm.timestamp.customFormat ?? ''"
-            @input="
-              model.updatePipelineField(
-                'custom_timestamp_format',
-                ($event.target as HTMLInputElement).value
-              )
-            "
-          />
-          <span class="field-hint">
-            Example: <code>%Y-%m-%d %H:%M:%S</code>
-          </span>
-          <p v-if="fieldError('custom_timestamp_format')" class="field-error">
-            {{ fieldError("custom_timestamp_format") }}
-          </p>
-        </label>
-
-        <label
-          v-if="model.state.pipelineForm.timestamp.format !== 'ISO8601'"
-          class="field"
-        >
-          <span class="label">Timezone</span>
-          <select
-            class="input"
-            :value="model.state.pipelineForm.timestamp.timezoneMode"
-            @change="updateTimezoneMode"
+          <label
+            v-if="model.state.pipelineForm.timestamp.format === 'custom'"
+            class="field transformer-field-span"
           >
-            <option
-              v-for="option in timezoneModeOptions"
-              :key="option.value"
-              :value="option.value"
-            >
-              {{ option.label }}
-            </option>
-          </select>
-          <span class="field-hint">{{ timezoneModeHint }}</span>
-        </label>
+            <span class="label">Custom timestamp format</span>
+            <input
+              class="input"
+              type="text"
+              placeholder="%Y-%m-%d %H:%M:%S"
+              :value="model.state.pipelineForm.timestamp.customFormat ?? ''"
+              @input="
+                model.updatePipelineField(
+                  'custom_timestamp_format',
+                  ($event.target as HTMLInputElement).value
+                )
+              "
+            />
+            <span class="field-hint">
+              Example: <code>%Y-%m-%d %H:%M:%S</code>
+            </span>
+            <p v-if="fieldError('custom_timestamp_format')" class="field-error">
+              {{ fieldError("custom_timestamp_format") }}
+            </p>
+          </label>
 
-        <label
-          v-if="
-            model.state.pipelineForm.timestamp.timezoneMode === 'fixedOffset' ||
-            model.state.pipelineForm.timestamp.timezoneMode ===
-              'daylightSavings'
-          "
-          class="field"
-        >
-          <span class="label">{{ timezoneLabel }}</span>
-          <select
-            class="input"
-            :value="model.state.pipelineForm.timestamp.timezone"
-            @change="
-              model.updatePipelineField(
-                'timezone',
-                ($event.target as HTMLSelectElement).value
-              )
-            "
+          <label
+            v-if="model.state.pipelineForm.timestamp.format !== 'ISO8601'"
+            class="field"
           >
-            <option
-              v-for="option in timezoneOptions"
-              :key="option.value"
-              :value="option.value"
+            <span class="label">Timezone</span>
+            <select
+              class="input"
+              :value="model.state.pipelineForm.timestamp.timezoneMode"
+              @change="updateTimezoneMode"
             >
-              {{ option.title }}
-            </option>
-          </select>
-          <span class="field-hint">{{ timezoneValueHint }}</span>
-          <p v-if="fieldError('timezone')" class="field-error">
-            {{ fieldError("timezone") }}
-          </p>
-        </label>
+              <option
+                v-for="option in timezoneModeOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.label }}
+              </option>
+            </select>
+            <span class="field-hint">{{ timezoneModeHint }}</span>
+          </label>
+
+          <label
+            v-if="
+              model.state.pipelineForm.timestamp.timezoneMode === 'fixedOffset' ||
+              model.state.pipelineForm.timestamp.timezoneMode ===
+                'daylightSavings'
+            "
+            class="field"
+          >
+            <span class="label">{{ timezoneLabel }}</span>
+            <select
+              class="input"
+              :value="model.state.pipelineForm.timestamp.timezone"
+              @change="
+                model.updatePipelineField(
+                  'timezone',
+                  ($event.target as HTMLSelectElement).value
+                )
+              "
+            >
+              <option
+                v-for="option in timezoneOptions"
+                :key="option.value"
+                :value="option.value"
+              >
+                {{ option.title }}
+              </option>
+            </select>
+            <span class="field-hint">{{ timezoneValueHint }}</span>
+            <p v-if="fieldError('timezone')" class="field-error">
+              {{ fieldError("timezone") }}
+            </p>
+          </label>
+        </div>
       </div>
 
     </article>

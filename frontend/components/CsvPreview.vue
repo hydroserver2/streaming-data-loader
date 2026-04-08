@@ -332,131 +332,156 @@ onBeforeUnmount(() => {
   <article
     v-if="model.state.pipelinePreview"
     ref="rootRef"
-    class="preview-card"
+    class="preview-card preview-workbench"
   >
-    <div class="preview-header">
-      <div>
-        <p class="eyebrow">Preview</p>
-        <h2 class="section-title">{{ previewFileName }}</h2>
-        <p class="preview-guidance">
-          Use the settings form and the table together. Drag the row and column
-          markers here when the auto-detected structure needs a quick fix.
-        </p>
-      </div>
-    </div>
+    <div class="preview-shell">
+      <section class="preview-panel preview-panel-settings">
+        <header class="preview-panel-header">
+          <p class="preview-panel-label">Import settings</p>
+          <h2 class="preview-panel-title">CSV setup</h2>
+          <p class="preview-guidance">
+            Adjust structure and timestamp parsing before continuing to column
+            mapping.
+          </p>
+        </header>
 
-    <CsvTransformerSettings />
+        <div class="preview-panel-body">
+          <CsvTransformerSettings />
+        </div>
+      </section>
 
-    <div class="preview-table-shell">
-      <table class="preview-table">
-        <thead>
-          <tr>
-            <th class="preview-cell preview-cell-line-number">Line</th>
-            <th
-              v-for="header in headers"
-              :key="header"
-              class="preview-cell"
-              :class="cellClass(header)"
-            >
-              <div class="preview-column-header">
-                <button
-                  class="preview-header-button"
-                  type="button"
-                  :data-preview-column="header"
-                  data-preview-column-button
-                  @click="model.applyPreviewColumnSelection(header)"
+      <section class="preview-panel preview-panel-data">
+        <header class="preview-panel-header">
+          <div class="preview-panel-header-row">
+            <div>
+              <p class="preview-panel-label">Parsed preview</p>
+              <h2 class="preview-panel-title">{{ previewFileName }}</h2>
+            </div>
+            <p class="preview-panel-meta">
+              {{ shownLines }} of {{ model.state.pipelinePreview.total_lines }}
+              lines
+            </p>
+          </div>
+          <p class="preview-guidance">
+            Drag the row and column markers here when the detected structure
+            needs a quick correction.
+          </p>
+        </header>
+
+        <div class="preview-panel-body preview-panel-body-table">
+          <div class="preview-table-shell">
+            <table class="preview-table">
+              <thead>
+                <tr>
+                  <th class="preview-cell preview-cell-line-number">Line</th>
+                  <th
+                    v-for="header in headers"
+                    :key="header"
+                    class="preview-cell"
+                    :class="cellClass(header)"
+                  >
+                    <div class="preview-column-header">
+                      <button
+                        class="preview-header-button"
+                        type="button"
+                        :data-preview-column="header"
+                        data-preview-column-button
+                        @click="model.applyPreviewColumnSelection(header)"
+                      >
+                        {{ header }}
+                      </button>
+                      <button
+                        v-if="displayTimestampColumn === header"
+                        :class="timestampHandleClass(header)"
+                        :style="timestampHandleStyle(header)"
+                        type="button"
+                        @click.stop.prevent
+                        @pointerdown.stop.prevent="
+                          onColumnHandlePointerDown(header, $event)
+                        "
+                      >
+                        TIMESTAMP
+                      </button>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="entry in rows"
+                  :key="entry.lineNumber"
+                  class="preview-table-row"
+                  :class="rowClass(entry.lineNumber)"
                 >
-                  {{ header }}
-                </button>
-                <button
-                  v-if="displayTimestampColumn === header"
-                  :class="timestampHandleClass(header)"
-                  :style="timestampHandleStyle(header)"
-                  type="button"
-                  @click.stop.prevent
-                  @pointerdown.stop.prevent="
-                    onColumnHandlePointerDown(header, $event)
-                  "
-                >
-                  TIMESTAMP
-                </button>
-              </div>
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr
-            v-for="entry in rows"
-            :key="entry.lineNumber"
-            class="preview-table-row"
-            :class="rowClass(entry.lineNumber)"
+                  <td
+                    class="preview-cell preview-cell-line-number preview-line-cell"
+                    :data-preview-line="entry.lineNumber"
+                    data-preview-line-anchor
+                  >
+                    <div class="preview-line-controls">
+                      <span class="preview-line-number">{{ entry.lineNumber }}</span>
+                      <button
+                        v-if="
+                          model.state.pipelineForm.hasHeaderRow &&
+                          displayHeaderLine === entry.lineNumber
+                        "
+                        :class="rowHandleClass('header-row')"
+                        :style="handleOffsetStyle('header-row', entry.lineNumber)"
+                        type="button"
+                        @click.stop.prevent="onHandleClick('header-row')"
+                        @pointerdown.stop.prevent="
+                          onHandlePointerDown('header-row', entry.lineNumber, $event)
+                        "
+                      >
+                        HEADER
+                      </button>
+                      <button
+                        v-if="displayDataStartLine === entry.lineNumber"
+                        :class="rowHandleClass('data-start-row')"
+                        :style="handleOffsetStyle('data-start-row', entry.lineNumber)"
+                        type="button"
+                        @click.stop.prevent="onHandleClick('data-start-row')"
+                        @pointerdown.stop.prevent="
+                          onHandlePointerDown(
+                            'data-start-row',
+                            entry.lineNumber,
+                            $event
+                          )
+                        "
+                      >
+                        DATA START
+                      </button>
+                    </div>
+                  </td>
+                  <td
+                    v-for="(header, index) in headers"
+                    :key="`${entry.lineNumber}-${header}`"
+                    :class="cellClass(header)"
+                    @click="model.applyPreviewLineSelection(entry.lineNumber)"
+                  >
+                    {{ entry.row[index] ?? "" }}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <footer class="preview-panel-footer">
+          <span
+            >Showing {{ shownLines }} of
+            {{ model.state.pipelinePreview.total_lines }} lines</span
           >
-            <td
-              class="preview-cell preview-cell-line-number preview-line-cell"
-              :data-preview-line="entry.lineNumber"
-              data-preview-line-anchor
-            >
-              <div class="preview-line-controls">
-                <span class="preview-line-number">{{ entry.lineNumber }}</span>
-                <button
-                  v-if="
-                    model.state.pipelineForm.hasHeaderRow &&
-                    displayHeaderLine === entry.lineNumber
-                  "
-                  :class="rowHandleClass('header-row')"
-                  :style="handleOffsetStyle('header-row', entry.lineNumber)"
-                  type="button"
-                  @click.stop.prevent="onHandleClick('header-row')"
-                  @pointerdown.stop.prevent="
-                    onHandlePointerDown('header-row', entry.lineNumber, $event)
-                  "
-                >
-                  HEADER
-                </button>
-                <button
-                  v-if="displayDataStartLine === entry.lineNumber"
-                  :class="rowHandleClass('data-start-row')"
-                  :style="handleOffsetStyle('data-start-row', entry.lineNumber)"
-                  type="button"
-                  @click.stop.prevent="onHandleClick('data-start-row')"
-                  @pointerdown.stop.prevent="
-                    onHandlePointerDown(
-                      'data-start-row',
-                      entry.lineNumber,
-                      $event
-                    )
-                  "
-                >
-                  DATA START
-                </button>
-              </div>
-            </td>
-            <td
-              v-for="(header, index) in headers"
-              :key="`${entry.lineNumber}-${header}`"
-              :class="cellClass(header)"
-              @click="model.applyPreviewLineSelection(entry.lineNumber)"
-            >
-              {{ entry.row[index] ?? "" }}
-            </td>
-          </tr>
-        </tbody>
-      </table>
+          <button
+            v-if="model.canShowMorePreviewLines()"
+            class="btn-ghost preview-more-button"
+            type="button"
+            @click="model.showMorePreviewLines()"
+          >
+            Show {{ nextPageSize }} more line{{ nextPageSize === 1 ? "" : "s" }}
+          </button>
+        </footer>
+      </section>
     </div>
-
-    <footer class="preview-footer">
-      <span
-        >Showing {{ shownLines }} of
-        {{ model.state.pipelinePreview.total_lines }} lines</span
-      >
-      <button
-        v-if="model.canShowMorePreviewLines()"
-        class="btn-ghost preview-more-button"
-        type="button"
-        @click="model.showMorePreviewLines()"
-      >
-        Show {{ nextPageSize }} more line{{ nextPageSize === 1 ? "" : "s" }}
-      </button>
-    </footer>
   </article>
 </template>

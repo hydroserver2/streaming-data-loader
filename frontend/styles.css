@@ -165,6 +165,14 @@
     @apply pt-0 md:shrink-0 md:justify-end;
   }
 
+  .wizard-nav-button {
+    @apply whitespace-nowrap;
+  }
+
+  .wizard-nav-glyph {
+    @apply text-[0.75rem] font-semibold tracking-[-0.02em];
+  }
+
   .wizard-step-label {
     @apply text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-slate-500;
   }
@@ -741,12 +749,116 @@
     @apply border-slate-700 text-slate-300 hover:border-slate-500 hover:text-slate-100;
   }
 
+  .onboarding-shell .pipeline-source-card,
+  .onboarding-shell .preview-shell,
+  .onboarding-shell .transformer-section,
+  .onboarding-shell .preview-table-shell {
+    border-color: rgb(255 255 255 / 0.1);
+  }
+
+  .onboarding-shell .pipeline-source-card,
+  .onboarding-shell .preview-shell {
+    background: #303133;
+  }
+
+  .onboarding-shell .pipeline-source-header,
+  .onboarding-shell .transformer-section-header,
+  .onboarding-shell .preview-panel-header,
+  .onboarding-shell .preview-panel-footer,
+  .onboarding-shell .preview-panel + .preview-panel {
+    border-color: rgb(255 255 255 / 0.1);
+  }
+
+  .onboarding-shell .pipeline-source-eyebrow,
+  .onboarding-shell .preview-panel-label,
+  .onboarding-shell .transformer-section-kicker,
+  .onboarding-shell .preview-panel-meta {
+    color: #aba69e;
+  }
+
+  .onboarding-shell .pipeline-source-title,
+  .onboarding-shell .preview-panel-title,
+  .onboarding-shell .transformer-section .section-title {
+    color: #f3f4f6;
+  }
+
+  .onboarding-shell .pipeline-source-copy,
+  .onboarding-shell .preview-guidance,
+  .onboarding-shell .transformer-section .field-hint,
+  .onboarding-shell .transformer-section .preview-toggle,
+  .onboarding-shell .preview-panel-footer {
+    color: #9ea3aa;
+  }
+
+  .onboarding-shell .pipeline-source-field {
+    background: rgb(255 255 255 / 0.025);
+  }
+
+  .onboarding-shell .pipeline-source-field .label,
+  .onboarding-shell .transformer-section .label {
+    color: #aba69e;
+    font-size: 0.6875rem;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+
+  .onboarding-shell .transformer-section {
+    background: rgb(255 255 255 / 0.035);
+  }
+
+  .onboarding-shell .transformer-section .input {
+    min-height: 2.25rem;
+    border-color: rgb(255 255 255 / 0.08);
+    background: #202225;
+  }
+
+  .onboarding-shell .transformer-section .input:disabled {
+    opacity: 0.55;
+  }
+
   .onboarding-file-form {
-    @apply flex w-full max-w-3xl flex-col self-start gap-3;
+    @apply flex w-full flex-col self-start gap-0;
   }
 
   .onboarding-file-form .button-row {
     @apply pt-1;
+  }
+
+  .pipeline-editor-workspace {
+    @apply flex flex-col gap-4;
+  }
+
+  .pipeline-editor-workspace-empty {
+    @apply w-full max-w-3xl;
+  }
+
+  .pipeline-source-card {
+    @apply overflow-hidden rounded-xl border;
+  }
+
+  .pipeline-source-header {
+    @apply flex flex-col gap-2 border-b px-4 py-3;
+  }
+
+  .pipeline-source-eyebrow {
+    @apply text-[0.6875rem] font-medium uppercase tracking-[0.08em];
+  }
+
+  .pipeline-source-title {
+    @apply text-[0.9375rem] font-semibold leading-tight;
+  }
+
+  .pipeline-source-copy {
+    @apply max-w-3xl text-[0.75rem] leading-5;
+  }
+
+  .pipeline-source-field {
+    @apply px-4 py-4;
+  }
+
+  .pipeline-source-input {
+    @apply h-10;
   }
 
   .pipeline-layout {
@@ -762,15 +874,23 @@
   }
 
   .transformer-settings {
-    @apply mt-4 grid gap-4 xl:grid-cols-2;
+    @apply grid gap-3;
   }
 
   .transformer-section {
-    @apply flex h-full flex-col gap-4;
+    @apply flex h-full flex-col overflow-hidden rounded-lg border;
   }
 
   .transformer-section-header {
-    @apply flex flex-col gap-2;
+    @apply flex flex-col gap-1 border-b px-4 py-3;
+  }
+
+  .transformer-section-kicker {
+    @apply text-[0.6875rem] font-medium uppercase tracking-[0.08em];
+  }
+
+  .transformer-section-body {
+    @apply flex flex-col gap-3 px-4 py-4;
   }
 
   .transformer-toggle {
@@ -782,7 +902,7 @@
   }
 
   .split-fields {
-    @apply grid gap-4 sm:grid-cols-2;
+    @apply grid gap-3;
   }
 
   .mapping-grid {
@@ -1127,7 +1247,64 @@
   }
 
   .preview-card {
-    @apply flex min-h-[32rem] flex-col overflow-hidden p-5;
+    @apply w-full;
+  }
+
+  .preview-workbench {
+    @apply flex flex-col;
+  }
+
+  .preview-shell {
+    @apply grid overflow-hidden rounded-xl border lg:grid-cols-[minmax(0,23rem)_minmax(0,1fr)];
+    min-height: calc(100vh - 16rem);
+  }
+
+  .preview-panel {
+    @apply grid min-h-0 bg-transparent;
+  }
+
+  .preview-panel-settings {
+    @apply grid-rows-[auto_minmax(0,1fr)];
+  }
+
+  .preview-panel-data {
+    @apply grid-rows-[auto_minmax(0,1fr)_auto];
+  }
+
+  .preview-panel + .preview-panel {
+    @apply border-t lg:border-t-0 lg:border-l;
+  }
+
+  .preview-panel-header {
+    @apply border-b px-4 py-3;
+  }
+
+  .preview-panel-header-row {
+    @apply flex items-start justify-between gap-4;
+  }
+
+  .preview-panel-label {
+    @apply text-[0.6875rem] font-medium uppercase tracking-[0.08em];
+  }
+
+  .preview-panel-title {
+    @apply mt-1 text-[0.9375rem] font-semibold leading-tight;
+  }
+
+  .preview-panel-meta {
+    @apply text-[0.75rem] font-medium;
+  }
+
+  .preview-panel-body {
+    @apply min-h-0 overflow-auto px-4 py-4;
+  }
+
+  .preview-panel-body-table {
+    @apply overflow-hidden p-3;
+  }
+
+  .preview-panel-footer {
+    @apply flex items-center justify-between gap-3 border-t px-4 py-3 text-[0.75rem];
   }
 
   .preview-header {
@@ -1135,7 +1312,7 @@
   }
 
   .preview-guidance {
-    @apply mt-2 text-sm text-slate-500;
+    @apply mt-2 text-[0.75rem] leading-5 text-slate-500;
   }
 
   .preview-summary {
@@ -1143,7 +1320,7 @@
   }
 
   .preview-toggle {
-    @apply mt-4 inline-flex items-center gap-3 text-sm text-slate-600;
+    @apply inline-flex items-center gap-3 text-[0.8125rem] text-slate-600;
   }
 
   .preview-toggle-input {
@@ -1155,7 +1332,7 @@
   }
 
   .preview-column-header {
-    @apply flex min-w-[9rem] flex-col items-start gap-2 pb-2;
+    @apply flex min-w-[9rem] flex-col items-start gap-2;
   }
 
   .preview-tag {
@@ -1271,7 +1448,7 @@
   }
 
   .preview-header-button {
-    @apply block w-full appearance-none rounded-md border-0 bg-transparent px-1 py-1 text-left font-mono transition-colors hover:bg-slate-200/70;
+    @apply block w-full appearance-none rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left font-mono transition-colors hover:bg-slate-200/70;
   }
 
   .preview-cell-line-number {
@@ -1295,7 +1472,7 @@
   }
 
   .preview-table-shell {
-    @apply mt-4 overflow-auto rounded-xl border border-slate-200;
+    @apply h-full overflow-auto rounded-lg border border-slate-200;
   }
 
   .preview-table {
@@ -1315,7 +1492,7 @@
   }
 
   .preview-cell {
-    @apply border-b border-slate-200 px-3 py-2 font-mono text-slate-700;
+    @apply border-b border-slate-200 px-3 py-2.5 font-mono text-slate-700;
   }
 
   .preview-col-timestamp {
@@ -1415,28 +1592,25 @@
     --preview-tag-text: #fde68a;
   }
 
-  .onboarding-shell .preview-table-shell {
-    @apply border-0;
-  }
-
   .onboarding-shell .preview-table thead {
-    @apply bg-slate-900;
+    background: #26282b;
   }
 
   .onboarding-shell .preview-table tbody tr:nth-child(odd) {
-    @apply bg-[#15181a];
+    background: #2d3033;
   }
 
   .onboarding-shell .preview-table tbody tr:nth-child(even) {
-    @apply bg-[#1a1d20];
+    background: #2a2c30;
   }
 
   .onboarding-shell .preview-cell {
-    @apply border-0 text-slate-200;
+    border-color: rgb(255 255 255 / 0.06);
+    @apply text-slate-200;
   }
 
   .onboarding-shell .preview-header-button {
-    @apply hover:bg-white/8;
+    @apply text-slate-100 hover:bg-white/8;
   }
 
   .onboarding-shell .preview-table-row-header td {
