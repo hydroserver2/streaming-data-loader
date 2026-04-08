@@ -584,6 +584,10 @@
     color: #8f8a82;
   }
 
+  .onboarding-shell .mapping-item-badge-filled {
+    color: #ffffff;
+  }
+
   .onboarding-shell .mapping-column-item-name,
   .onboarding-shell .mapping-datastream-item-name {
     @apply text-slate-100;
