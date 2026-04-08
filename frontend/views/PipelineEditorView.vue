@@ -8,10 +8,12 @@ import { useAppModel } from "../composables/useAppModel";
 
 const model = useAppModel();
 
+const wizardStepLabel = computed(() =>
+  model.state.pipelinePreview ? "Data Source Creation · Step 2 of 3" : "Data Source Creation · Step 1 of 3"
+);
+
 const wizardTitle = computed(() =>
-  model.state.pipelinePreview
-    ? "Data source creation step 2/3 - CSV setup"
-    : "Data source creation step 1/3 - select file"
+  model.state.pipelinePreview ? "Configure CSV Import" : "Select CSV File"
 );
 
 function fieldError(field: PipelineFieldName): string | null {
@@ -25,7 +27,8 @@ function fieldError(field: PipelineFieldName): string | null {
     <header class="page-header wizard-header">
       <div class="wizard-header-bar">
         <div class="wizard-title-block">
-          <h1 class="page-title">{{ wizardTitle }}</h1>
+          <p class="wizard-step-label">{{ wizardStepLabel }}</p>
+          <h1 class="wizard-page-title">{{ wizardTitle }}</h1>
         </div>
         <div class="button-row wizard-actions">
           <button

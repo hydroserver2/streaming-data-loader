@@ -93,6 +93,9 @@ const previewFileName = computed(
     model.state.pipelineForm.filePath
 )
 
+const wizardStepLabel = "Data Source Creation · Step 3 of 3"
+const wizardTitle = "Map Columns to Datastreams"
+
 const hasDatastreamInventory = computed(
   () => model.state.pipelineDatastreams.length > 0
 )
@@ -488,10 +491,8 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
     <header class="page-header wizard-header">
       <div class="wizard-header-bar">
         <div class="wizard-title-block">
-          <h1 class="page-title">
-            Data source creation step 3/3 - source to datastream mapping for
-            {{ previewFileName }}
-          </h1>
+          <p class="wizard-step-label">{{ wizardStepLabel }}</p>
+          <h1 class="wizard-page-title">{{ wizardTitle }}</h1>
         </div>
         <div class="button-row wizard-actions">
           <button class="btn-ghost" type="button" @click="navigate('jobs-new')">
