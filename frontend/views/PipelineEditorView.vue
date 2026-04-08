@@ -23,28 +23,30 @@ function fieldError(field: PipelineFieldName): string | null {
 <template>
   <section class="page-shell animate-fade-in onboarding-shell">
     <header class="page-header wizard-header">
-      <div class="wizard-title-block">
-        <h1 class="page-title">{{ wizardTitle }}</h1>
-      </div>
-      <div class="button-row wizard-actions">
-        <button
-          class="btn-primary"
-          type="button"
-          @click="model.browseForCsvPath()"
-        >
-          Choose CSV File
-        </button>
-        <button
-          v-if="model.state.pipelinePreview"
-          class="btn-primary"
-          type="button"
-          @click="model.submitPipelineConfig()"
-        >
-          Validate and Continue
-        </button>
-        <button class="btn-danger" type="button" @click="model.disconnectHydroServer()">
-          Disconnect
-        </button>
+      <div class="wizard-header-bar">
+        <div class="wizard-title-block">
+          <h1 class="page-title">{{ wizardTitle }}</h1>
+        </div>
+        <div class="button-row wizard-actions">
+          <button
+            class="btn-primary"
+            type="button"
+            @click="model.browseForCsvPath()"
+          >
+            Choose CSV File
+          </button>
+          <button
+            v-if="model.state.pipelinePreview"
+            class="btn-primary"
+            type="button"
+            @click="model.submitPipelineConfig()"
+          >
+            Validate and Continue
+          </button>
+          <button class="btn-danger" type="button" @click="model.disconnectHydroServer()">
+            Disconnect
+          </button>
+        </div>
       </div>
     </header>
 
