@@ -54,6 +54,6 @@ const model = useAppModel();
     </form>
 
     <FeedbackBanner :feedback="model.state.pipelineFeedback" />
-    <CsvPreview v-if="model.state.pipelinePreview" />
+    <CsvPreview />
   </section>
 </template>

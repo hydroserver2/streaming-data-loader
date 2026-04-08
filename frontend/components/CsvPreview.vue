@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
+import CsvTransformerSettings from "./CsvTransformerSettings.vue";
 import {
   PREVIEW_PAGE_SIZE,
   useAppModel,
@@ -71,7 +72,8 @@ const displayDataStartLine = computed(() =>
     : model.state.pipelineForm.dataStartRow
 );
 const displayTimestampColumn = computed(
-  () => columnDrag.value?.columnName ?? model.state.pipelineForm.timestampColumn
+  () =>
+    columnDrag.value?.columnName ?? model.selectedPreviewTimestampColumn.value
 );
 const previewFileName = computed(
   () =>
@@ -337,25 +339,13 @@ onBeforeUnmount(() => {
         <p class="eyebrow">Preview</p>
         <h2 class="section-title">{{ previewFileName }}</h2>
         <p class="preview-guidance">
-          Use this preview to set the header row, the first data row, and the
-          timestamp column.
+          Use the settings form and the table together. Drag the row and column
+          markers here when the auto-detected structure needs a quick fix.
         </p>
       </div>
     </div>
 
-    <label class="preview-toggle">
-      <input
-        class="preview-toggle-input"
-        type="checkbox"
-        :checked="model.state.pipelineForm.hasHeaderRow"
-        @change="
-          model.setPipelineHasHeaderRow(
-            ($event.target as HTMLInputElement).checked
-          )
-        "
-      />
-      <span class="preview-toggle-label">File has a header row</span>
-    </label>
+    <CsvTransformerSettings />
 
     <div class="preview-table-shell">
       <table class="preview-table">
@@ -468,16 +458,5 @@ onBeforeUnmount(() => {
         Show {{ nextPageSize }} more line{{ nextPageSize === 1 ? "" : "s" }}
       </button>
     </footer>
-  </article>
-
-  <article v-else class="preview-card">
-    <div class="preview-placeholder">
-      <div class="empty-icon">CSV</div>
-      <h2 class="section-title">Preview a source file</h2>
-      <p class="section-copy">
-        Choose a CSV file path to inspect the first 20 lines and configure the
-        source structure.
-      </p>
-    </div>
   </article>
 </template>

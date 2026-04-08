@@ -528,6 +528,26 @@
     @apply rounded-xl border border-slate-200 bg-slate-50/40 p-4;
   }
 
+  .transformer-settings {
+    @apply mt-4 grid gap-4 xl:grid-cols-2;
+  }
+
+  .transformer-section {
+    @apply flex h-full flex-col gap-4;
+  }
+
+  .transformer-section-header {
+    @apply flex flex-col gap-2;
+  }
+
+  .transformer-toggle {
+    @apply mt-0;
+  }
+
+  .transformer-field-span {
+    @apply sm:col-span-2;
+  }
+
   .split-fields {
     @apply grid gap-4 sm:grid-cols-2;
   }

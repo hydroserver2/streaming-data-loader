@@ -7,7 +7,7 @@ from pathlib import Path
 from sidecar.api.models import CsvPreviewResponse
 
 
-DELIMITER_CANDIDATES = [",", "\t", ";"]
+DELIMITER_CANDIDATES = [",", "\t", ";", "|", " "]
 TIMESTAMP_FORMATS = [
     "%Y-%m-%d %H:%M:%S",
     "%Y-%m-%dT%H:%M:%S",

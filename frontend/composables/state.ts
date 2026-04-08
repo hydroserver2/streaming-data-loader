@@ -16,13 +16,22 @@ import type {
   ServerConfig,
 } from "../api";
 
+export type PipelineIdentifierType = "name" | "index";
+export type PipelineTimestampType = "iso" | "custom";
+export type PipelineTimezoneType = "" | "utc" | "offset" | "iana";
+
 export type PipelineFormState = {
   filePath: string;
   hasHeaderRow: boolean;
   headerRow: number;
   dataStartRow: number;
   delimiter: string;
-  timestampColumn: string;
+  identifierType: PipelineIdentifierType;
+  timestampKey: string;
+  timestampType: PipelineTimestampType;
+  timestampFormat: string;
+  timezoneType: PipelineTimezoneType;
+  timezone: string;
 };
 
 export type PreviewSelectionTarget =
@@ -76,10 +85,15 @@ export function createEmptyPipelineForm(): PipelineFormState {
   return {
     filePath: "",
     hasHeaderRow: true,
-    headerRow: 3,
-    dataStartRow: 4,
+    headerRow: 1,
+    dataStartRow: 2,
     delimiter: ",",
-    timestampColumn: "Timestamp",
+    identifierType: "name",
+    timestampKey: "timestamp",
+    timestampType: "iso",
+    timestampFormat: "",
+    timezoneType: "",
+    timezone: "",
   };
 }
 
