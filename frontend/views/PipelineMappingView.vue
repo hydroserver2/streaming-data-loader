@@ -272,6 +272,13 @@ function buildConnectorEntries(
       key: "currently-mapped",
       label: "Currently mapped",
     })
+    if (activeRow.selectedDatastream.thing_name) {
+      list.push({
+        kind: "thing",
+        key: `current-thing-${activeRow.selectedDatastream.thing_id}`,
+        thingName: activeRow.selectedDatastream.thing_name,
+      })
+    }
     list.push({
       kind: "datastream",
       key: `current-${activeRow.selectedDatastream.id}`,
@@ -355,7 +362,7 @@ function datastreamTitle(datastream: DatastreamSummary): string {
 }
 
 function datastreamThing(datastream: DatastreamSummary): string {
-  return datastream.thing_name
+  return datastream.name
 }
 
 function columnTargetLabel(row: PipelineMappingRow): string {
