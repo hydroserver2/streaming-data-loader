@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Mapping
 from urllib.parse import urlparse
 
 import requests
@@ -164,8 +165,39 @@ class HydroServerService:
         if not workspace_id:
             return []
 
-        datastreams = client.datastreams.list(workspace=workspace_id, fetch_all=True)
-        return [self._to_summary(item) for item in self._collection_items(datastreams)]
+        datastreams = self._collection_items(
+            client.datastreams.list(workspace=workspace_id, fetch_all=True)
+        )
+        if not datastreams:
+            return []
+
+        thing_by_id = self._build_resource_lookup(
+            getattr(client, "things", None), workspace_id
+        )
+        observed_property_by_id = self._build_resource_lookup(
+            getattr(client, "observedproperties", None), workspace_id
+        )
+        processing_level_by_id = self._build_resource_lookup(
+            getattr(client, "processinglevels", None), workspace_id
+        )
+        unit_by_id = self._build_resource_lookup(
+            getattr(client, "units", None), workspace_id
+        )
+        sensor_by_id = self._build_resource_lookup(
+            getattr(client, "sensors", None), workspace_id
+        )
+
+        return [
+            self._to_summary(
+                item,
+                thing_by_id=thing_by_id,
+                observed_property_by_id=observed_property_by_id,
+                processing_level_by_id=processing_level_by_id,
+                unit_by_id=unit_by_id,
+                sensor_by_id=sensor_by_id,
+            )
+            for item in datastreams
+        ]
 
     def _build_client(self, server: ServerConfig):
         if HydroServer is None:
@@ -196,20 +228,39 @@ class HydroServerService:
             return bool(server.username.strip() and server.password.strip())
         return bool(server.api_key.strip())
 
-    def _to_summary(self, item: object) -> DatastreamSummary:
+    def _to_summary(
+        self,
+        item: object,
+        *,
+        thing_by_id: Mapping[str, object] | None = None,
+        observed_property_by_id: Mapping[str, object] | None = None,
+        processing_level_by_id: Mapping[str, object] | None = None,
+        unit_by_id: Mapping[str, object] | None = None,
+        sensor_by_id: Mapping[str, object] | None = None,
+    ) -> DatastreamSummary:
         datastream_id = getattr(item, "uid", None) or getattr(item, "id", "")
         name = getattr(item, "name", "Unnamed datastream")
-        thing = self._related_resource(item, "thing")
-        observed_property = self._related_resource(item, "observed_property")
-        processing_level = self._related_resource(item, "processing_level")
-        unit = self._related_resource(item, "unit")
-        sensor = self._related_resource(item, "sensor")
+        thing_id = self._string_attribute(item, "thing_id")
+        observed_property_id = self._string_attribute(item, "observed_property_id")
+        processing_level_id = self._string_attribute(item, "processing_level_id")
+        unit_id = self._string_attribute(item, "unit_id")
+        sensor_id = self._string_attribute(item, "sensor_id")
 
-        thing_id = (
-            getattr(item, "thing_id", None)
-            or getattr(thing, "uid", None)
-            or getattr(thing, "id", "")
+        thing = self._related_resource(item, "thing", thing_id, thing_by_id)
+        observed_property = self._related_resource(
+            item, "observed_property", observed_property_id, observed_property_by_id
         )
+        processing_level = self._related_resource(
+            item,
+            "processing_level",
+            processing_level_id,
+            processing_level_by_id,
+        )
+        unit = self._related_resource(item, "unit", unit_id, unit_by_id)
+        sensor = self._related_resource(item, "sensor", sensor_id, sensor_by_id)
+
+        if not thing_id:
+            thing_id = self._resource_id(thing)
 
         return DatastreamSummary(
             id=str(datastream_id),
@@ -235,13 +286,65 @@ class HydroServerService:
             ),
         )
 
-    def _related_resource(self, item: object, attribute: str) -> object | None:
+    def _build_resource_lookup(
+        self,
+        service: object | None,
+        workspace_id: str,
+    ) -> dict[str, object]:
+        if service is None or not hasattr(service, "list"):
+            return {}
+
+        try:
+            collection = service.list(workspace=workspace_id, fetch_all=True)
+        except Exception:
+            return {}
+
+        return {
+            resource_id: resource
+            for resource in self._collection_items(collection)
+            if (resource_id := self._resource_id(resource))
+        }
+
+    def _related_resource(
+        self,
+        item: object,
+        attribute: str,
+        resource_id: str,
+        lookup: Mapping[str, object] | None,
+    ) -> object | None:
+        cached = self._safe_attribute(item, f"_{attribute}")
+        if cached is not None:
+            return cached
+
+        direct = self._safe_attribute(item, attribute)
+        if direct is not None:
+            return direct
+
+        if resource_id and lookup is not None:
+            return lookup.get(resource_id)
+
+        return None
+
+    def _safe_attribute(self, item: object, attribute: str) -> object | None:
+        descriptor = getattr(type(item), "__dict__", {}).get(attribute)
+        if isinstance(descriptor, property):
+            return None
+
         try:
             return getattr(item, attribute, None)
         except Exception:
             return None
 
+    def _string_attribute(self, item: object, attribute: str) -> str:
+        value = self._safe_attribute(item, attribute)
+        if value is None:
+            return ""
+        return str(value)
+
     def _resource_id(self, item: object) -> str:
+        if item is None:
+            return ""
+
         resource_id = getattr(item, "uid", None) or getattr(item, "id", "")
         return str(resource_id)
 

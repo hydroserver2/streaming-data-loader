@@ -142,6 +142,132 @@ class HydroServerServiceTests(unittest.TestCase):
         self.assertEqual(result[0].sampled_medium, "Water")
         self.assertEqual(result[0].result_type, "Measure")
 
+    def test_list_datastreams_uses_workspace_lookups_without_touching_lazy_properties(self) -> None:
+        lookup_calls: list[dict[str, object]] = []
+
+        class LazyDatastream:
+            uid = "stream-1"
+            name = "Water level"
+            thing_id = "thing-1"
+            observed_property_id = "op-1"
+            processing_level_id = "pl-1"
+            unit_id = "unit-1"
+            sensor_id = "sensor-1"
+            sampled_medium = "Water"
+            result_type = "Measure"
+            _thing = None
+            _observed_property = None
+            _processing_level = None
+            _unit = None
+            _sensor = None
+
+            @property
+            def thing(self):
+                raise AssertionError("lazy thing lookup should not be triggered")
+
+            @property
+            def observed_property(self):
+                raise AssertionError(
+                    "lazy observed property lookup should not be triggered"
+                )
+
+            @property
+            def processing_level(self):
+                raise AssertionError(
+                    "lazy processing level lookup should not be triggered"
+                )
+
+            @property
+            def unit(self):
+                raise AssertionError("lazy unit lookup should not be triggered")
+
+            @property
+            def sensor(self):
+                raise AssertionError("lazy sensor lookup should not be triggered")
+
+        def list_resources(name: str, items: list[object]):
+            def _list(**kwargs):
+                lookup_calls.append({"name": name, **kwargs})
+                return SimpleNamespace(total_count=len(items), items=items)
+
+            return _list
+
+        client = SimpleNamespace(
+            datastreams=SimpleNamespace(
+                list=lambda **kwargs: SimpleNamespace(
+                    total_count=1,
+                    items=[LazyDatastream()],
+                )
+            ),
+            things=SimpleNamespace(
+                list=list_resources(
+                    "things",
+                    [SimpleNamespace(uid="thing-1", name="River Site")],
+                )
+            ),
+            observedproperties=SimpleNamespace(
+                list=list_resources(
+                    "observedproperties",
+                    [SimpleNamespace(uid="op-1", name="Stage")],
+                )
+            ),
+            processinglevels=SimpleNamespace(
+                list=list_resources(
+                    "processinglevels",
+                    [SimpleNamespace(uid="pl-1", definition="Raw")],
+                )
+            ),
+            units=SimpleNamespace(
+                list=list_resources(
+                    "units",
+                    [SimpleNamespace(uid="unit-1", name="meter", symbol="m")],
+                )
+            ),
+            sensors=SimpleNamespace(
+                list=list_resources(
+                    "sensors",
+                    [SimpleNamespace(uid="sensor-1", name="Pressure transducer")],
+                )
+            ),
+        )
+
+        with patch.object(self.service, "_build_client", return_value=client):
+            result = self.service.list_datastreams(
+                ServerConfig(
+                    auth_type="apikey",
+                    url="https://example.com",
+                    api_key="good-key",
+                    username="",
+                    password="",
+                    workspace_id="workspace-123",
+                )
+            )
+
+        self.assertEqual(
+            lookup_calls,
+            [
+                {"name": "things", "workspace": "workspace-123", "fetch_all": True},
+                {
+                    "name": "observedproperties",
+                    "workspace": "workspace-123",
+                    "fetch_all": True,
+                },
+                {
+                    "name": "processinglevels",
+                    "workspace": "workspace-123",
+                    "fetch_all": True,
+                },
+                {"name": "units", "workspace": "workspace-123", "fetch_all": True},
+                {"name": "sensors", "workspace": "workspace-123", "fetch_all": True},
+            ],
+        )
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].thing_name, "River Site")
+        self.assertEqual(result[0].observed_property_name, "Stage")
+        self.assertEqual(result[0].processing_level_definition, "Raw")
+        self.assertEqual(result[0].unit_symbol, "m")
+        self.assertEqual(result[0].sensor_name, "Pressure transducer")
+
     def test_connection_error_returns_url_message(self) -> None:
         with patch.object(
             self.service,
