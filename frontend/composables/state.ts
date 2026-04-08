@@ -3,7 +3,6 @@ import { reactive } from "vue";
 import {
   createAuthFieldStates,
   type AuthFieldName,
-  type Feedback,
   type FieldValidationState,
 } from "../auth-submit";
 import {
@@ -60,9 +59,8 @@ type UiState = {
   connectionSummary: ConnectionTestResponse | null;
   loading: boolean;
   bootstrapError: string | null;
-  welcomeFeedback: Feedback;
-  settingsFeedback: Feedback;
-  pipelineFeedback: Feedback;
+  welcomeFeedback: import("../auth-submit").Feedback;
+  settingsFeedback: import("../auth-submit").Feedback;
   lastConnectionState: ConnectionState | null;
   pipelineForm: PipelineFormState;
   pipelinePreview: CsvPreviewResponse | null;
@@ -122,7 +120,6 @@ export const state = reactive<UiState>({
   bootstrapError: null,
   welcomeFeedback: null,
   settingsFeedback: null,
-  pipelineFeedback: null,
   lastConnectionState: null,
   pipelineForm: createEmptyPipelineForm(),
   pipelinePreview: null,

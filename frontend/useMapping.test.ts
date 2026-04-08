@@ -63,7 +63,6 @@ function jsonResponse(body: unknown): Response {
 function resetMappingState(): void {
   state.pipelineForm = createEmptyPipelineForm()
   state.pipelinePreview = createPreview()
-  state.pipelineFeedback = null
   state.pipelineSelectionTarget = null
   state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE
   state.pipelineFieldStates = createPipelineFieldStates()

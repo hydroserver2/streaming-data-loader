@@ -2,7 +2,6 @@
 import { computed, onMounted, watch } from "vue"
 
 import type { DatastreamSummary } from "../api"
-import FeedbackBanner from "../components/FeedbackBanner.vue"
 import { useAppModel } from "../composables/useAppModel"
 import { navigate } from "../router"
 
@@ -63,8 +62,6 @@ function unitLabel(datastream: DatastreamSummary): string {
 
 <template>
   <section class="page-shell animate-fade-in onboarding-shell">
-    <FeedbackBanner :feedback="model.state.pipelineFeedback" />
-
     <header class="page-header">
       <div>
         <p class="eyebrow">Step 2</p>

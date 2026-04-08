@@ -52,7 +52,6 @@ function jsonResponse(body: unknown): Response {
 function resetPipelineState(): void {
   state.pipelineForm = createEmptyPipelineForm()
   state.pipelinePreview = null
-  state.pipelineFeedback = null
   state.pipelineSelectionTarget = null
   state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE
   state.pipelineFieldStates = createPipelineFieldStates()
@@ -240,7 +239,6 @@ test("submitPipelineConfig marks the transformer as ready for mapping when valid
       timezoneMode: "embeddedOffset",
     },
   })
-  assert.equal(state.pipelineFeedback?.tone, "success")
 })
 
 test("changing the form after a submit attempt revalidates and clears mapping readiness", () => {

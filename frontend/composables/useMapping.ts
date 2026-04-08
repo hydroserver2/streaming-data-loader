@@ -100,14 +100,8 @@ export async function loadPipelineDatastreams(force = false): Promise<void> {
   try {
     state.pipelineDatastreams = sortDatastreams(await getDatastreams())
     syncPipelineMappingDrafts()
-  } catch (error) {
-    state.pipelineFeedback = {
-      tone: "error",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Couldn't load HydroServer datastreams right now.",
-    }
+  } catch {
+    state.pipelineDatastreams = []
   } finally {
     state.pipelineDatastreamsLoading = false
   }

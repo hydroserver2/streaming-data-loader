@@ -146,10 +146,7 @@ function validatePipelineForm(): boolean {
 function refreshPipelineValidation(): void {
   if (!state.pipelineValidationAttempted) return
 
-  const valid = validatePipelineForm()
-  if (valid) {
-    state.pipelineFeedback = null
-  }
+  validatePipelineForm()
 }
 
 function syncSelectionsWithPreview(): void {
@@ -277,7 +274,6 @@ export function setPipelineHasHeaderRow(enabled: boolean): void {
 }
 
 export function setPipelineIdentifierType(identifierType: PipelineIdentifierType): void {
-  state.pipelineFeedback = null
   invalidateValidatedPipeline()
 
   if (!state.pipelineForm.hasHeaderRow && identifierType === "name") {
@@ -345,7 +341,6 @@ function syncTimestampTimezone(mode: TimezoneMode): void {
 }
 
 export function updatePipelineField(name: string, value: string): void {
-  state.pipelineFeedback = null
   invalidateValidatedPipeline()
 
   switch (name) {
@@ -419,10 +414,6 @@ export async function loadPipelinePreview(
   invalidateValidatedPipeline()
 
   if (!path.trim()) {
-    state.pipelineFeedback = {
-      tone: "error",
-      message: "Enter or choose a CSV file path first.",
-    }
     return
   }
 
@@ -450,19 +441,11 @@ export async function loadPipelinePreview(
     state.pipelineSelectionTarget = null
     syncSelectionsWithPreview()
     state.pipelinePreviewRowsRequested = rows
-    state.pipelineFeedback = null
     refreshPipelineValidation()
-  } catch (error) {
+  } catch {
     state.pipelinePreview = null
     state.pipelineSelectionTarget = null
     state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE
-    state.pipelineFeedback = {
-      tone: "error",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Couldn't preview that CSV file.",
-    }
     refreshPipelineValidation()
   }
 }
@@ -491,11 +474,7 @@ export async function browseForCsvPath(): Promise<void> {
     updatePipelineField("file_path", selection)
     await loadPipelinePreview(selection)
   } catch {
-    state.pipelineFeedback = {
-      tone: "info",
-      message:
-        "The native file picker is only available in the desktop app. Enter the CSV path manually.",
-    }
+    return
   }
 }
 
@@ -505,21 +484,11 @@ export function submitPipelineConfig(): void {
   const valid = validatePipelineForm()
   if (!valid) {
     invalidateValidatedPipeline()
-    state.pipelineFeedback = {
-      tone: "error",
-      message:
-        "Fix the highlighted CSV settings before continuing to mapping.",
-    }
     return
   }
 
   state.validatedPipelineSettings = buildPipelineTransformerSettings()
   state.pipelineReadyForMapping = true
-  state.pipelineFeedback = {
-    tone: "success",
-    message:
-      "CSV settings validated. Continue mapping source columns to datastreams.",
-  }
   navigate("jobs-new-mapping")
 }
 

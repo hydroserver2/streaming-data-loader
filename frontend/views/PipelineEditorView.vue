@@ -2,7 +2,6 @@
 import type { PipelineFieldName } from "../pipeline-submit";
 
 import CsvPreview from "../components/CsvPreview.vue";
-import FeedbackBanner from "../components/FeedbackBanner.vue";
 import { useAppModel } from "../composables/useAppModel";
 
 const model = useAppModel();
@@ -62,8 +61,6 @@ function fieldError(field: PipelineFieldName): string | null {
         </button>
       </div>
     </form>
-
-    <FeedbackBanner :feedback="model.state.pipelineFeedback" />
     <CsvPreview />
   </section>
 </template>
