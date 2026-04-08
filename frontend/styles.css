@@ -571,6 +571,7 @@
 
   .onboarding-shell .mapping-datastream-sticky {
     background: #303133;
+    box-shadow: 0 1px 0 #303133;
   }
 
   .onboarding-shell .mapping-connector-header-count {
@@ -1007,7 +1008,8 @@
   }
 
   .mapping-datastream-sticky {
-    @apply sticky top-0 z-10 pb-2;
+    @apply sticky z-10 -mx-2 -mt-2 px-2 pt-2 pb-2;
+    top: -0.5rem;
   }
 
   .mapping-filter-empty {
