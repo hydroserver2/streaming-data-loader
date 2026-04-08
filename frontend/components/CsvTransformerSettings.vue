@@ -101,14 +101,7 @@ function updateTimezoneMode(event: Event): void {
 <template>
   <section class="transformer-settings">
     <article class="pipeline-subcard transformer-section">
-      <div class="transformer-section-header">
-        <p class="eyebrow">Transformer</p>
-        <h2 class="section-title">CSV structure</h2>
-        <p class="section-copy">
-          Auto-detected structure lands here first. Adjust it if the preview
-          shows the wrong rows or columns.
-        </p>
-      </div>
+      <h2 class="section-title">CSV structure</h2>
 
       <label class="preview-toggle transformer-toggle">
         <input
@@ -218,14 +211,7 @@ function updateTimezoneMode(event: Event): void {
     </article>
 
     <article class="pipeline-subcard transformer-section">
-      <div class="transformer-section-header">
-        <p class="eyebrow">Transformer</p>
-        <h2 class="section-title">Timestamp parsing</h2>
-        <p class="section-copy">
-          Preview selections stay synchronized with these fields, so you can use
-          either the form or the table.
-        </p>
-      </div>
+      <h2 class="section-title">Timestamp parsing</h2>
 
       <div class="split-fields">
         <label class="field">

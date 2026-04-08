@@ -66,25 +66,14 @@ function unitLabel(datastream: DatastreamSummary): string {
             <span>Back to CSV Setup</span>
           </button>
         </div>
-        <p class="eyebrow">Step 2</p>
-        <h1 class="page-title">Column mapping for {{ previewFileName }}</h1>
-        <p class="page-copy">
-          Filter HydroServer datastreams by thing first, then choose the target
-          datastream for each source column.
-        </p>
+        <h1 class="page-title">
+          Data source creation step 3/3 - source to datastream mapping for
+          {{ previewFileName }}
+        </h1>
       </div>
     </header>
 
     <article class="pipeline-subcard">
-      <div class="transformer-section-header">
-        <p class="eyebrow">Mappings</p>
-        <h2 class="section-title">Source to datastream</h2>
-        <p class="section-copy">
-          Each row represents one CSV value column. Timestamp parsing is already
-          configured and is excluded from this list.
-        </p>
-      </div>
-
       <div v-if="model.state.pipelineDatastreamsLoading" class="empty-panel">
         <div class="empty-icon">...</div>
         <p class="section-copy">Loading HydroServer datastreams.</p>

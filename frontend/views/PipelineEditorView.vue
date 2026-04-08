@@ -1,10 +1,18 @@
 <script setup lang="ts">
+import { computed } from "vue";
+
 import type { PipelineFieldName } from "../pipeline-submit";
 
 import CsvPreview from "../components/CsvPreview.vue";
 import { useAppModel } from "../composables/useAppModel";
 
 const model = useAppModel();
+
+const wizardTitle = computed(() =>
+  model.state.pipelinePreview
+    ? "Data source creation step 2/3 - CSV setup"
+    : "Data source creation step 1/3 - select file"
+);
 
 function fieldError(field: PipelineFieldName): string | null {
   const state = model.state.pipelineFieldStates[field];
@@ -14,6 +22,12 @@ function fieldError(field: PipelineFieldName): string | null {
 
 <template>
   <section class="page-shell animate-fade-in onboarding-shell">
+    <header class="page-header">
+      <div>
+        <h1 class="page-title">{{ wizardTitle }}</h1>
+      </div>
+    </header>
+
     <form
       id="pipeline-form"
       class="onboarding-file-form"
