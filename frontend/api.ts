@@ -57,6 +57,30 @@ export interface CsvPreviewResponse {
   encoding: string
 }
 
+export type CsvTransformerIdentifierType = "name" | "index"
+export type CsvTransformerTimestampFormat = "ISO8601" | "naive" | "custom"
+export type CsvTransformerTimezoneMode =
+  | "embeddedOffset"
+  | "utc"
+  | "fixedOffset"
+  | "daylightSavings"
+
+export interface CsvTransformerTimestampSettings {
+  key: string
+  format: CsvTransformerTimestampFormat
+  customFormat?: string
+  timezoneMode: CsvTransformerTimezoneMode
+  timezone?: string
+}
+
+export interface CsvTransformerSettings {
+  headerRow: number | null
+  dataStartRow: number
+  delimiter: string
+  identifierType: CsvTransformerIdentifierType
+  timestamp: CsvTransformerTimestampSettings
+}
+
 function buildApiUrl(path: string): string {
   return `${apiBaseUrl.replace(/\/$/, "")}${path}`
 }

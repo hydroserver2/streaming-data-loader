@@ -124,6 +124,7 @@ import {
 } from "./useAuth"
 
 import {
+  buildPipelineTransformerSettings,
   parsedPreviewRows,
   previewHeaders,
   selectedPreviewTimestampColumn,
@@ -150,6 +151,7 @@ const model = {
   parsedPreviewRows,
   previewHeaders,
   selectedPreviewTimestampColumn,
+  buildPipelineTransformerSettings,
   canShowMorePreviewLines,
   init,
   bootstrap,

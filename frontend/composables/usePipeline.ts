@@ -2,6 +2,10 @@ import { computed } from "vue"
 
 import { getCsvPreview } from "../api"
 import {
+  normalizePipelineTimezoneType,
+  serializePipelineFormToCsvTransformerSettings,
+} from "./csvTransformerSettings"
+import {
   PREVIEW_PAGE_SIZE,
   state,
   type PipelineIdentifierType,
@@ -304,13 +308,19 @@ export function updatePipelineField(name: string, value: string): void {
       } else if (!state.pipelineForm.timestampFormat.trim()) {
         state.pipelineForm.timestampFormat = "%Y-%m-%d %H:%M:%S"
       }
+      state.pipelineForm.timezoneType = normalizePipelineTimezoneType(
+        state.pipelineForm.timestampType,
+        state.pipelineForm.timezoneType
+      )
       break
     case "timestamp_format":
       state.pipelineForm.timestampFormat = value
       break
     case "timezone_type":
-      state.pipelineForm.timezoneType =
+      state.pipelineForm.timezoneType = normalizePipelineTimezoneType(
+        state.pipelineForm.timestampType,
         value === "utc" || value === "offset" || value === "iana" ? value : ""
+      )
       if (
         state.pipelineForm.timezoneType !== "offset" &&
         state.pipelineForm.timezoneType !== "iana"
@@ -405,4 +415,8 @@ export async function browseForCsvPath(): Promise<void> {
         "The native file picker is only available in the desktop app. Enter the CSV path manually.",
     }
   }
+}
+
+export function buildPipelineTransformerSettings() {
+  return serializePipelineFormToCsvTransformerSettings(state.pipelineForm)
 }

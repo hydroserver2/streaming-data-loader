@@ -22,7 +22,7 @@ const timestampTypeOptions = [
   { value: "custom", label: "Custom format" },
 ] as const;
 
-const timezoneTypeOptions = [
+const allTimezoneTypeOptions = [
   { value: "", label: "Embedded / auto" },
   { value: "utc", label: "Treat as UTC" },
   { value: "offset", label: "Fixed UTC offset" },
@@ -55,18 +55,32 @@ const timestampOptions = computed(() =>
   }))
 );
 
+const timezoneTypeOptions = computed(() =>
+  model.state.pipelineForm.timestampType === "custom"
+    ? allTimezoneTypeOptions.filter((option) => option.value !== "")
+    : allTimezoneTypeOptions
+);
+
 const timezoneLabel = computed(() =>
   model.state.pipelineForm.timezoneType === "offset"
     ? "UTC offset"
     : "Timezone"
 );
 
-const timezoneHint = computed(() => {
+const timezoneValueHint = computed(() => {
   if (model.state.pipelineForm.timezoneType === "offset") {
     return "Use ±HHMM or ±HH:MM, for example -0700 or -07:00."
   }
 
   return "Use a valid IANA timezone such as America/Denver."
+});
+
+const timezoneModeHint = computed(() => {
+  if (model.state.pipelineForm.timestampType === "custom") {
+    return "Custom formats must be interpreted as UTC, a fixed offset, or an IANA timezone."
+  }
+
+  return "Leave this on embedded / auto when timestamps already include their own timezone offset."
 });
 
 function updateIdentifierType(event: Event): void {
@@ -294,10 +308,7 @@ function updateTimezoneType(event: Event): void {
               {{ option.label }}
             </option>
           </select>
-          <span class="field-hint">
-            Leave this on embedded / auto when timestamps already include their
-            own timezone offset.
-          </span>
+          <span class="field-hint">{{ timezoneModeHint }}</span>
         </label>
 
         <label
@@ -324,7 +335,7 @@ function updateTimezoneType(event: Event): void {
               )
             "
           />
-          <span class="field-hint">{{ timezoneHint }}</span>
+          <span class="field-hint">{{ timezoneValueHint }}</span>
         </label>
       </div>
     </article>

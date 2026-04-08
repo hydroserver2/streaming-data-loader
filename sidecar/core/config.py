@@ -41,7 +41,7 @@ class ConfigStore:
         return self.save(config)
 
     def _write(self, config: AppConfig) -> None:
-        payload = json.dumps(config.model_dump(mode="json"), indent=2)
+        payload = json.dumps(config.model_dump(mode="json", by_alias=True), indent=2)
         with self._lock:
             self.config_path.write_text(f"{payload}\n", encoding="utf-8")
 
