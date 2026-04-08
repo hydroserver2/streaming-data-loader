@@ -75,7 +75,7 @@ function unitLabel(datastream: DatastreamSummary): string {
       </div>
     </header>
 
-    <article class="pipeline-subcard">
+    <article class="pipeline-subcard mapping-subcard">
       <div v-if="model.state.pipelineDatastreamsLoading" class="empty-panel">
         <div class="empty-icon">...</div>
         <p class="section-copy">Loading HydroServer datastreams.</p>

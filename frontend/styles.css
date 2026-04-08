@@ -472,6 +472,10 @@
     @apply bg-[#202427];
   }
 
+  .onboarding-shell .mapping-subcard {
+    @apply bg-transparent p-0;
+  }
+
   .onboarding-shell .mapping-row {
     @apply border-0 bg-[#16191b];
   }
