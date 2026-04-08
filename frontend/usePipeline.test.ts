@@ -59,6 +59,10 @@ function resetPipelineState(): void {
   state.pipelineValidationAttempted = false
   state.pipelineReadyForMapping = false
   state.validatedPipelineSettings = null
+  state.pipelineDatastreams = []
+  state.pipelineDatastreamsLoading = false
+  state.pipelineMappingDrafts = []
+  state.validatedColumnMappings = []
 }
 
 test.beforeEach(() => {

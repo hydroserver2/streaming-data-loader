@@ -164,7 +164,7 @@ class HydroServerService:
         if not workspace_id:
             return []
 
-        datastreams = client.datastreams.list(page_size=100, workspace=workspace_id)
+        datastreams = client.datastreams.list(workspace=workspace_id, fetch_all=True)
         return [self._to_summary(item) for item in self._collection_items(datastreams)]
 
     def _build_client(self, server: ServerConfig):
@@ -199,7 +199,47 @@ class HydroServerService:
     def _to_summary(self, item: object) -> DatastreamSummary:
         datastream_id = getattr(item, "uid", None) or getattr(item, "id", "")
         name = getattr(item, "name", "Unnamed datastream")
-        return DatastreamSummary(id=str(datastream_id), name=str(name))
+        thing = self._related_resource(item, "thing")
+        observed_property = self._related_resource(item, "observed_property")
+        processing_level = self._related_resource(item, "processing_level")
+        unit = self._related_resource(item, "unit")
+        sensor = self._related_resource(item, "sensor")
+
+        thing_id = (
+            getattr(item, "thing_id", None)
+            or getattr(thing, "uid", None)
+            or getattr(thing, "id", "")
+        )
+
+        return DatastreamSummary(
+            id=str(datastream_id),
+            name=str(name),
+            thing_id=str(thing_id or ""),
+            thing_name=str(getattr(thing, "name", "") or ""),
+            observed_property_name=str(getattr(observed_property, "name", "") or ""),
+            processing_level_definition=str(
+                getattr(processing_level, "definition", "") or ""
+            ),
+            unit_name=str(getattr(unit, "name", "") or ""),
+            unit_symbol=str(getattr(unit, "symbol", "") or ""),
+            sampled_medium=str(
+                getattr(item, "sampled_medium", None)
+                or getattr(item, "sampledMedium", "")
+                or ""
+            ),
+            sensor_name=str(getattr(sensor, "name", "") or ""),
+            result_type=str(
+                getattr(item, "result_type", None)
+                or getattr(item, "resultType", "")
+                or ""
+            ),
+        )
+
+    def _related_resource(self, item: object, attribute: str) -> object | None:
+        try:
+            return getattr(item, attribute, None)
+        except Exception:
+            return None
 
     def _resource_id(self, item: object) -> str:
         resource_id = getattr(item, "uid", None) or getattr(item, "id", "")

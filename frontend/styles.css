@@ -450,8 +450,17 @@
     @apply border-slate-700 bg-[#16191b];
   }
 
+  .onboarding-shell .mapping-summary-card {
+    @apply border-slate-700 bg-[#111315];
+  }
+
+  .onboarding-shell .mapping-summary-card-empty {
+    @apply bg-transparent;
+  }
+
   .onboarding-shell .section-title,
-  .onboarding-shell .mapping-source {
+  .onboarding-shell .mapping-source,
+  .onboarding-shell .mapping-summary-title {
     @apply text-slate-100;
   }
 
@@ -482,6 +491,10 @@
 
   .onboarding-shell .pill-info {
     @apply bg-sky-950/50 text-sky-200;
+  }
+
+  .onboarding-shell .pill-muted {
+    @apply bg-slate-800 text-slate-300;
   }
 
   .onboarding-shell .notice-error {
@@ -560,8 +573,36 @@
     @apply grid items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-[minmax(0,12rem)_minmax(0,1fr)];
   }
 
+  .mapping-row-rich {
+    @apply md:grid-cols-[minmax(0,12rem)_minmax(0,22rem)_minmax(0,1fr)];
+  }
+
   .mapping-source {
     @apply text-sm font-medium text-slate-800;
+  }
+
+  .mapping-source-stack {
+    @apply flex flex-col gap-1;
+  }
+
+  .mapping-controls {
+    @apply grid gap-3;
+  }
+
+  .mapping-summary-card {
+    @apply rounded-xl border border-slate-200 bg-slate-50/70 p-3;
+  }
+
+  .mapping-summary-card-empty {
+    @apply flex h-full items-center bg-transparent;
+  }
+
+  .mapping-summary-title {
+    @apply text-sm font-semibold text-slate-800;
+  }
+
+  .mapping-meta-row {
+    @apply my-2 flex flex-wrap gap-2;
   }
 
   .mapping-help {

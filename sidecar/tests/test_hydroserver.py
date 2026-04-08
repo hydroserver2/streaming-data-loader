@@ -92,8 +92,55 @@ class HydroServerServiceTests(unittest.TestCase):
                 )
             )
 
-        self.assertEqual(datastream_calls, [{"page_size": 100, "workspace": "workspace-123"}])
+        self.assertEqual(
+            datastream_calls, [{"workspace": "workspace-123", "fetch_all": True}]
+        )
         self.assertEqual(result[0].id, "stream-1")
+
+    def test_list_datastreams_returns_related_summary_fields(self) -> None:
+        client = SimpleNamespace(
+            datastreams=SimpleNamespace(
+                list=lambda **kwargs: SimpleNamespace(
+                    total_count=1,
+                    items=[
+                        SimpleNamespace(
+                            uid="stream-1",
+                            name="Water level",
+                            thing_id="thing-1",
+                            sampled_medium="Water",
+                            result_type="Measure",
+                            thing=SimpleNamespace(uid="thing-1", name="River Site"),
+                            observed_property=SimpleNamespace(name="Stage"),
+                            processing_level=SimpleNamespace(definition="Raw"),
+                            unit=SimpleNamespace(name="meter", symbol="m"),
+                            sensor=SimpleNamespace(name="Pressure transducer"),
+                        )
+                    ],
+                )
+            )
+        )
+
+        with patch.object(self.service, "_build_client", return_value=client):
+            result = self.service.list_datastreams(
+                ServerConfig(
+                    auth_type="apikey",
+                    url="https://example.com",
+                    api_key="good-key",
+                    username="",
+                    password="",
+                    workspace_id="workspace-123",
+                )
+            )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].thing_id, "thing-1")
+        self.assertEqual(result[0].thing_name, "River Site")
+        self.assertEqual(result[0].observed_property_name, "Stage")
+        self.assertEqual(result[0].processing_level_definition, "Raw")
+        self.assertEqual(result[0].unit_symbol, "m")
+        self.assertEqual(result[0].sensor_name, "Pressure transducer")
+        self.assertEqual(result[0].sampled_medium, "Water")
+        self.assertEqual(result[0].result_type, "Measure")
 
     def test_connection_error_returns_url_message(self) -> None:
         with patch.object(

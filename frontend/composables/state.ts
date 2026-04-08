@@ -13,9 +13,11 @@ import {
 import { getRouteFromHash, type AppRoute } from "../router";
 import type {
   AppConfig,
+  ColumnMapping,
   ConnectionState,
   ConnectionTestResponse,
   CsvPreviewResponse,
+  DatastreamSummary,
   CsvTransformerSettings,
   CsvTransformerTimestampSettings,
   HealthResponse,
@@ -32,6 +34,12 @@ export type PipelineFormState = {
   delimiter: string;
   identifierType: PipelineIdentifierType;
   timestamp: CsvTransformerTimestampSettings;
+};
+
+export type PipelineMappingDraft = {
+  csvColumn: string;
+  thingId: string;
+  datastreamId: string;
 };
 
 export type PreviewSelectionTarget =
@@ -67,6 +75,10 @@ type UiState = {
   pipelineValidationAttempted: boolean;
   pipelineReadyForMapping: boolean;
   validatedPipelineSettings: CsvTransformerSettings | null;
+  pipelineDatastreams: DatastreamSummary[];
+  pipelineDatastreamsLoading: boolean;
+  pipelineMappingDrafts: PipelineMappingDraft[];
+  validatedColumnMappings: ColumnMapping[];
 };
 
 export const PREVIEW_PAGE_SIZE = 20;
@@ -123,4 +135,8 @@ export const state = reactive<UiState>({
   pipelineValidationAttempted: false,
   pipelineReadyForMapping: false,
   validatedPipelineSettings: null,
+  pipelineDatastreams: [],
+  pipelineDatastreamsLoading: false,
+  pipelineMappingDrafts: [],
+  validatedColumnMappings: [],
 });

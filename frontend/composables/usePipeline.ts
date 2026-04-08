@@ -129,6 +129,7 @@ function markPipelineField(
 function invalidateValidatedPipeline(): void {
   state.pipelineReadyForMapping = false
   state.validatedPipelineSettings = null
+  state.validatedColumnMappings = []
 }
 
 function validatePipelineForm(): boolean {

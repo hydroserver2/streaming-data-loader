@@ -71,6 +71,26 @@ export interface CsvTransformerSettings {
   timestamp: CsvTransformerTimestampSettings
 }
 
+export interface DatastreamSummary {
+  id: string
+  name: string
+  thing_id: string
+  thing_name: string
+  observed_property_name: string
+  processing_level_definition: string
+  unit_name: string
+  unit_symbol: string
+  sampled_medium: string
+  sensor_name: string
+  result_type: string
+}
+
+export interface ColumnMapping {
+  csv_column: string
+  datastream_id: string
+  datastream_name: string
+}
+
 function buildApiUrl(path: string): string {
   return `${apiBaseUrl.replace(/\/$/, "")}${path}`
 }
@@ -183,4 +203,8 @@ export function getCsvPreview(path: string, rows = 50): Promise<CsvPreviewRespon
     rows: String(rows),
   })
   return request<CsvPreviewResponse>(`/csv/preview?${params.toString()}`)
+}
+
+export function getDatastreams(): Promise<DatastreamSummary[]> {
+  return request<DatastreamSummary[]>("/datastreams")
 }

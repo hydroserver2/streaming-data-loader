@@ -280,6 +280,15 @@ class ActionResponse(BaseModel):
 class DatastreamSummary(BaseModel):
     id: str
     name: str
+    thing_id: str = ""
+    thing_name: str = ""
+    observed_property_name: str = ""
+    processing_level_definition: str = ""
+    unit_name: str = ""
+    unit_symbol: str = ""
+    sampled_medium: str = ""
+    sensor_name: str = ""
+    result_type: str = ""
 
 
 class JobStatusSummary(BaseModel):

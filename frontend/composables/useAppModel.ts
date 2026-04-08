@@ -157,6 +157,19 @@ import {
   browseForCsvPath,
 } from "./usePipeline"
 
+import {
+  buildPipelineColumnMappings,
+  clearPipelineMapping,
+  datastreamOptionsForThing,
+  loadPipelineDatastreams,
+  pipelineMappingRows,
+  pipelineMappingSourceColumns,
+  pipelineThingOptions,
+  syncPipelineMappingDrafts,
+  updatePipelineMappingDatastream,
+  updatePipelineMappingThing,
+} from "./useMapping"
+
 const model = {
   state,
   APP_NAME,
@@ -168,8 +181,12 @@ const model = {
   previewHeaders,
   selectedPreviewTimestampColumn,
   buildPipelineTransformerSettings,
+  buildPipelineColumnMappings,
   submitPipelineConfig,
   canShowMorePreviewLines,
+  pipelineMappingRows,
+  pipelineMappingSourceColumns,
+  pipelineThingOptions,
   init,
   bootstrap,
   updateAuthDraftField,
@@ -184,6 +201,12 @@ const model = {
   updateHeaderRowFromPreview,
   updateDataStartRowFromPreview,
   loadPipelinePreview,
+  loadPipelineDatastreams,
+  syncPipelineMappingDrafts,
+  datastreamOptionsForThing,
+  updatePipelineMappingThing,
+  updatePipelineMappingDatastream,
+  clearPipelineMapping,
   showMorePreviewLines,
   browseForCsvPath,
 } as const

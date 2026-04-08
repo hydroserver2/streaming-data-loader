@@ -162,6 +162,13 @@ export async function disconnectHydroServer(): Promise<void> {
     state.pipelinePreview = null
     state.pipelineSelectionTarget = null
     state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE
+    state.pipelineValidationAttempted = false
+    state.pipelineReadyForMapping = false
+    state.validatedPipelineSettings = null
+    state.pipelineDatastreams = []
+    state.pipelineDatastreamsLoading = false
+    state.pipelineMappingDrafts = []
+    state.validatedColumnMappings = []
     resetFieldStates("apikey")
     navigate("welcome")
   } catch (error) {
