@@ -912,7 +912,7 @@
   }
 
   .mapping-connector-panel {
-    @apply grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] bg-transparent;
+    @apply grid min-h-0 grid-rows-[auto_minmax(0,1fr)] bg-transparent;
   }
 
   .mapping-connector-panel + .mapping-connector-panel {
