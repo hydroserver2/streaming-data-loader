@@ -927,6 +927,26 @@
     @apply flex items-center justify-between gap-4;
   }
 
+  .mapping-filter-grid {
+    @apply mt-2 grid gap-2 sm:grid-cols-2;
+  }
+
+  .mapping-filter-grid-single {
+    @apply sm:grid-cols-1;
+  }
+
+  .mapping-filter-field {
+    @apply flex min-w-0 flex-col gap-1;
+  }
+
+  .mapping-filter-label {
+    @apply text-[0.625rem] font-medium uppercase tracking-[0.06em] text-slate-500;
+  }
+
+  .mapping-filter-input {
+    @apply h-8 rounded-md px-2.5 py-1.5 text-[0.75rem];
+  }
+
   .mapping-connector-title {
     @apply text-[0.6875rem] font-medium uppercase tracking-[0.06em] text-slate-500;
   }
@@ -949,6 +969,10 @@
 
   .mapping-datastream-scroll {
     @apply overflow-auto;
+  }
+
+  .mapping-filter-empty {
+    @apply flex min-h-full items-center justify-center px-3 py-6 text-[0.75rem] text-slate-500;
   }
 
   .mapping-connector-footer {

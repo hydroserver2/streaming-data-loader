@@ -100,6 +100,9 @@ const hasDatastreamInventory = computed(
 const mappingRows = computed(() => model.pipelineMappingRows.value)
 const browserEntries = computed(() => model.pipelineDatastreamBrowserEntries.value)
 const activeCsvColumn = ref("")
+const columnNameFilter = ref("")
+const datastreamThingFilter = ref("")
+const datastreamNameFilter = ref("")
 const datastreamViewportRef = ref<HTMLElement | null>(null)
 const datastreamScrollTop = ref(0)
 const datastreamViewportHeight = ref(640)
@@ -127,8 +130,44 @@ const sourceOrderByColumn = computed(
   () => new Map(mappingRows.value.map((row, index) => [row.csvColumn, index]))
 )
 
+const columnFilterOptions = computed(() =>
+  Array.from(new Set(mappingRows.value.map((row) => row.label))).sort((a, b) =>
+    a.localeCompare(b)
+  )
+)
+
+const thingFilterOptions = computed(() =>
+  model.pipelineThingOptions.value.map((option) => option.name)
+)
+
+const datastreamNameFilterOptions = computed(() =>
+  Array.from(
+    new Set(
+      model.state.pipelineDatastreams
+        .map((datastream) => datastream.name)
+        .filter(Boolean)
+    )
+  ).sort((a, b) => a.localeCompare(b))
+)
+
+const filteredMappingRows = computed(() => {
+  const query = normalizeFilter(columnNameFilter.value)
+  if (!query) return mappingRows.value
+
+  return mappingRows.value.filter((row) =>
+    row.label.toLowerCase().includes(query)
+  )
+})
+
+const filteredBrowserEntries = computed(() =>
+  filterDatastreamEntries(browserEntries.value, {
+    thingQuery: datastreamThingFilter.value,
+    datastreamQuery: datastreamNameFilter.value,
+  })
+)
+
 const connectorEntries = computed<ConnectorEntry[]>(() =>
-  buildConnectorEntries(browserEntries.value, activeMappingRow.value)
+  buildConnectorEntries(filteredBrowserEntries.value, activeMappingRow.value)
 )
 
 const virtualEntries = computed(() => {
@@ -207,7 +246,12 @@ watch(
 )
 
 watch(
-  [activeCsvColumn, () => activeMappingRow.value?.datastreamId ?? ""],
+  [
+    activeCsvColumn,
+    () => activeMappingRow.value?.datastreamId ?? "",
+    datastreamThingFilter,
+    datastreamNameFilter,
+  ],
   () => {
     resetDatastreamScroll()
   }
@@ -302,6 +346,57 @@ function buildConnectorEntries(
   }
 
   return [...list, ...otherEntries]
+}
+
+function filterDatastreamEntries(
+  entries: MappingDatastreamBrowserEntry[],
+  filters: { thingQuery: string; datastreamQuery: string }
+): MappingDatastreamBrowserEntry[] {
+  const thingQuery = normalizeFilter(filters.thingQuery)
+  const datastreamQuery = normalizeFilter(filters.datastreamQuery)
+
+  if (!thingQuery && !datastreamQuery) {
+    return entries
+  }
+
+  const filtered: MappingDatastreamBrowserEntry[] = []
+  let currentThing: Extract<MappingDatastreamBrowserEntry, { kind: "thing" }> | null =
+    null
+  let emittedThing = false
+
+  for (const entry of entries) {
+    if (entry.kind === "thing") {
+      currentThing = entry
+      emittedThing = false
+      continue
+    }
+
+    const matchesThing =
+      !thingQuery ||
+      entry.datastream.thing_name.toLowerCase().includes(thingQuery) ||
+      currentThing?.thingName.toLowerCase().includes(thingQuery) === true
+
+    const matchesDatastream =
+      !datastreamQuery ||
+      entry.datastream.name.toLowerCase().includes(datastreamQuery)
+
+    if (!matchesThing || !matchesDatastream) {
+      continue
+    }
+
+    if (currentThing && !emittedThing) {
+      filtered.push(currentThing)
+      emittedThing = true
+    }
+
+    filtered.push(entry)
+  }
+
+  return filtered
+}
+
+function normalizeFilter(value: string): string {
+  return value.trim().toLowerCase()
 }
 
 function measureDatastreamViewport(): void {
@@ -440,12 +535,35 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
                 <span>of {{ mappingRows.length }} mapped</span>
               </p>
             </div>
+            <div class="mapping-filter-grid mapping-filter-grid-single">
+              <label class="mapping-filter-field">
+                <span class="mapping-filter-label">Filter columns</span>
+                <input
+                  v-model="columnNameFilter"
+                  class="input mapping-filter-input"
+                  list="mapping-column-filter-options"
+                  type="text"
+                  placeholder="Type or select a column"
+                  autocomplete="off"
+                >
+              </label>
+              <datalist id="mapping-column-filter-options">
+                <option
+                  v-for="label in columnFilterOptions"
+                  :key="label"
+                  :value="label"
+                />
+              </datalist>
+            </div>
           </header>
 
           <div class="mapping-connector-body">
             <div class="mapping-column-scroll">
+              <div v-if="filteredMappingRows.length === 0" class="mapping-filter-empty">
+                No columns match the current filter.
+              </div>
               <button
-                v-for="row in mappingRows"
+                v-for="row in filteredMappingRows"
                 :key="row.csvColumn"
                 class="mapping-column-item"
                 :class="{
@@ -477,6 +595,44 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
         <section class="mapping-connector-panel">
           <header class="mapping-connector-header">
             <p class="mapping-connector-title">Datastreams</p>
+            <div class="mapping-filter-grid">
+              <label class="mapping-filter-field">
+                <span class="mapping-filter-label">Thing filter</span>
+                <input
+                  v-model="datastreamThingFilter"
+                  class="input mapping-filter-input"
+                  list="mapping-thing-filter-options"
+                  type="text"
+                  placeholder="Type or select a thing"
+                  autocomplete="off"
+                >
+              </label>
+              <label class="mapping-filter-field">
+                <span class="mapping-filter-label">Datastream filter</span>
+                <input
+                  v-model="datastreamNameFilter"
+                  class="input mapping-filter-input"
+                  list="mapping-datastream-filter-options"
+                  type="text"
+                  placeholder="Type or select a datastream"
+                  autocomplete="off"
+                >
+              </label>
+              <datalist id="mapping-thing-filter-options">
+                <option
+                  v-for="thing in thingFilterOptions"
+                  :key="thing"
+                  :value="thing"
+                />
+              </datalist>
+              <datalist id="mapping-datastream-filter-options">
+                <option
+                  v-for="name in datastreamNameFilterOptions"
+                  :key="name"
+                  :value="name"
+                />
+              </datalist>
+            </div>
           </header>
 
           <div
@@ -484,7 +640,11 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
             class="mapping-connector-body mapping-datastream-scroll"
             @scroll="onDatastreamScroll"
           >
+            <div v-if="connectorEntries.length === 0" class="mapping-filter-empty">
+              No datastreams match the current filters.
+            </div>
             <div
+              v-else
               class="mapping-virtual-stage"
               :style="{ height: `${virtualHeight}px` }"
             >
