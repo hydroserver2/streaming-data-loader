@@ -339,10 +339,6 @@ onBeforeUnmount(() => {
         <header class="preview-panel-header">
           <p class="preview-panel-label">Import settings</p>
           <h2 class="preview-panel-title">CSV setup</h2>
-          <p class="preview-guidance">
-            Adjust structure and timestamp parsing before continuing to column
-            mapping.
-          </p>
         </header>
 
         <div class="preview-panel-body">
@@ -362,10 +358,6 @@ onBeforeUnmount(() => {
               lines
             </p>
           </div>
-          <p class="preview-guidance">
-            Drag the row and column markers here when the detected structure
-            needs a quick correction.
-          </p>
         </header>
 
         <div class="preview-panel-body preview-panel-body-table">

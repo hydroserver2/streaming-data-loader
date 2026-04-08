@@ -33,12 +33,6 @@ const timestampKeyLabel = computed(() =>
     : "Timestamp column name"
 )
 
-const timestampKeyHint = computed(() =>
-  model.state.pipelineForm.identifierType === "index"
-    ? "Pick the 1-based column number that contains timestamps."
-    : "Pick the header name that contains timestamps."
-)
-
 const timestampOptions = computed(() =>
   model.previewHeaders.value.map((header, index) => ({
     id: String(index + 1),
@@ -58,20 +52,6 @@ const timezoneLabel = computed(() =>
     ? "UTC offset"
     : "Timezone"
 )
-
-const timezoneValueHint = computed(() =>
-  model.state.pipelineForm.timestamp.timezoneMode === "fixedOffset"
-    ? "Select a fixed UTC offset to apply to the timestamp column."
-    : "Select an IANA timezone such as America/Denver."
-)
-
-const timezoneModeHint = computed(() => {
-  if (model.state.pipelineForm.timestamp.format === "custom") {
-    return "Custom formats must be interpreted as UTC, a fixed offset, or an IANA timezone."
-  }
-
-  return "Timezone-naive timestamps need an explicit timezone rule."
-})
 
 const timezoneOptions = computed(() =>
   model.state.pipelineForm.timestamp.timezoneMode === "fixedOffset"
@@ -142,9 +122,6 @@ function updateTimezoneMode(event: Event): void {
                 {{ option.label }}
               </option>
             </select>
-            <span class="field-hint">
-              The preview re-parses immediately when you change this.
-            </span>
           </label>
 
           <label class="field">
@@ -159,10 +136,6 @@ function updateTimezoneMode(event: Event): void {
               </option>
               <option value="index">Column numbers</option>
             </select>
-            <span class="field-hint">
-              Name mode requires a real header row. Index mode uses 1-based column
-              numbers.
-            </span>
           </label>
 
           <label class="field">
@@ -181,9 +154,6 @@ function updateTimezoneMode(event: Event): void {
                 )
               "
             />
-            <span class="field-hint">
-              Pick the 1-based line that contains the column names.
-            </span>
             <p v-if="fieldError('header_row')" class="field-error">
               {{ fieldError("header_row") }}
             </p>
@@ -204,9 +174,6 @@ function updateTimezoneMode(event: Event): void {
                 )
               "
             />
-            <span class="field-hint">
-              Pick the 1-based line where observation values begin.
-            </span>
             <p v-if="fieldError('data_start_row')" class="field-error">
               {{ fieldError("data_start_row") }}
             </p>
@@ -244,7 +211,6 @@ function updateTimezoneMode(event: Event): void {
                 {{ option.label }}
               </option>
             </select>
-            <span class="field-hint">{{ timestampKeyHint }}</span>
             <p v-if="fieldError('timestamp_key')" class="field-error">
               {{ fieldError("timestamp_key") }}
             </p>
@@ -270,11 +236,6 @@ function updateTimezoneMode(event: Event): void {
                 {{ option.text }}
               </option>
             </select>
-            <span class="field-hint">
-              Choose ISO 8601 when timestamps already contain their timezone
-              offset. Use a custom format only when the values don't match the
-              built-in options.
-            </span>
           </label>
 
           <label
@@ -294,9 +255,6 @@ function updateTimezoneMode(event: Event): void {
                 )
               "
             />
-            <span class="field-hint">
-              Example: <code>%Y-%m-%d %H:%M:%S</code>
-            </span>
             <p v-if="fieldError('custom_timestamp_format')" class="field-error">
               {{ fieldError("custom_timestamp_format") }}
             </p>
@@ -320,7 +278,6 @@ function updateTimezoneMode(event: Event): void {
                 {{ option.label }}
               </option>
             </select>
-            <span class="field-hint">{{ timezoneModeHint }}</span>
           </label>
 
           <label
@@ -350,7 +307,6 @@ function updateTimezoneMode(event: Event): void {
                 {{ option.title }}
               </option>
             </select>
-            <span class="field-hint">{{ timezoneValueHint }}</span>
             <p v-if="fieldError('timezone')" class="field-error">
               {{ fieldError("timezone") }}
             </p>
