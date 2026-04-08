@@ -569,6 +569,10 @@
     color: #aba69e;
   }
 
+  .onboarding-shell .mapping-datastream-sticky {
+    background: #303133;
+  }
+
   .onboarding-shell .mapping-connector-header-count {
     color: #e8e3db;
   }
@@ -1000,6 +1004,10 @@
 
   .mapping-datastream-scroll {
     @apply overflow-auto;
+  }
+
+  .mapping-datastream-sticky {
+    @apply sticky top-0 z-10 pb-2;
   }
 
   .mapping-filter-empty {

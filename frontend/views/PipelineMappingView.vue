@@ -117,6 +117,10 @@ const activeMappingRow = computed(
     mappingRows.value.find((row) => row.csvColumn === activeCsvColumn.value) ?? null
 )
 
+const currentMappedDatastream = computed(
+  () => activeMappingRow.value?.selectedDatastream ?? null
+)
+
 const mappedColumnCount = computed(
   () => mappingRows.value.filter((row) => row.datastreamId).length
 )
@@ -248,17 +252,9 @@ watch(
   { immediate: true }
 )
 
-watch(
-  [
-    activeCsvColumn,
-    () => activeMappingRow.value?.datastreamId ?? "",
-    datastreamThingFilter,
-    datastreamNameFilter,
-  ],
-  () => {
-    resetDatastreamScroll()
-  }
-)
+watch([datastreamThingFilter, datastreamNameFilter], () => {
+  resetDatastreamScroll()
+})
 
 onMounted(() => {
   model.syncPipelineMappingDrafts()
@@ -282,31 +278,7 @@ function buildConnectorEntries(
   activeRow: PipelineMappingRow | null
 ): ConnectorEntry[] {
   const list: ConnectorEntry[] = []
-  const otherEntries: ConnectorEntry[] = []
   let pendingThingName = ""
-
-  if (activeRow?.selectedDatastream) {
-    list.push({
-      kind: "section",
-      key: "currently-mapped",
-      label: "Currently mapped",
-    })
-    if (activeRow.selectedDatastream.thing_name) {
-      list.push({
-        kind: "thing",
-        key: `current-thing-${activeRow.selectedDatastream.thing_id}`,
-        thingName: activeRow.selectedDatastream.thing_name,
-      })
-    }
-    list.push({
-      kind: "datastream",
-      key: `current-${activeRow.selectedDatastream.id}`,
-      datastream: activeRow.selectedDatastream,
-      mappedCsvColumn: activeRow.csvColumn,
-      disabled: false,
-      current: true,
-    })
-  }
 
   for (const entry of entries) {
     if (entry.kind === "thing") {
@@ -321,7 +293,7 @@ function buildConnectorEntries(
     const disabled = !isDatastreamAvailable(entry.datastream.id, entry.mappedCsvColumn)
 
     if (pendingThingName) {
-      otherEntries.push({
+      list.push({
         kind: "thing",
         key: `thing-${entry.datastream.thing_id}-${entry.datastream.id}`,
         thingName: pendingThingName,
@@ -329,7 +301,7 @@ function buildConnectorEntries(
       pendingThingName = ""
     }
 
-    otherEntries.push({
+    list.push({
       kind: "datastream",
       key: entry.key,
       datastream: entry.datastream,
@@ -339,16 +311,15 @@ function buildConnectorEntries(
     })
   }
 
-  if (list.length > 0 && otherEntries.length > 0) {
-    list.push({ kind: "divider", key: "connector-divider" })
-    list.push({
+  if (activeRow?.selectedDatastream && list.length > 0) {
+    list.unshift({
       kind: "section",
       key: "other-datastreams",
       label: "Other datastreams",
     })
   }
 
-  return [...list, ...otherEntries]
+  return list
 }
 
 function filterDatastreamEntries(
@@ -424,7 +395,9 @@ function selectMappingColumn(csvColumn: string): void {
 
 function connectDatastream(datastreamId: string): void {
   if (!activeMappingRow.value) return
-  model.updatePipelineMappingDatastream(activeMappingRow.value.csvColumn, datastreamId)
+  const csvColumn = activeMappingRow.value.csvColumn
+  model.updatePipelineMappingDatastream(csvColumn, datastreamId)
+  activeCsvColumn.value = ""
 }
 
 function datastreamTitle(datastream: DatastreamSummary): string {
@@ -647,8 +620,40 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
             class="mapping-connector-body mapping-datastream-scroll"
             @scroll="onDatastreamScroll"
           >
+            <div v-if="currentMappedDatastream" class="mapping-datastream-sticky">
+              <div class="mapping-connector-section">Currently mapped</div>
+              <div
+                v-if="currentMappedDatastream.thing_name"
+                class="mapping-thing-group"
+              >
+                {{ currentMappedDatastream.thing_name }}
+              </div>
+              <button
+                class="mapping-datastream-item mapping-connector-item-mapped mapping-datastream-item-current"
+                :style="mappingToneStyle(activeMappingRow?.csvColumn ?? null)"
+                type="button"
+                @click="connectDatastream(currentMappedDatastream.id)"
+              >
+                <span class="mapping-item-badge mapping-item-badge-filled">
+                  {{ mappingNumber(activeMappingRow?.csvColumn ?? null) }}
+                </span>
+                <span class="mapping-datastream-item-copy">
+                  <span class="mapping-datastream-item-name">
+                    {{ datastreamTitle(currentMappedDatastream) }}
+                  </span>
+                </span>
+                <span class="mapping-datastream-item-thing">
+                  {{ datastreamThing(currentMappedDatastream) }}
+                </span>
+              </button>
+            </div>
+
             <div v-if="connectorEntries.length === 0" class="mapping-filter-empty">
-              No datastreams match the current filters.
+              {{
+                currentMappedDatastream
+                  ? "No other datastreams match the current filters."
+                  : "No datastreams match the current filters."
+              }}
             </div>
             <div
               v-else
