@@ -134,6 +134,83 @@ test("loading more preview rows does not overwrite manual transformer fixes", as
   assert.equal(state.pipelinePreview?.raw_lines.length, 4)
 })
 
+test("loading a preview auto-detects an ISO timestamp column and timestamp settings", async () => {
+  globalThis.fetch = async () =>
+    jsonResponse(
+      createPreview({
+        raw_lines: [
+          "value,recorded_at,status",
+          "1.2,2024-01-01T00:00:00Z,ok",
+          "1.4,2024-01-02T00:00:00Z,ok",
+        ],
+        parsed_rows: [
+          ["value", "recorded_at", "status"],
+          ["1.2", "2024-01-01T00:00:00Z", "ok"],
+          ["1.4", "2024-01-02T00:00:00Z", "ok"],
+        ],
+        total_lines: 3,
+      })
+    )
+
+  await loadPipelinePreview("/tmp/iso-preview.csv")
+
+  assert.equal(state.pipelineForm.identifierType, "name")
+  assert.equal(state.pipelineForm.timestamp.key, "recorded_at")
+  assert.equal(state.pipelineForm.timestamp.format, "ISO8601")
+  assert.equal(state.pipelineForm.timestamp.timezoneMode, "embeddedOffset")
+})
+
+test("loading a preview auto-detects a custom timestamp format", async () => {
+  globalThis.fetch = async () =>
+    jsonResponse(
+      createPreview({
+        raw_lines: [
+          "timestamp,value",
+          "04/07/2026 13:45:00,1.2",
+          "04/07/2026 13:50:00,1.3",
+        ],
+        parsed_rows: [
+          ["timestamp", "value"],
+          ["04/07/2026 13:45:00", "1.2"],
+          ["04/07/2026 13:50:00", "1.3"],
+        ],
+        total_lines: 3,
+      })
+    )
+
+  await loadPipelinePreview("/tmp/custom-preview.csv")
+
+  assert.equal(state.pipelineForm.timestamp.key, "timestamp")
+  assert.equal(state.pipelineForm.timestamp.format, "custom")
+  assert.equal(state.pipelineForm.timestamp.customFormat, "%m/%d/%Y %H:%M:%S")
+  assert.equal(state.pipelineForm.timestamp.timezoneMode, "utc")
+})
+
+test("loading a preview falls back to the first column when no timestamp column is detectable", async () => {
+  globalThis.fetch = async () =>
+    jsonResponse(
+      createPreview({
+        raw_lines: [
+          "sensor,value,status",
+          "alpha,1.2,ok",
+          "beta,1.4,ok",
+        ],
+        parsed_rows: [
+          ["sensor", "value", "status"],
+          ["alpha", "1.2", "ok"],
+          ["beta", "1.4", "ok"],
+        ],
+        total_lines: 3,
+      })
+    )
+
+  await loadPipelinePreview("/tmp/fallback-preview.csv")
+
+  assert.equal(state.pipelineForm.timestamp.key, "sensor")
+  assert.equal(state.pipelineForm.timestamp.format, "ISO8601")
+  assert.equal(state.pipelineForm.timestamp.timezoneMode, "embeddedOffset")
+})
+
 test("custom timestamp formats default to UTC timezone handling", () => {
   assert.equal(state.pipelineForm.timestamp.format, "ISO8601")
   assert.equal(state.pipelineForm.timestamp.timezoneMode, "embeddedOffset")

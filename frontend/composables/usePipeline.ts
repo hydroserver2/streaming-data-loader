@@ -1,6 +1,10 @@
 import { computed } from "vue"
 
-import type { CsvTransformerSettings } from "../api"
+import type {
+  CsvPreviewResponse,
+  CsvTransformerSettings,
+  CsvTransformerTimestampSettings,
+} from "../api"
 import { getCsvPreview } from "../api"
 import {
   type PipelineFieldName,
@@ -14,6 +18,68 @@ import {
   type PipelineIdentifierType,
 } from "./state"
 import type { TimezoneMode, TimestampFormat } from "../models/timestamp"
+
+type DetectedTimestampPattern = Pick<
+  CsvTransformerTimestampSettings,
+  "format" | "customFormat" | "timezoneMode"
+>
+
+type TimestampPatternDefinition = {
+  format: TimestampFormat
+  timezoneMode: TimezoneMode
+  customFormat?: string
+  pattern: RegExp
+}
+
+const TIMESTAMP_PATTERNS: TimestampPatternDefinition[] = [
+  {
+    format: "ISO8601",
+    timezoneMode: "embeddedOffset",
+    pattern:
+      /^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?(?:Z|[+-]\d{2}:\d{2}|[+-]\d{4})$/i,
+  },
+  {
+    format: "naive",
+    timezoneMode: "utc",
+    pattern: /^\d{4}-\d{2}-\d{2}(?:[ T]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,6})?)?)?$/,
+  },
+  {
+    format: "custom",
+    customFormat: "%m/%d/%Y %H:%M:%S",
+    timezoneMode: "utc",
+    pattern: /^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}:\d{2}$/,
+  },
+  {
+    format: "custom",
+    customFormat: "%m/%d/%Y %H:%M",
+    timezoneMode: "utc",
+    pattern: /^\d{1,2}\/\d{1,2}\/\d{4}\s+\d{1,2}:\d{2}$/,
+  },
+  {
+    format: "custom",
+    customFormat: "%Y/%m/%d %H:%M:%S",
+    timezoneMode: "utc",
+    pattern: /^\d{4}\/\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{2}:\d{2}$/,
+  },
+  {
+    format: "custom",
+    customFormat: "%Y/%m/%d %H:%M",
+    timezoneMode: "utc",
+    pattern: /^\d{4}\/\d{1,2}\/\d{1,2}\s+\d{1,2}:\d{2}$/,
+  },
+  {
+    format: "custom",
+    customFormat: "%m/%d/%Y",
+    timezoneMode: "utc",
+    pattern: /^\d{1,2}\/\d{1,2}\/\d{4}$/,
+  },
+  {
+    format: "custom",
+    customFormat: "%Y/%m/%d",
+    timezoneMode: "utc",
+    pattern: /^\d{4}\/\d{1,2}\/\d{1,2}$/,
+  },
+]
 
 function parseDelimitedLine(line: string, delimiter: string): string[] {
   if (!delimiter) return [line]
@@ -54,9 +120,112 @@ function normalizeHeaderName(value: string, index: number): string {
 
 function preferredTimestampColumnIndex(headers: string[]): number {
   const preferredIndex = headers.findIndex((header) =>
-    header.toLowerCase().includes("time")
+    /(time|date|stamp)/i.test(header)
   )
   return preferredIndex >= 0 ? preferredIndex : 0
+}
+
+function previewHeadersForDetection(
+  preview: CsvPreviewResponse,
+  hasHeaderRow: boolean
+): string[] {
+  const rows = preview.parsed_rows
+  const columnCount = rows.reduce((max, row) => Math.max(max, row.length), 0)
+
+  if (!hasHeaderRow) {
+    return Array.from({ length: columnCount }, (_, index) => `Column ${index + 1}`)
+  }
+
+  const headerIndex = Math.max((preview.detected_header_row ?? 1) - 1, 0)
+  const headerRow = rows[headerIndex] ?? []
+
+  return Array.from({ length: columnCount }, (_, index) =>
+    normalizeHeaderName(headerRow[index] ?? "", index)
+  )
+}
+
+function detectTimestampPattern(value: string): DetectedTimestampPattern | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  const matched = TIMESTAMP_PATTERNS.find(({ pattern }) => pattern.test(trimmed))
+  if (!matched) return null
+
+  return {
+    format: matched.format,
+    customFormat: matched.customFormat,
+    timezoneMode: matched.timezoneMode,
+  }
+}
+
+function detectTimestampColumn(
+  preview: CsvPreviewResponse,
+  hasHeaderRow: boolean
+): { columnIndex: number; pattern: DetectedTimestampPattern | null } {
+  const headers = previewHeadersForDetection(preview, hasHeaderRow)
+  const dataStartRow = Math.max(
+    (preview.detected_data_start_row ?? (hasHeaderRow ? 2 : 1)) - 1,
+    0
+  )
+  const sampleRows = preview.parsed_rows
+    .slice(dataStartRow)
+    .filter((row) => row.some((value) => value.trim() !== ""))
+    .slice(0, 12)
+
+  if (headers.length === 0 || sampleRows.length === 0) {
+    return { columnIndex: 0, pattern: null }
+  }
+
+  let bestMatch: {
+    columnIndex: number
+    score: number
+    ratio: number
+    pattern: DetectedTimestampPattern | null
+  } | null = null
+
+  for (let columnIndex = 0; columnIndex < headers.length; columnIndex++) {
+    const values = sampleRows
+      .map((row) => row[columnIndex]?.trim() ?? "")
+      .filter(Boolean)
+
+    if (values.length === 0) continue
+
+    const detectedPatterns = values
+      .map((value) => detectTimestampPattern(value))
+      .filter((pattern): pattern is DetectedTimestampPattern => pattern !== null)
+
+    const ratio = detectedPatterns.length / values.length
+    const headerBonus = /(time|date|stamp)/i.test(headers[columnIndex] ?? "") ? 0.15 : 0
+
+    const patternCounts = new Map<string, { count: number; pattern: DetectedTimestampPattern }>()
+    for (const pattern of detectedPatterns) {
+      const key = `${pattern.format}|${pattern.customFormat ?? ""}|${pattern.timezoneMode}`
+      const current = patternCounts.get(key)
+      patternCounts.set(key, {
+        count: (current?.count ?? 0) + 1,
+        pattern,
+      })
+    }
+
+    const dominantPattern = Array.from(patternCounts.values()).sort(
+      (left, right) => right.count - left.count
+    )[0]?.pattern ?? null
+
+    const score = ratio + headerBonus
+    if (
+      bestMatch === null ||
+      score > bestMatch.score ||
+      (score === bestMatch.score && columnIndex < bestMatch.columnIndex)
+    ) {
+      bestMatch = { columnIndex, score, ratio, pattern: dominantPattern }
+    }
+  }
+
+  if (!bestMatch || bestMatch.ratio < 0.6) {
+    return { columnIndex: 0, pattern: null }
+  }
+
+  return { columnIndex: bestMatch.columnIndex, pattern: bestMatch.pattern }
 }
 
 function resolveTimestampColumnName(
@@ -340,6 +509,15 @@ function syncTimestampTimezone(mode: TimezoneMode): void {
   }
 }
 
+function applyDetectedTimestampPattern(pattern: DetectedTimestampPattern | null): void {
+  if (!pattern) return
+
+  syncTimestampFormat(pattern.format)
+  if (pattern.format === "custom" && pattern.customFormat) {
+    state.pipelineForm.timestamp.customFormat = pattern.customFormat
+  }
+}
+
 export function updatePipelineField(name: string, value: string): void {
   invalidateValidatedPipeline()
 
@@ -436,6 +614,19 @@ export async function loadPipelinePreview(
       state.pipelineForm.identifierType = state.pipelineForm.hasHeaderRow
         ? "name"
         : "index"
+
+      const detectedTimestamp = detectTimestampColumn(
+        preview,
+        state.pipelineForm.hasHeaderRow
+      )
+      state.pipelineForm.timestamp.key =
+        state.pipelineForm.identifierType === "index"
+          ? String(detectedTimestamp.columnIndex + 1)
+          : previewHeadersForDetection(
+              preview,
+              state.pipelineForm.hasHeaderRow
+            )[detectedTimestamp.columnIndex] ?? "Column 1"
+      applyDetectedTimestampPattern(detectedTimestamp.pattern)
     }
 
     state.pipelineSelectionTarget = null
