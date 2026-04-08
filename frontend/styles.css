@@ -142,6 +142,18 @@
     @apply flex flex-col gap-5 md:flex-row md:items-end md:justify-between;
   }
 
+  .wizard-header {
+    @apply sticky top-0 z-30 -mx-2 mb-1 rounded-2xl px-2 py-3 md:items-start;
+  }
+
+  .wizard-title-block {
+    @apply min-w-0 flex-1;
+  }
+
+  .wizard-actions {
+    @apply pt-0 md:justify-end;
+  }
+
   .page-title {
     @apply text-3xl font-semibold tracking-tight text-slate-900;
   }
@@ -420,6 +432,12 @@
 
   .onboarding-shell .page-title {
     @apply text-slate-50;
+  }
+
+  .onboarding-shell .wizard-header {
+    background: rgb(47 49 51 / 0.92);
+    box-shadow: 0 8px 24px -20px rgb(0 0 0 / 0.7);
+    backdrop-filter: blur(14px);
   }
 
   .onboarding-shell .page-copy {

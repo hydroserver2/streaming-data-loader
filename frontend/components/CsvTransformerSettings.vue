@@ -348,11 +348,6 @@ function updateTimezoneMode(event: Event): void {
         </label>
       </div>
 
-      <div class="button-row button-row-end">
-        <button class="btn-primary" type="button" @click="model.submitPipelineConfig()">
-          Validate and Continue
-        </button>
-      </div>
     </article>
   </section>
 </template>
