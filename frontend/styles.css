@@ -554,20 +554,28 @@
     color: #aba69e;
   }
 
+  .onboarding-shell .mapping-connector-header-count {
+    color: #e8e3db;
+  }
+
+  .onboarding-shell .mapping-connector-footer b {
+    color: #d5d1cb;
+  }
+
   .onboarding-shell .mapping-column-item,
   .onboarding-shell .mapping-datastream-item {
-    border-color: rgb(255 255 255 / 0.08);
-    background: #252628;
+    border-color: transparent;
+    background: transparent;
   }
 
   .onboarding-shell .mapping-column-item:hover,
   .onboarding-shell .mapping-datastream-item:hover {
-    border-color: rgb(255 255 255 / 0.12);
+    border-color: rgb(255 255 255 / 0.1);
     background: #2a2b2d;
   }
 
   .onboarding-shell .mapping-column-item-selected {
-    border-color: rgb(255 255 255 / 0.14);
+    border-color: rgb(255 255 255 / 0.12);
     background: #2b2c2f;
   }
 
@@ -582,7 +590,7 @@
   }
 
   .onboarding-shell .mapping-column-item-target {
-    color: #d5d1cb;
+    color: #aba69e;
   }
 
   .onboarding-shell .mapping-connector-item-mapped {
@@ -894,7 +902,7 @@
   }
 
   .mapping-connector-shell {
-    @apply grid overflow-hidden rounded-[2rem] border border-slate-200 bg-transparent lg:grid-cols-2;
+    @apply grid overflow-hidden rounded-xl border border-slate-200 bg-transparent lg:grid-cols-2;
     height: calc(100vh - 13.5rem);
     min-height: 34rem;
   }
@@ -908,7 +916,7 @@
   }
 
   .mapping-connector-header {
-    @apply border-b border-slate-200 px-6 py-4;
+    @apply border-b border-slate-200 px-3.5 py-2.5;
   }
 
   .mapping-connector-header-row {
@@ -916,23 +924,23 @@
   }
 
   .mapping-connector-title {
-    @apply text-[0.82rem] font-semibold uppercase tracking-[0.22em] text-slate-500;
+    @apply text-[0.6875rem] font-medium uppercase tracking-[0.06em] text-slate-500;
   }
 
   .mapping-connector-header-meta {
-    @apply flex items-center gap-1.5 text-[1rem] font-medium text-slate-500;
+    @apply flex items-center gap-1 text-[0.6875rem] font-medium text-slate-500;
   }
 
   .mapping-connector-header-count {
-    @apply text-slate-100;
+    @apply font-semibold text-slate-800;
   }
 
   .mapping-connector-body {
-    @apply min-h-0 overflow-hidden px-4 py-4;
+    @apply min-h-0 overflow-hidden px-2 py-2;
   }
 
   .mapping-column-scroll {
-    @apply flex h-full flex-col gap-2.5 overflow-auto pr-1;
+    @apply flex h-full flex-col overflow-auto pr-1;
   }
 
   .mapping-datastream-scroll {
@@ -940,21 +948,25 @@
   }
 
   .mapping-connector-footer {
-    @apply border-t border-slate-200 px-6 py-3 text-xs font-medium text-slate-500;
+    @apply flex min-h-[38px] items-center border-t border-slate-200 px-3.5 py-2.5 text-[0.75rem] text-slate-500;
+  }
+
+  .mapping-connector-footer b {
+    @apply font-medium text-slate-700;
   }
 
   .mapping-column-item,
   .mapping-datastream-item {
-    @apply flex w-full items-center gap-3 rounded-[1.35rem] border border-slate-200 bg-slate-50/40 px-3.5 py-2.5 text-left transition-colors;
+    @apply mb-1 flex w-full items-center gap-2.5 rounded-lg border border-transparent px-2.5 py-2 text-left transition-colors;
   }
 
   .mapping-column-item:hover,
   .mapping-datastream-item:hover {
-    @apply border-slate-300 bg-slate-50/50;
+    @apply border-slate-200 bg-slate-50;
   }
 
   .mapping-column-item-selected {
-    @apply border-slate-400 bg-slate-100/60;
+    @apply border-slate-300 bg-slate-100/70;
   }
 
   .mapping-column-item-copy {
@@ -963,21 +975,24 @@
 
   .mapping-column-item-name,
   .mapping-datastream-item-name {
-    @apply truncate text-[1.05rem] font-semibold leading-tight text-slate-900;
+    @apply truncate text-[0.8125rem] font-medium leading-tight text-slate-900;
   }
 
   .mapping-column-item-target {
-    @apply inline-flex shrink-0 items-center gap-1.5 text-[0.95rem] font-medium text-slate-600;
+    @apply inline-flex shrink-0 items-center gap-1 text-[0.6875rem] text-slate-500;
   }
 
   .mapping-item-badge {
-    @apply inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-transparent text-xs font-semibold text-slate-500;
+    @apply inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-slate-300 bg-transparent text-[0.625rem] font-bold text-slate-500;
+    font-variant-numeric: tabular-nums;
   }
 
   .mapping-item-badge-filled {
     background-color: var(--mapping-badge);
     border-color: var(--mapping-badge);
-    color: var(--mapping-badge-text);
+    color: #ffffff;
+    font-weight: 800;
+    text-shadow: 0 1px 0 rgb(0 0 0 / 0.12);
   }
 
   .mapping-connector-item-mapped {
@@ -1011,19 +1026,19 @@
   }
 
   .mapping-datastream-item-thing {
-    @apply shrink-0 text-[0.95rem] font-medium text-slate-500;
+    @apply shrink-0 text-[0.6875rem] text-slate-500;
   }
 
   .mapping-connector-section {
-    @apply px-1 py-1.5 text-sm font-medium text-slate-500;
+    @apply px-2.5 py-1 text-[0.6875rem] font-medium text-slate-500;
   }
 
   .mapping-connector-divider {
-    @apply mx-1 h-px bg-slate-200;
+    @apply mx-2.5 mt-1.5 h-px bg-slate-200;
   }
 
   .mapping-thing-group {
-    @apply px-1 py-1 text-[1rem] font-medium text-slate-500;
+    @apply px-2.5 py-1 text-[0.6875rem] font-medium text-slate-500;
   }
 
   .preview-card {

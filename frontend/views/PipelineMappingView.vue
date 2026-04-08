@@ -127,10 +127,32 @@ const sourceOrderByColumn = computed(
   () => new Map(mappingRows.value.map((row, index) => [row.csvColumn, index]))
 )
 
+const leftPanelHint = computed(() => {
+  if (!activeMappingRow.value) {
+    return mappedColumnCount.value > 0
+      ? "Select a column to review or change its mapping."
+      : "Select a column to begin mapping."
+  }
+  const col = activeMappingRow.value
+  if (col.datastreamId && col.selectedDatastream) {
+    const dsName = datastreamTitle(col.selectedDatastream)
+    return `<b>${col.label}</b> mapped to <b>${dsName}</b> — click to remap, or click the mapping again to remove.`
+  }
+  return `<b>${col.label}</b> selected — now click a datastream on the right.`
+})
+
 const rightPanelHint = computed(() => {
-  if (!activeMappingRow.value) return "Select a column to begin"
-  if (activeMappingRow.value.datastreamId) return "Click again to unmap"
-  return "Now click a datastream"
+  if (!activeMappingRow.value) {
+    return mappedColumnCount.value > 0
+      ? "Mapped datastreams shown with color badges."
+      : "Choose a column first."
+  }
+  const col = activeMappingRow.value
+  if (col.datastreamId && col.selectedDatastream) {
+    const dsName = datastreamTitle(col.selectedDatastream)
+    return `Click <b>${dsName}</b> again to unmap, or choose a different datastream.`
+  }
+  return `Showing all datastreams. Click one to connect it to <b>${col.label}</b>.`
 })
 
 const connectorEntries = computed<ConnectorEntry[]>(() =>
@@ -472,9 +494,7 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
             </div>
           </div>
 
-          <footer class="mapping-connector-footer">
-            {{ mappedColumnCount }} of {{ mappingRows.length }} mapped
-          </footer>
+          <footer class="mapping-connector-footer" v-html="leftPanelHint" />
         </section>
 
         <section class="mapping-connector-panel">
@@ -546,9 +566,7 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
             </div>
           </div>
 
-          <footer class="mapping-connector-footer">
-            {{ rightPanelHint }}
-          </footer>
+          <footer class="mapping-connector-footer" v-html="rightPanelHint" />
         </section>
       </div>
     </article>
