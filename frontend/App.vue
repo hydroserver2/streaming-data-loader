@@ -2,6 +2,7 @@
 import { onMounted } from "vue"
 
 import PipelineEditorView from "./views/PipelineEditorView.vue"
+import PipelineMappingView from "./views/PipelineMappingView.vue"
 import WelcomeView from "./views/WelcomeView.vue"
 import { useAppModel } from "./composables/useAppModel"
 
@@ -36,6 +37,7 @@ onMounted(() => {
     </section>
 
     <WelcomeView v-else-if="model.state.route === 'welcome'" />
+    <PipelineMappingView v-else-if="model.state.route === 'jobs-new-mapping'" />
     <PipelineEditorView v-else />
   </main>
 </template>

@@ -30,19 +30,34 @@ function syncRouteState(): void {
         navigate("welcome")
         route = "welcome"
       }
-    } else if (route !== "jobs-new") {
-      navigate("jobs-new")
-      route = "jobs-new"
+    } else {
+      if (route === "jobs-new-mapping" && !state.pipelineReadyForMapping) {
+        navigate("jobs-new")
+        route = "jobs-new"
+      } else if (route !== "jobs-new" && route !== "jobs-new-mapping") {
+        navigate("jobs-new")
+        route = "jobs-new"
+      }
     }
   }
 
   state.route = route
 }
 
-watch([isConnected, () => state.loading], syncRouteState)
+watch(
+  [isConnected, () => state.loading, () => state.pipelineReadyForMapping],
+  syncRouteState
+)
 
 export const useWelcomeSurface = computed(
-  () => Boolean(state.loading || state.bootstrapError || state.route === "welcome" || state.route === "jobs-new")
+  () =>
+    Boolean(
+      state.loading ||
+        state.bootstrapError ||
+        state.route === "welcome" ||
+        state.route === "jobs-new" ||
+        state.route === "jobs-new-mapping"
+    )
 )
 
 const STARTUP_RETRY_ATTEMPTS = 12
@@ -125,6 +140,7 @@ import {
 
 import {
   buildPipelineTransformerSettings,
+  submitPipelineConfig,
   parsedPreviewRows,
   previewHeaders,
   selectedPreviewTimestampColumn,
@@ -152,6 +168,7 @@ const model = {
   previewHeaders,
   selectedPreviewTimestampColumn,
   buildPipelineTransformerSettings,
+  submitPipelineConfig,
   canShowMorePreviewLines,
   init,
   bootstrap,

@@ -1,4 +1,4 @@
-export type AppRoute = "welcome" | "jobs-new"
+export type AppRoute = "welcome" | "jobs-new" | "jobs-new-mapping"
 
 const DEFAULT_ROUTE: AppRoute = "welcome"
 
@@ -11,6 +11,8 @@ export function getRouteFromHash(hash = currentHash()): AppRoute {
   const normalized = hash.replace(/^#/, "").trim()
 
   switch (normalized) {
+    case "jobs/new/mapping":
+      return "jobs-new-mapping"
     case "jobs/new":
       return "jobs-new"
     case "welcome":
@@ -23,6 +25,8 @@ export function getRouteFromHash(hash = currentHash()): AppRoute {
 
 export function routeHref(route: AppRoute): string {
   switch (route) {
+    case "jobs-new-mapping":
+      return "#jobs/new/mapping"
     case "jobs-new":
       return "#jobs/new"
     case "welcome":

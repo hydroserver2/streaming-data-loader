@@ -6,12 +6,17 @@ import {
   type Feedback,
   type FieldValidationState,
 } from "../auth-submit";
+import {
+  createPipelineFieldStates,
+  type PipelineFieldStates,
+} from "../pipeline-submit";
 import { getRouteFromHash, type AppRoute } from "../router";
 import type {
   AppConfig,
   ConnectionState,
   ConnectionTestResponse,
   CsvPreviewResponse,
+  CsvTransformerSettings,
   CsvTransformerTimestampSettings,
   HealthResponse,
   ServerConfig,
@@ -55,9 +60,13 @@ type UiState = {
   pipelinePreview: CsvPreviewResponse | null;
   authDraft: ServerConfig;
   authFieldStates: Record<AuthFieldName, FieldValidationState>;
+  pipelineFieldStates: PipelineFieldStates;
   authSubmitting: boolean;
   pipelineSelectionTarget: PreviewSelectionTarget;
   pipelinePreviewRowsRequested: number;
+  pipelineValidationAttempted: boolean;
+  pipelineReadyForMapping: boolean;
+  validatedPipelineSettings: CsvTransformerSettings | null;
 };
 
 export const PREVIEW_PAGE_SIZE = 20;
@@ -107,7 +116,11 @@ export const state = reactive<UiState>({
   pipelinePreview: null,
   authDraft: emptyServerConfig(),
   authFieldStates: createAuthFieldStates(),
+  pipelineFieldStates: createPipelineFieldStates(),
   authSubmitting: false,
   pipelineSelectionTarget: null,
   pipelinePreviewRowsRequested: PREVIEW_PAGE_SIZE,
+  pipelineValidationAttempted: false,
+  pipelineReadyForMapping: false,
+  validatedPipelineSettings: null,
 });

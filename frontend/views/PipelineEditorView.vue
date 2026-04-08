@@ -1,9 +1,16 @@
 <script setup lang="ts">
+import type { PipelineFieldName } from "../pipeline-submit";
+
 import CsvPreview from "../components/CsvPreview.vue";
 import FeedbackBanner from "../components/FeedbackBanner.vue";
 import { useAppModel } from "../composables/useAppModel";
 
 const model = useAppModel();
+
+function fieldError(field: PipelineFieldName): string | null {
+  const state = model.state.pipelineFieldStates[field];
+  return state.state === "invalid" ? state.message : null;
+}
 </script>
 
 <template>
@@ -37,6 +44,9 @@ const model = useAppModel();
           Select a CSV file from your system to load a preview and start
           configuring this data source.
         </span>
+        <p v-if="fieldError('file_path')" class="field-error">
+          {{ fieldError("file_path") }}
+        </p>
       </label>
 
       <div class="button-row">

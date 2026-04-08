@@ -3,6 +3,7 @@ import { computed } from "vue"
 
 import { useAppModel } from "../composables/useAppModel"
 import type { PipelineIdentifierType } from "../composables/state"
+import type { PipelineFieldName } from "../pipeline-submit"
 import {
   DST_AWARE_TIMEZONES,
   FIXED_OFFSET_TIMEZONES,
@@ -77,6 +78,11 @@ const timezoneOptions = computed(() =>
     ? FIXED_OFFSET_TIMEZONES
     : DST_AWARE_TIMEZONES
 )
+
+function fieldError(field: PipelineFieldName): string | null {
+  const state = model.state.pipelineFieldStates[field]
+  return state.state === "invalid" ? state.message : null
+}
 
 function updateIdentifierType(event: Event): void {
   model.setPipelineIdentifierType(
@@ -181,6 +187,9 @@ function updateTimezoneMode(event: Event): void {
           <span class="field-hint">
             Pick the 1-based line that contains the column names.
           </span>
+          <p v-if="fieldError('header_row')" class="field-error">
+            {{ fieldError("header_row") }}
+          </p>
         </label>
 
         <label class="field">
@@ -201,6 +210,9 @@ function updateTimezoneMode(event: Event): void {
           <span class="field-hint">
             Pick the 1-based line where observation values begin.
           </span>
+          <p v-if="fieldError('data_start_row')" class="field-error">
+            {{ fieldError("data_start_row") }}
+          </p>
         </label>
       </div>
     </article>
@@ -238,6 +250,9 @@ function updateTimezoneMode(event: Event): void {
             </option>
           </select>
           <span class="field-hint">{{ timestampKeyHint }}</span>
+          <p v-if="fieldError('timestamp_key')" class="field-error">
+            {{ fieldError("timestamp_key") }}
+          </p>
         </label>
 
         <label class="field">
@@ -287,6 +302,9 @@ function updateTimezoneMode(event: Event): void {
           <span class="field-hint">
             Example: <code>%Y-%m-%d %H:%M:%S</code>
           </span>
+          <p v-if="fieldError('custom_timestamp_format')" class="field-error">
+            {{ fieldError("custom_timestamp_format") }}
+          </p>
         </label>
 
         <label
@@ -338,7 +356,16 @@ function updateTimezoneMode(event: Event): void {
             </option>
           </select>
           <span class="field-hint">{{ timezoneValueHint }}</span>
+          <p v-if="fieldError('timezone')" class="field-error">
+            {{ fieldError("timezone") }}
+          </p>
         </label>
+      </div>
+
+      <div class="button-row button-row-end">
+        <button class="btn-primary" type="button" @click="model.submitPipelineConfig()">
+          Validate and Continue
+        </button>
       </div>
     </article>
   </section>

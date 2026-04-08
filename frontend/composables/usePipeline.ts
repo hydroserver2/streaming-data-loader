@@ -3,6 +3,12 @@ import { computed } from "vue"
 import type { CsvTransformerSettings } from "../api"
 import { getCsvPreview } from "../api"
 import {
+  type PipelineFieldName,
+  resetPipelineFieldStates,
+  validatePipelineFieldsForSubmit,
+} from "../pipeline-submit"
+import { navigate } from "../router"
+import {
   PREVIEW_PAGE_SIZE,
   state,
   type PipelineIdentifierType,
@@ -109,6 +115,42 @@ export const selectedPreviewTimestampColumn = computed(() =>
   )
 )
 
+function markPipelineField(
+  field: PipelineFieldName,
+  nextState: "idle" | "checking" | "valid" | "invalid",
+  message?: string | null
+): void {
+  state.pipelineFieldStates[field] = {
+    state: nextState,
+    message: message ?? null,
+  }
+}
+
+function invalidateValidatedPipeline(): void {
+  state.pipelineReadyForMapping = false
+  state.validatedPipelineSettings = null
+}
+
+function validatePipelineForm(): boolean {
+  resetPipelineFieldStates(state.pipelineFieldStates)
+
+  return validatePipelineFieldsForSubmit({
+    form: state.pipelineForm,
+    hasPreview: state.pipelinePreview !== null,
+    previewHeaders: previewHeaders.value,
+    markField: markPipelineField,
+  })
+}
+
+function refreshPipelineValidation(): void {
+  if (!state.pipelineValidationAttempted) return
+
+  const valid = validatePipelineForm()
+  if (valid) {
+    state.pipelineFeedback = null
+  }
+}
+
 function syncSelectionsWithPreview(): void {
   const headers = previewHeaders.value
   if (headers.length === 0) return
@@ -143,15 +185,18 @@ export function canShowMorePreviewLines(): boolean {
 }
 
 export function updateHeaderRowFromPreview(lineNumber: number): void {
+  invalidateValidatedPipeline()
   state.pipelineForm.hasHeaderRow = true
   state.pipelineForm.headerRow = lineNumber
   if (state.pipelineForm.dataStartRow <= lineNumber) {
     state.pipelineForm.dataStartRow = lineNumber + 1
   }
   syncSelectionsWithPreview()
+  refreshPipelineValidation()
 }
 
 export function updateDataStartRowFromPreview(lineNumber: number): void {
+  invalidateValidatedPipeline()
   state.pipelineForm.dataStartRow = Math.max(
     state.pipelineForm.hasHeaderRow ? 2 : 1,
     lineNumber
@@ -163,6 +208,7 @@ export function updateDataStartRowFromPreview(lineNumber: number): void {
     state.pipelineForm.headerRow = state.pipelineForm.dataStartRow - 1
   }
   syncSelectionsWithPreview()
+  refreshPipelineValidation()
 }
 
 export function applyPreviewLineSelection(lineNumber: number): void {
@@ -183,14 +229,17 @@ export function applyPreviewColumnSelection(columnName: string): void {
     return
   }
 
+  invalidateValidatedPipeline()
   state.pipelineForm.timestamp.key =
     state.pipelineForm.identifierType === "index"
       ? String(previewHeaders.value.indexOf(columnName) + 1)
       : columnName
   state.pipelineSelectionTarget = null
+  refreshPipelineValidation()
 }
 
 export function setPipelineHasHeaderRow(enabled: boolean): void {
+  invalidateValidatedPipeline()
   const headersBeforeToggle = previewHeaders.value
   const currentVisibleTimestampColumn = resolveTimestampColumnName(
     headersBeforeToggle,
@@ -223,10 +272,12 @@ export function setPipelineHasHeaderRow(enabled: boolean): void {
   }
 
   syncSelectionsWithPreview()
+  refreshPipelineValidation()
 }
 
 export function setPipelineIdentifierType(identifierType: PipelineIdentifierType): void {
   state.pipelineFeedback = null
+  invalidateValidatedPipeline()
 
   if (!state.pipelineForm.hasHeaderRow && identifierType === "name") {
     return
@@ -244,6 +295,7 @@ export function setPipelineIdentifierType(identifierType: PipelineIdentifierType
   if (headers.length === 0) {
     state.pipelineForm.timestamp.key =
       identifierType === "index" ? "1" : "timestamp"
+    refreshPipelineValidation()
     return
   }
 
@@ -257,6 +309,8 @@ export function setPipelineIdentifierType(identifierType: PipelineIdentifierType
     state.pipelineForm.timestamp.key =
       currentVisibleTimestampColumn || headers[preferredTimestampColumnIndex(headers)]
   }
+
+  refreshPipelineValidation()
 }
 
 function syncTimestampFormat(format: TimestampFormat): void {
@@ -291,6 +345,7 @@ function syncTimestampTimezone(mode: TimezoneMode): void {
 
 export function updatePipelineField(name: string, value: string): void {
   state.pipelineFeedback = null
+  invalidateValidatedPipeline()
 
   switch (name) {
     case "file_path":
@@ -352,12 +407,16 @@ export function updatePipelineField(name: string, value: string): void {
       state.pipelineForm.timestamp.timezone = value
       break
   }
+
+  refreshPipelineValidation()
 }
 
 export async function loadPipelinePreview(
   path: string,
   rows = PREVIEW_PAGE_SIZE
 ): Promise<void> {
+  invalidateValidatedPipeline()
+
   if (!path.trim()) {
     state.pipelineFeedback = {
       tone: "error",
@@ -391,6 +450,7 @@ export async function loadPipelinePreview(
     syncSelectionsWithPreview()
     state.pipelinePreviewRowsRequested = rows
     state.pipelineFeedback = null
+    refreshPipelineValidation()
   } catch (error) {
     state.pipelinePreview = null
     state.pipelineSelectionTarget = null
@@ -402,6 +462,7 @@ export async function loadPipelinePreview(
           ? error.message
           : "Couldn't preview that CSV file.",
     }
+    refreshPipelineValidation()
   }
 }
 
@@ -435,6 +496,30 @@ export async function browseForCsvPath(): Promise<void> {
         "The native file picker is only available in the desktop app. Enter the CSV path manually.",
     }
   }
+}
+
+export function submitPipelineConfig(): void {
+  state.pipelineValidationAttempted = true
+
+  const valid = validatePipelineForm()
+  if (!valid) {
+    invalidateValidatedPipeline()
+    state.pipelineFeedback = {
+      tone: "error",
+      message:
+        "Fix the highlighted CSV settings before continuing to mapping.",
+    }
+    return
+  }
+
+  state.validatedPipelineSettings = buildPipelineTransformerSettings()
+  state.pipelineReadyForMapping = true
+  state.pipelineFeedback = {
+    tone: "success",
+    message:
+      "CSV settings validated. Continue mapping source columns to datastreams.",
+  }
+  navigate("jobs-new-mapping")
 }
 
 export function buildPipelineTransformerSettings() {

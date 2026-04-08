@@ -9,6 +9,7 @@ import {
   selectedPreviewTimestampColumn,
   setPipelineHasHeaderRow,
   showMorePreviewLines,
+  submitPipelineConfig,
   updatePipelineField,
 } from "./composables/usePipeline"
 import {
@@ -16,6 +17,7 @@ import {
   PREVIEW_PAGE_SIZE,
   state,
 } from "./composables/state"
+import { createPipelineFieldStates } from "./pipeline-submit"
 
 const originalFetch = globalThis.fetch
 
@@ -53,6 +55,10 @@ function resetPipelineState(): void {
   state.pipelineFeedback = null
   state.pipelineSelectionTarget = null
   state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE
+  state.pipelineFieldStates = createPipelineFieldStates()
+  state.pipelineValidationAttempted = false
+  state.pipelineReadyForMapping = false
+  state.validatedPipelineSettings = null
 }
 
 test.beforeEach(() => {
@@ -205,4 +211,47 @@ test("serializing index mode clears headerRow so hydroserverpy skips file header
       timezoneMode: "embeddedOffset",
     },
   })
+})
+
+test("submitPipelineConfig marks the transformer as ready for mapping when validation passes", () => {
+  state.pipelinePreview = createPreview()
+  state.pipelineForm.filePath = "/tmp/preview.csv"
+  state.pipelineForm.hasHeaderRow = true
+  state.pipelineForm.headerRow = 1
+  state.pipelineForm.dataStartRow = 2
+  state.pipelineForm.identifierType = "name"
+  state.pipelineForm.timestamp.key = "recorded_at"
+
+  submitPipelineConfig()
+
+  assert.equal(state.pipelineReadyForMapping, true)
+  assert.deepEqual(state.validatedPipelineSettings, {
+    headerRow: 1,
+    dataStartRow: 2,
+    delimiter: ",",
+    identifierType: "name",
+    timestamp: {
+      key: "recorded_at",
+      format: "ISO8601",
+      timezoneMode: "embeddedOffset",
+    },
+  })
+  assert.equal(state.pipelineFeedback?.tone, "success")
+})
+
+test("changing the form after a submit attempt revalidates and clears mapping readiness", () => {
+  state.pipelinePreview = createPreview()
+  state.pipelineForm.filePath = "/tmp/preview.csv"
+  state.pipelineForm.timestamp.key = "recorded_at"
+
+  submitPipelineConfig()
+  updatePipelineField("timestamp_format", "custom")
+  updatePipelineField("custom_timestamp_format", "")
+
+  assert.equal(state.pipelineReadyForMapping, false)
+  assert.equal(state.validatedPipelineSettings, null)
+  assert.equal(
+    state.pipelineFieldStates.custom_timestamp_format.state,
+    "invalid"
+  )
 })
