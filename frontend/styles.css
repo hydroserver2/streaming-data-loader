@@ -479,6 +479,14 @@
     @apply pt-36 md:pt-32;
   }
 
+  .pipeline-editor-shell.page-shell {
+    @apply pt-28 md:pt-24;
+  }
+
+  .pipeline-editor-shell .wizard-header-bar {
+    @apply py-3;
+  }
+
   .onboarding-shell .page-copy {
     @apply text-slate-300;
   }
@@ -761,7 +769,6 @@
     background: #303133;
   }
 
-  .onboarding-shell .pipeline-source-header,
   .onboarding-shell .transformer-section-header,
   .onboarding-shell .preview-panel-header,
   .onboarding-shell .preview-panel-footer,
@@ -769,29 +776,22 @@
     border-color: rgb(255 255 255 / 0.1);
   }
 
-  .onboarding-shell .pipeline-source-eyebrow,
   .onboarding-shell .preview-panel-label,
   .onboarding-shell .transformer-section-kicker,
   .onboarding-shell .preview-panel-meta {
     color: #aba69e;
   }
 
-  .onboarding-shell .pipeline-source-title,
   .onboarding-shell .preview-panel-title,
   .onboarding-shell .transformer-section .section-title {
     color: #f3f4f6;
   }
 
-  .onboarding-shell .pipeline-source-copy,
   .onboarding-shell .preview-guidance,
   .onboarding-shell .transformer-section .field-hint,
   .onboarding-shell .transformer-section .preview-toggle,
   .onboarding-shell .preview-panel-footer {
     color: #9ea3aa;
-  }
-
-  .onboarding-shell .pipeline-source-field {
-    background: rgb(255 255 255 / 0.025);
   }
 
   .onboarding-shell .pipeline-source-field .label,
@@ -818,7 +818,7 @@
   }
 
   .onboarding-file-form {
-    @apply flex w-full flex-col self-start gap-0;
+    @apply flex w-full max-w-3xl flex-col gap-0;
   }
 
   .onboarding-file-form .button-row {
@@ -826,39 +826,35 @@
   }
 
   .pipeline-editor-workspace {
-    @apply flex flex-col gap-4;
+    @apply flex flex-1 flex-col gap-4;
   }
 
   .pipeline-editor-workspace-empty {
-    @apply w-full max-w-3xl;
+    @apply items-center justify-center;
   }
 
   .pipeline-source-card {
-    @apply overflow-hidden rounded-xl border;
+    @apply w-full;
   }
 
-  .pipeline-source-header {
-    @apply flex flex-col gap-2 border-b px-4 py-3;
-  }
-
-  .pipeline-source-eyebrow {
-    @apply text-[0.6875rem] font-medium uppercase tracking-[0.08em];
-  }
-
-  .pipeline-source-title {
-    @apply text-[0.9375rem] font-semibold leading-tight;
-  }
-
-  .pipeline-source-copy {
-    @apply max-w-3xl text-[0.75rem] leading-5;
+  .onboarding-shell .pipeline-source-card {
+    @apply border;
   }
 
   .pipeline-source-field {
-    @apply px-4 py-4;
+    @apply gap-2;
+  }
+
+  .pipeline-source-control {
+    @apply flex flex-col gap-3 sm:flex-row sm:items-center;
   }
 
   .pipeline-source-input {
-    @apply h-10;
+    @apply h-10 min-w-0 flex-1;
+  }
+
+  .pipeline-source-browse {
+    @apply w-full shrink-0 sm:w-auto;
   }
 
   .pipeline-layout {
@@ -1264,11 +1260,11 @@
   }
 
   .preview-panel-settings {
-    @apply grid-rows-[auto_minmax(0,1fr)];
+    @apply grid-rows-[minmax(0,1fr)];
   }
 
   .preview-panel-data {
-    @apply grid-rows-[auto_minmax(0,1fr)_auto];
+    @apply grid-rows-[minmax(0,1fr)_auto];
   }
 
   .preview-panel + .preview-panel {
@@ -1300,7 +1296,7 @@
   }
 
   .preview-panel-body-table {
-    @apply overflow-hidden p-3;
+    @apply overflow-hidden p-0;
   }
 
   .preview-panel-footer {
@@ -1472,7 +1468,7 @@
   }
 
   .preview-table-shell {
-    @apply h-full overflow-auto rounded-lg border border-slate-200;
+    @apply h-full overflow-auto rounded-none border-0;
   }
 
   .preview-table {

@@ -81,11 +81,6 @@ function updateTimezoneMode(event: Event): void {
 <template>
   <section class="transformer-settings">
     <article class="pipeline-subcard transformer-section">
-      <header class="transformer-section-header">
-        <p class="transformer-section-kicker">Structure</p>
-        <h2 class="section-title">CSV structure</h2>
-      </header>
-
       <div class="transformer-section-body">
         <label class="preview-toggle transformer-toggle">
           <input
@@ -183,11 +178,6 @@ function updateTimezoneMode(event: Event): void {
     </article>
 
     <article class="pipeline-subcard transformer-section">
-      <header class="transformer-section-header">
-        <p class="transformer-section-kicker">Timestamp</p>
-        <h2 class="section-title">Timestamp parsing</h2>
-      </header>
-
       <div class="transformer-section-body">
         <div class="transformer-field-stack">
           <label class="field">

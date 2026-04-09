@@ -79,7 +79,7 @@ type UiState = {
   validatedColumnMappings: ColumnMapping[];
 };
 
-export const PREVIEW_PAGE_SIZE = 20;
+export const PREVIEW_PAGE_SIZE = 11;
 export const APP_NAME = "HydroServer Streaming Data Loader";
 export const API_KEY_DOCS_URL =
   "https://hydroserver2.github.io/hydroserver/tutorials/creating-your-first-orchestration-system#create-an-api-key";

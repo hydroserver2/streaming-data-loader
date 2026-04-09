@@ -75,11 +75,6 @@ const displayTimestampColumn = computed(
   () =>
     columnDrag.value?.columnName ?? model.selectedPreviewTimestampColumn.value
 );
-const previewFileName = computed(
-  () =>
-    model.state.pipelineForm.filePath.split(/[\\/]/).filter(Boolean).at(-1) ??
-    ""
-);
 
 // Rebuild caches after each render when rows/headers change.
 function rebuildButtonCaches(): void {
@@ -336,30 +331,12 @@ onBeforeUnmount(() => {
   >
     <div class="preview-shell">
       <section class="preview-panel preview-panel-settings">
-        <header class="preview-panel-header">
-          <p class="preview-panel-label">Import settings</p>
-          <h2 class="preview-panel-title">CSV setup</h2>
-        </header>
-
         <div class="preview-panel-body">
           <CsvTransformerSettings />
         </div>
       </section>
 
       <section class="preview-panel preview-panel-data">
-        <header class="preview-panel-header">
-          <div class="preview-panel-header-row">
-            <div>
-              <p class="preview-panel-label">Parsed preview</p>
-              <h2 class="preview-panel-title">{{ previewFileName }}</h2>
-            </div>
-            <p class="preview-panel-meta">
-              {{ shownLines }} of {{ model.state.pipelinePreview.total_lines }}
-              lines
-            </p>
-          </div>
-        </header>
-
         <div class="preview-panel-body preview-panel-body-table">
           <div class="preview-table-shell">
             <table class="preview-table">
