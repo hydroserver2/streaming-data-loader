@@ -119,6 +119,7 @@ def create_app(runtime: AppRuntime) -> FastAPI:
             message=result.message,
             instance_name=result.instance_name,
             workspace_id=result.workspace_id,
+            workspace_name=result.workspace_name,
             workspace_count=result.workspace_count,
             datastream_count=result.datastream_count,
             permissions_ok=result.permissions_ok,

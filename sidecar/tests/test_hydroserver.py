@@ -37,7 +37,7 @@ class HydroServerServiceTests(unittest.TestCase):
         self.assertIn("invalid or is not attached", result.message)
 
     def test_api_key_with_associated_workspace_connects_without_checking_datastreams(self) -> None:
-        workspace = SimpleNamespace(uid="workspace-123")
+        workspace = SimpleNamespace(uid="workspace-123", name="Primary Workspace")
         client = SimpleNamespace(
             workspaces=SimpleNamespace(
                 list=lambda **kwargs: SimpleNamespace(
@@ -61,6 +61,7 @@ class HydroServerServiceTests(unittest.TestCase):
         self.assertTrue(result.ok)
         self.assertEqual(result.state, "connected")
         self.assertEqual(result.workspace_id, "workspace-123")
+        self.assertEqual(result.workspace_name, "Primary Workspace")
         self.assertEqual(result.workspace_count, 1)
         self.assertEqual(result.datastream_count, 0)
 

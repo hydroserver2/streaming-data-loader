@@ -22,6 +22,7 @@ class HydroServerCheck:
     state: str
     instance_name: str | None = None
     workspace_id: str | None = None
+    workspace_name: str | None = None
     workspace_count: int = 0
     datastream_count: int = 0
     permissions_ok: bool = False
@@ -106,7 +107,9 @@ class HydroServerService:
 
         try:
             client = self._build_client(server)
-            workspace_id, workspace_count = self._get_associated_workspace_id(client)
+            workspace_id, workspace_name, workspace_count = self._get_associated_workspace(
+                client
+            )
 
             if not workspace_id:
                 return HydroServerCheck(
@@ -118,6 +121,7 @@ class HydroServerService:
                     ),
                     instance_name=self._instance_name(server.url),
                     workspace_id=None,
+                    workspace_name=None,
                     workspace_count=workspace_count,
                     datastream_count=0,
                     permissions_ok=False,
@@ -130,6 +134,7 @@ class HydroServerService:
                 message=f"Connected to {instance_name}.",
                 instance_name=instance_name,
                 workspace_id=workspace_id,
+                workspace_name=workspace_name,
                 workspace_count=workspace_count,
                 datastream_count=0,
                 permissions_ok=True,
@@ -167,7 +172,7 @@ class HydroServerService:
         client = self._build_client(server)
         workspace_id = server.workspace_id.strip()
         if not workspace_id:
-            workspace_id, _ = self._get_associated_workspace_id(client)
+            workspace_id, _, _ = self._get_associated_workspace(client)
 
         if not workspace_id:
             return []
@@ -430,13 +435,19 @@ class HydroServerService:
     def _list_associated_workspaces(self, client):
         return client.workspaces.list(page_size=25, is_associated=True)
 
-    def _get_associated_workspace_id(self, client) -> tuple[str | None, int]:
+    def _get_associated_workspace(
+        self, client
+    ) -> tuple[str | None, str | None, int]:
         workspaces = self._list_associated_workspaces(client)
         workspace_count = self._collection_count(workspaces)
         first_workspace = next(iter(self._collection_items(workspaces)), None)
         if first_workspace is None:
-            return None, workspace_count
-        return self._resource_id(first_workspace), workspace_count
+            return None, None, workspace_count
+        return (
+            self._resource_id(first_workspace),
+            self._string_attribute(first_workspace, "name"),
+            workspace_count,
+        )
 
     def _is_configured(self, server: ServerConfig) -> bool:
         if not server.url.strip():

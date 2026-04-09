@@ -134,7 +134,9 @@ export async function submitAuthConfig(
         state.authDraft = { ...emptyServerConfig(), ...state.config.server }
         await syncAuthenticationStatus(state.config.server)
         state[feedbackKey] = { tone: "success", message: result.message }
-        navigate("jobs-new")
+        if (formId === "welcome-form") {
+          navigate("jobs-new")
+        }
       },
     })
   } catch (error) {

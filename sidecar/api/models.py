@@ -261,6 +261,7 @@ class ConnectionTestResponse(BaseModel):
     message: str
     instance_name: str | None = None
     workspace_id: str | None = None
+    workspace_name: str | None = None
     workspace_count: int = 0
     datastream_count: int = 0
     permissions_ok: bool = False

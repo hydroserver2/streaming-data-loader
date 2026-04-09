@@ -50,6 +50,7 @@ function createResult(
     message: "Generic auth error",
     instance_name: "example.com",
     workspace_id: null,
+    workspace_name: null,
     workspace_count: 0,
     datastream_count: 0,
     permissions_ok: false,

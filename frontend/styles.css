@@ -196,10 +196,28 @@
     @apply text-sm font-medium text-slate-800;
   }
 
-  .account-menu-actions {
-    @apply mt-4 flex justify-end;
+  .account-menu-form {
+    @apply mt-4 flex flex-col gap-3;
   }
 
+  .account-menu-field {
+    @apply gap-1.5;
+  }
+
+  .account-menu-inline-action,
+  .account-menu-cancel {
+    @apply w-full;
+  }
+
+  .account-menu-input {
+    @apply h-10;
+  }
+
+  .account-menu-actions {
+    @apply mt-1 flex flex-col gap-2;
+  }
+
+  .account-menu-save,
   .account-menu-disconnect {
     @apply w-full;
   }
@@ -571,6 +589,22 @@
 
   .onboarding-shell .account-menu-detail {
     background: rgb(255 255 255 / 0.045);
+  }
+
+  .onboarding-shell .account-menu-panel .label {
+    @apply text-slate-300;
+  }
+
+  .onboarding-shell .account-menu-input {
+    @apply border-slate-700 bg-[#1f2022] text-slate-100 placeholder:text-slate-500 focus:border-brand-500 focus:ring-sky-950;
+  }
+
+  .onboarding-shell .account-menu-panel .notice-error {
+    @apply bg-red-950/40 text-red-200;
+  }
+
+  .onboarding-shell .account-menu-panel .notice-success {
+    @apply bg-emerald-950/40 text-emerald-200;
   }
 
   .onboarding-shell .wizard-header {

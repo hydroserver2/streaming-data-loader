@@ -37,6 +37,7 @@ export interface ConnectionTestResponse {
   message: string
   instance_name: string | null
   workspace_id: string | null
+  workspace_name: string | null
   workspace_count: number
   datastream_count: number
   permissions_ok: boolean
