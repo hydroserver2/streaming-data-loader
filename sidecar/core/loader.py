@@ -15,7 +15,7 @@ TIMESTAMP_FORMATS = [
 ]
 
 
-def preview_csv(path: str, rows: int = 50) -> CsvPreviewResponse:
+def preview_csv(path: str, rows: int = 100) -> CsvPreviewResponse:
     file_path = Path(path).expanduser()
     if not file_path.exists():
         raise FileNotFoundError("Can't find the data file. It may have been moved or renamed.")

@@ -1247,12 +1247,12 @@
   }
 
   .preview-workbench {
-    @apply flex flex-col;
+    @apply flex min-h-0 flex-col;
   }
 
   .preview-shell {
     @apply grid overflow-hidden rounded-xl border lg:grid-cols-[minmax(0,23rem)_minmax(0,1fr)];
-    min-height: calc(100vh - 16rem);
+    height: calc(100vh - 16rem);
   }
 
   .preview-panel {
@@ -1296,7 +1296,7 @@
   }
 
   .preview-panel-body-table {
-    @apply overflow-hidden p-0;
+    @apply min-h-0 overflow-hidden p-0;
   }
 
   .preview-panel-footer {

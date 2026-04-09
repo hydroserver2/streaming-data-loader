@@ -13,6 +13,7 @@ import {
 } from "../pipeline-submit"
 import { navigate } from "../router"
 import {
+  PREVIEW_PAGE_INCREMENT,
   PREVIEW_PAGE_SIZE,
   state,
   type PipelineIdentifierType,
@@ -645,7 +646,7 @@ export async function showMorePreviewLines(): Promise<void> {
   if (!state.pipelinePreview) return
 
   const nextRows = Math.min(
-    state.pipelinePreviewRowsRequested + PREVIEW_PAGE_SIZE,
+    state.pipelinePreviewRowsRequested + PREVIEW_PAGE_INCREMENT,
     state.pipelinePreview.total_lines
   )
   await loadPipelinePreview(state.pipelineForm.filePath, nextRows)

@@ -3,7 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 
 import CsvTransformerSettings from "./CsvTransformerSettings.vue";
 import {
-  PREVIEW_PAGE_SIZE,
+  PREVIEW_PAGE_INCREMENT,
   useAppModel,
   type PreviewRowSelectionTarget,
 } from "../composables/useAppModel";
@@ -51,14 +51,6 @@ const rows = computed(() =>
 const shownLines = computed(
   () => model.state.pipelinePreview?.raw_lines.length ?? 0
 );
-const nextPageSize = computed(() => {
-  if (!model.state.pipelinePreview) return PREVIEW_PAGE_SIZE;
-  const remaining = Math.max(
-    model.state.pipelinePreview.total_lines - shownLines.value,
-    0
-  );
-  return Math.min(PREVIEW_PAGE_SIZE, remaining);
-});
 const displayHeaderLine = computed(() =>
   rowDrag.value?.target === "header-row"
     ? rowDrag.value.lineNumber
@@ -447,7 +439,7 @@ onBeforeUnmount(() => {
             type="button"
             @click="model.showMorePreviewLines()"
           >
-            Show {{ nextPageSize }} more line{{ nextPageSize === 1 ? "" : "s" }}
+            Show {{ PREVIEW_PAGE_INCREMENT }} more lines
           </button>
         </footer>
       </section>

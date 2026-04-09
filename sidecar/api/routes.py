@@ -256,7 +256,7 @@ def create_app(runtime: AppRuntime) -> FastAPI:
     @app.get("/csv/preview", response_model=CsvPreviewResponse, tags=["csv"])
     def get_csv_preview(
         path: str = Query(..., description="Absolute path to the CSV file"),
-        rows: int = Query(default=50, ge=1, le=500),
+        rows: int = Query(default=100, ge=1, le=500),
     ) -> CsvPreviewResponse:
         try:
             return preview_csv(path=path, rows=rows)

@@ -7,11 +7,12 @@ import {
   emptyServerConfig,
   APP_NAME,
   API_KEY_DOCS_URL,
+  PREVIEW_PAGE_INCREMENT,
   PREVIEW_PAGE_SIZE,
 } from "./state"
 import { syncAuthenticationStatus, serverConfigured } from "./useAuth"
 
-export { APP_NAME, API_KEY_DOCS_URL, PREVIEW_PAGE_SIZE }
+export { APP_NAME, API_KEY_DOCS_URL, PREVIEW_PAGE_INCREMENT, PREVIEW_PAGE_SIZE }
 export type { PreviewSelectionTarget, PreviewRowSelectionTarget } from "./state"
 
 export * from "./useAuth"
@@ -175,6 +176,7 @@ const model = {
   state,
   APP_NAME,
   API_KEY_DOCS_URL,
+  PREVIEW_PAGE_INCREMENT,
   PREVIEW_PAGE_SIZE,
   isConnected,
   useWelcomeSurface,

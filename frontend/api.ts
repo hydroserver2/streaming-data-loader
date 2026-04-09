@@ -197,7 +197,7 @@ export function validateServerUrl(url: string): Promise<ServerUrlValidationRespo
   )
 }
 
-export function getCsvPreview(path: string, rows = 50): Promise<CsvPreviewResponse> {
+export function getCsvPreview(path: string, rows = 100): Promise<CsvPreviewResponse> {
   const params = new URLSearchParams({
     path,
     rows: String(rows),

@@ -14,6 +14,7 @@ import {
 } from "./composables/usePipeline"
 import {
   createEmptyPipelineForm,
+  PREVIEW_PAGE_INCREMENT,
   PREVIEW_PAGE_SIZE,
   state,
 } from "./composables/state"
@@ -105,20 +106,38 @@ test("preview column selection stores a 1-based index in index mode", () => {
 test("loading more preview rows does not overwrite manual transformer fixes", async () => {
   const responses = [
     createPreview({
-      raw_lines: [
-        "recorded_at,value",
-        "2024-01-01T00:00:00Z,1.2",
-      ],
-      total_lines: 4,
+      raw_lines: Array.from(
+        { length: PREVIEW_PAGE_SIZE },
+        (_, index) =>
+          index === 0
+            ? "recorded_at,value"
+            : `2024-01-${String(index).padStart(2, "0")}T00:00:00Z,${index}`
+      ),
+      parsed_rows: Array.from(
+        { length: PREVIEW_PAGE_SIZE },
+        (_, index) =>
+          index === 0
+            ? ["recorded_at", "value"]
+            : [`2024-01-${String(index).padStart(2, "0")}T00:00:00Z`, String(index)]
+      ),
+      total_lines: PREVIEW_PAGE_SIZE + PREVIEW_PAGE_INCREMENT,
     }),
     createPreview({
-      raw_lines: [
-        "recorded_at,value",
-        "2024-01-01T00:00:00Z,1.2",
-        "2024-01-02T00:00:00Z,1.4",
-        "2024-01-03T00:00:00Z,1.6",
-      ],
-      total_lines: 4,
+      raw_lines: Array.from(
+        { length: PREVIEW_PAGE_SIZE + PREVIEW_PAGE_INCREMENT },
+        (_, index) =>
+          index === 0
+            ? "recorded_at,value"
+            : `2024-01-${String(index).padStart(2, "0")}T00:00:00Z,${index}`
+      ),
+      parsed_rows: Array.from(
+        { length: PREVIEW_PAGE_SIZE + PREVIEW_PAGE_INCREMENT },
+        (_, index) =>
+          index === 0
+            ? ["recorded_at", "value"]
+            : [`2024-01-${String(index).padStart(2, "0")}T00:00:00Z`, String(index)]
+      ),
+      total_lines: PREVIEW_PAGE_SIZE + PREVIEW_PAGE_INCREMENT,
     }),
   ]
 
@@ -131,7 +150,14 @@ test("loading more preview rows does not overwrite manual transformer fixes", as
 
   assert.equal(callCount, 2)
   assert.equal(state.pipelineForm.delimiter, ";")
-  assert.equal(state.pipelinePreview?.raw_lines.length, 4)
+  assert.equal(
+    state.pipelinePreviewRowsRequested,
+    PREVIEW_PAGE_SIZE + PREVIEW_PAGE_INCREMENT
+  )
+  assert.equal(
+    state.pipelinePreview?.raw_lines.length,
+    PREVIEW_PAGE_SIZE + PREVIEW_PAGE_INCREMENT
+  )
 })
 
 test("loading a preview auto-detects an ISO timestamp column and timestamp settings", async () => {
