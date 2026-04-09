@@ -9,6 +9,7 @@ import {
 } from 'vue'
 
 import type { DatastreamSummary } from '../api'
+import AccountMenuButton from '../components/AccountMenuButton.vue'
 import AnimatedLoadingIcon from '../components/AnimatedLoadingIcon.vue'
 import type {
   MappingDatastreamBrowserEntry,
@@ -500,6 +501,7 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
             <span aria-hidden="true">&larr;</span>
             <span>Back to CSV Setup</span>
           </button>
+          <AccountMenuButton />
         </div>
       </div>
     </header>

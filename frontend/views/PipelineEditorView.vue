@@ -3,6 +3,7 @@ import { computed, ref, watch } from "vue";
 
 import type { PipelineFieldName } from "../pipeline-submit";
 
+import AccountMenuButton from "../components/AccountMenuButton.vue";
 import CsvPreview from "../components/CsvPreview.vue";
 import { useAppModel } from "../composables/useAppModel";
 
@@ -98,13 +99,7 @@ function goToSetupStep(): void {
             <span>Validate and Continue</span>
             <span class="wizard-nav-glyph" aria-hidden="true">→</span>
           </button>
-          <button
-            class="btn-danger"
-            type="button"
-            @click="model.disconnectHydroServer()"
-          >
-            Disconnect
-          </button>
+          <AccountMenuButton />
         </div>
       </div>
     </header>

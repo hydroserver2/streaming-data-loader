@@ -144,6 +144,66 @@
     @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-50;
   }
 
+  .account-menu {
+    @apply relative;
+  }
+
+  .account-menu-button {
+    @apply inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900;
+  }
+
+  .account-menu-button[aria-expanded="true"] {
+    @apply border-slate-300 bg-slate-100 text-slate-900;
+  }
+
+  .account-menu-icon {
+    @apply h-5 w-5;
+  }
+
+  .account-menu-panel {
+    @apply absolute right-0 top-[calc(100%+0.75rem)] z-50 w-[20rem] rounded-2xl border border-slate-200 bg-white p-4 shadow-2xl;
+  }
+
+  .account-menu-copy {
+    @apply min-w-0;
+  }
+
+  .account-menu-eyebrow {
+    @apply text-[0.6875rem] font-semibold uppercase tracking-[0.16em] text-slate-500;
+  }
+
+  .account-menu-title {
+    @apply mt-2 text-base font-semibold leading-tight text-slate-900;
+  }
+
+  .account-menu-meta {
+    @apply mt-1 truncate text-sm text-slate-500;
+  }
+
+  .account-menu-details {
+    @apply mt-4 grid gap-2;
+  }
+
+  .account-menu-detail {
+    @apply grid gap-0.5 rounded-xl bg-slate-50 px-3 py-2;
+  }
+
+  .account-menu-detail dt {
+    @apply text-[0.6875rem] font-medium uppercase tracking-[0.12em] text-slate-500;
+  }
+
+  .account-menu-detail dd {
+    @apply text-sm font-medium text-slate-800;
+  }
+
+  .account-menu-actions {
+    @apply mt-4 flex justify-end;
+  }
+
+  .account-menu-disconnect {
+    @apply w-full;
+  }
+
   .status-dot {
     @apply inline-block h-2.5 w-2.5 rounded-full;
   }
@@ -474,6 +534,43 @@
 
   .onboarding-shell .wizard-page-title {
     color: #f3f4f6;
+  }
+
+  .onboarding-shell .account-menu-button {
+    border-color: rgb(255 255 255 / 0.1);
+    background: rgb(255 255 255 / 0.05);
+    color: #e5e7eb;
+  }
+
+  .onboarding-shell .account-menu-button:hover,
+  .onboarding-shell .account-menu-button[aria-expanded="true"] {
+    border-color: rgb(255 255 255 / 0.16);
+    background: rgb(255 255 255 / 0.1);
+    color: #ffffff;
+  }
+
+  .onboarding-shell .account-menu-panel {
+    border-color: rgb(255 255 255 / 0.08);
+    background: #242729;
+    box-shadow: 0 24px 60px rgb(0 0 0 / 0.34);
+  }
+
+  .onboarding-shell .account-menu-eyebrow,
+  .onboarding-shell .account-menu-detail dt {
+    color: #9ea3aa;
+  }
+
+  .onboarding-shell .account-menu-title,
+  .onboarding-shell .account-menu-detail dd {
+    color: #f3f4f6;
+  }
+
+  .onboarding-shell .account-menu-meta {
+    color: #b0b7c0;
+  }
+
+  .onboarding-shell .account-menu-detail {
+    background: rgb(255 255 255 / 0.045);
   }
 
   .onboarding-shell .wizard-header {
