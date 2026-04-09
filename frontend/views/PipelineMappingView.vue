@@ -486,7 +486,9 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
 </script>
 
 <template>
-  <section class="page-shell animate-fade-in onboarding-shell">
+  <section
+    class="page-shell animate-fade-in onboarding-shell pipeline-editor-shell pipeline-editor-shell-fullscreen"
+  >
     <header class="page-header wizard-header">
       <div class="wizard-header-bar">
         <div class="wizard-title-block">
@@ -502,7 +504,7 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
       </div>
     </header>
 
-    <article class="pipeline-subcard mapping-subcard">
+    <article class="pipeline-subcard mapping-subcard pipeline-mapping-workspace">
       <div v-if="model.state.pipelineDatastreamsLoading" class="empty-panel">
         <AnimatedLoadingIcon :size="96" />
         <p class="section-copy">Loading datastreams.</p>
@@ -595,7 +597,7 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
                     v-if="row.selectedDatastream"
                     class="mapping-column-item-target"
                   >
-                    <span aria-hidden="true">-&gt;</span>
+                    <span aria-hidden="true">→</span>
                     <span>{{ columnTargetLabel(row) }}</span>
                   </span>
                 </span>

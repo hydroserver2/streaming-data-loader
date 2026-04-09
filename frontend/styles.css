@@ -856,6 +856,19 @@
     margin-top: -3px;
   }
 
+  .pipeline-mapping-workspace {
+    @apply flex flex-1 min-h-0 flex-col;
+  }
+
+  .pipeline-editor-shell-fullscreen .pipeline-mapping-workspace {
+    @apply overflow-hidden p-0;
+    margin-top: 0;
+  }
+
+  .pipeline-editor-shell-fullscreen .pipeline-mapping-workspace > .empty-panel {
+    @apply min-h-0 flex-1;
+  }
+
   .pipeline-editor-workspace-empty {
     @apply items-center justify-center;
   }
@@ -1095,6 +1108,14 @@
     @apply grid overflow-hidden rounded-xl border border-slate-200 bg-transparent lg:grid-cols-2;
     height: calc(100vh - 13.5rem);
     min-height: 34rem;
+  }
+
+  .pipeline-editor-shell-fullscreen .mapping-connector-shell {
+    @apply lg:grid-cols-[23rem_minmax(0,1fr)];
+    height: 100%;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
   }
 
   .mapping-connector-panel {
