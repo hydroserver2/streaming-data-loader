@@ -97,6 +97,190 @@ class HydroServerServiceTests(unittest.TestCase):
         )
         self.assertEqual(result[0].id, "stream-1")
 
+    def test_list_datastreams_uses_expanded_datastream_endpoint_when_available(self) -> None:
+        request_calls: list[dict[str, object]] = []
+
+        class FakeResponse:
+            def __init__(self, payload, headers=None):
+                self._payload = payload
+                self.headers = headers or {"content-type": "application/json"}
+
+            def json(self):
+                return self._payload
+
+        def request(method: str, path: str, **kwargs):
+            request_calls.append({"method": method, "path": path, **kwargs})
+            if path == "/api/data/datastreams/visualization-bootstrap":
+                return FakeResponse([])
+
+            return FakeResponse(
+                [
+                    {
+                        "id": "stream-1",
+                        "name": "Water level",
+                        "thing": {
+                            "id": "thing-1",
+                            "name": "River Site",
+                        },
+                        "observedProperty": {
+                            "id": "op-1",
+                            "name": "Stage",
+                        },
+                        "processingLevel": {
+                            "id": "pl-1",
+                            "definition": "Raw",
+                        },
+                        "unit": {
+                            "id": "unit-1",
+                            "name": "meter",
+                            "symbol": "m",
+                        },
+                        "sensor": {
+                            "id": "sensor-1",
+                            "name": "Pressure transducer",
+                        },
+                        "sampledMedium": "Water",
+                        "resultType": "Measure",
+                    }
+                ],
+                headers={
+                    "content-type": "application/json",
+                    "X-Total-Pages": "1",
+                },
+            )
+
+        client = SimpleNamespace(
+            base_route="/api/data",
+            request=request,
+            datastreams=SimpleNamespace(
+                list=lambda **kwargs: (_ for _ in ()).throw(
+                    AssertionError("legacy datastream lookup should not run")
+                )
+            ),
+        )
+
+        with patch.object(self.service, "_build_client", return_value=client):
+            result = self.service.list_datastreams(
+                ServerConfig(
+                    auth_type="apikey",
+                    url="https://example.com",
+                    api_key="good-key",
+                    username="",
+                    password="",
+                    workspace_id="workspace-123",
+                )
+            )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].thing_name, "River Site")
+        self.assertEqual(result[0].observed_property_name, "Stage")
+        self.assertEqual(result[0].unit_symbol, "m")
+        self.assertEqual(result[0].sensor_name, "Pressure transducer")
+        self.assertEqual(result[0].sampled_medium, "Water")
+        self.assertEqual(result[0].result_type, "Measure")
+        self.assertEqual(
+            request_calls,
+            [
+                {
+                    "method": "get",
+                    "path": "/api/data/datastreams/visualization-bootstrap",
+                    "params": {"workspace_id": "workspace-123"},
+                },
+                {
+                    "method": "get",
+                    "path": "/api/data/datastreams",
+                    "params": {
+                        "workspace_id": "workspace-123",
+                        "expand_related": "true",
+                        "page": 1,
+                        "page_size": 1000,
+                    },
+                }
+            ],
+        )
+
+    def test_list_datastreams_uses_visualization_bootstrap_when_available(self) -> None:
+        request_calls: list[dict[str, object]] = []
+        unit_calls: list[dict[str, object]] = []
+
+        class FakeResponse:
+            headers = {"content-type": "application/json"}
+
+            def json(self):
+                return {
+                    "things": [
+                        {"id": "thing-1", "name": "River Site"},
+                    ],
+                    "datastreams": [
+                        {
+                            "id": "stream-1",
+                            "name": "Water level",
+                            "thingId": "thing-1",
+                            "observedPropertyId": "op-1",
+                            "processingLevelId": "pl-1",
+                            "unitId": "unit-1",
+                        }
+                    ],
+                    "observedProperties": [
+                        {"id": "op-1", "name": "Stage", "code": "stage"},
+                    ],
+                    "processingLevels": [
+                        {"id": "pl-1", "definition": "Raw"},
+                    ],
+                }
+
+        def request(method: str, path: str, **kwargs):
+            request_calls.append({"method": method, "path": path, **kwargs})
+            return FakeResponse()
+
+        client = SimpleNamespace(
+            base_route="/api/data",
+            request=request,
+            units=SimpleNamespace(
+                list=lambda **kwargs: unit_calls.append(kwargs)
+                or SimpleNamespace(
+                    total_count=1,
+                    items=[
+                        SimpleNamespace(uid="unit-1", name="meter", symbol="m"),
+                    ],
+                )
+            ),
+            datastreams=SimpleNamespace(
+                list=lambda **kwargs: (_ for _ in ()).throw(
+                    AssertionError("legacy datastream lookup should not run")
+                )
+            ),
+        )
+
+        with patch.object(self.service, "_build_client", return_value=client):
+            result = self.service.list_datastreams(
+                ServerConfig(
+                    auth_type="apikey",
+                    url="https://example.com",
+                    api_key="good-key",
+                    username="",
+                    password="",
+                    workspace_id="workspace-123",
+                )
+            )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].thing_name, "River Site")
+        self.assertEqual(result[0].observed_property_name, "Stage")
+        self.assertEqual(result[0].processing_level_definition, "Raw")
+        self.assertEqual(result[0].unit_symbol, "m")
+        self.assertEqual(
+            request_calls,
+            [
+                {
+                    "method": "get",
+                    "path": "/api/data/datastreams/visualization-bootstrap",
+                    "params": {"workspace_id": "workspace-123"},
+                }
+            ],
+        )
+        self.assertEqual(unit_calls, [{"workspace": "workspace-123", "fetch_all": True}])
+
     def test_list_datastreams_returns_related_summary_fields(self) -> None:
         client = SimpleNamespace(
             datastreams=SimpleNamespace(
@@ -141,6 +325,50 @@ class HydroServerServiceTests(unittest.TestCase):
         self.assertEqual(result[0].sensor_name, "Pressure transducer")
         self.assertEqual(result[0].sampled_medium, "Water")
         self.assertEqual(result[0].result_type, "Measure")
+
+    def test_list_datastreams_falls_back_to_workspace_lookups_when_expanded_endpoint_fails(self) -> None:
+        client = SimpleNamespace(
+            base_route="/api/data",
+            request=lambda *args, **kwargs: (_ for _ in ()).throw(
+                requests.HTTPError("expand_related unavailable")
+            ),
+            datastreams=SimpleNamespace(
+                list=lambda **kwargs: SimpleNamespace(
+                    total_count=1,
+                    items=[
+                        SimpleNamespace(
+                            uid="stream-1",
+                            name="Water level",
+                            thing_id="thing-1",
+                            sampled_medium="Water",
+                            result_type="Measure",
+                            thing=SimpleNamespace(uid="thing-1", name="River Site"),
+                            observed_property=SimpleNamespace(name="Stage"),
+                            processing_level=SimpleNamespace(definition="Raw"),
+                            unit=SimpleNamespace(name="meter", symbol="m"),
+                            sensor=SimpleNamespace(name="Pressure transducer"),
+                        )
+                    ],
+                )
+            ),
+        )
+
+        with patch.object(self.service, "_build_client", return_value=client):
+            result = self.service.list_datastreams(
+                ServerConfig(
+                    auth_type="apikey",
+                    url="https://example.com",
+                    api_key="good-key",
+                    username="",
+                    password="",
+                    workspace_id="workspace-123",
+                )
+            )
+
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].thing_name, "River Site")
+        self.assertEqual(result[0].observed_property_name, "Stage")
+        self.assertEqual(result[0].unit_symbol, "m")
 
     def test_list_datastreams_uses_workspace_lookups_without_touching_lazy_properties(self) -> None:
         lookup_calls: list[dict[str, object]] = []

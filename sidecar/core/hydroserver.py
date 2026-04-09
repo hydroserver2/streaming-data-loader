@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from typing import Mapping
 from urllib.parse import urlparse
 
@@ -34,6 +35,12 @@ class HydroServerUrlCheck:
 
 
 class HydroServerService:
+    _DATASTREAM_PAGE_SIZE = 1000
+    _DATASTREAM_CACHE_TTL = timedelta(minutes=5)
+
+    def __init__(self) -> None:
+        self._datastream_cache: dict[str, tuple[datetime, list[DatastreamSummary]]] = {}
+
     def validate_url(self, url: str) -> HydroServerUrlCheck:
         normalized_url = url.strip().rstrip("/")
         if not normalized_url:
@@ -165,6 +172,21 @@ class HydroServerService:
         if not workspace_id:
             return []
 
+        cache_key = self._datastream_cache_key(server, workspace_id)
+        cached = self._get_cached_datastreams(cache_key)
+        if cached is not None:
+            return cached
+
+        bootstrap_datastreams = self._list_datastreams_from_bootstrap(client, workspace_id)
+        if bootstrap_datastreams is not None:
+            self._set_cached_datastreams(cache_key, bootstrap_datastreams)
+            return bootstrap_datastreams
+
+        expanded_datastreams = self._list_datastreams_expanded(client, workspace_id)
+        if expanded_datastreams is not None:
+            self._set_cached_datastreams(cache_key, expanded_datastreams)
+            return expanded_datastreams
+
         datastreams = self._collection_items(
             client.datastreams.list(workspace=workspace_id, fetch_all=True)
         )
@@ -187,7 +209,7 @@ class HydroServerService:
         unit_by_id = self._build_resource_lookup(unit_service, workspace_id)
         sensor_by_id = self._build_resource_lookup(sensor_service, workspace_id)
 
-        return [
+        summaries = [
             self._to_summary(
                 item,
                 thing_service=thing_service,
@@ -203,6 +225,196 @@ class HydroServerService:
             )
             for item in datastreams
         ]
+        self._set_cached_datastreams(cache_key, summaries)
+        return summaries
+
+    def _list_datastreams_from_bootstrap(
+        self, client: object, workspace_id: str
+    ) -> list[DatastreamSummary] | None:
+        if not hasattr(client, "request"):
+            return None
+
+        try:
+            response = client.request(
+                "get",
+                f"{getattr(client, 'base_route', '/api/data')}/datastreams/visualization-bootstrap",
+                params={"workspace_id": workspace_id},
+            )
+        except Exception:
+            return None
+
+        payload = self._response_json(response)
+        if not isinstance(payload, dict):
+            return None
+
+        datastreams_payload = self._value(payload, "datastreams")
+        things_payload = self._value(payload, "things")
+        observed_properties_payload = self._value(
+            payload, "observed_properties", "observedProperties"
+        )
+        processing_levels_payload = self._value(
+            payload, "processing_levels", "processingLevels"
+        )
+
+        if not isinstance(datastreams_payload, list) or not isinstance(things_payload, list):
+            return None
+        if not isinstance(observed_properties_payload, list):
+            return None
+        if not isinstance(processing_levels_payload, list):
+            return None
+
+        units_by_id = self._list_units_by_id(client, workspace_id)
+        if units_by_id is None:
+            return None
+
+        things_by_id = {
+            self._string_value(thing, "id", "uid"): thing for thing in things_payload
+        }
+        observed_properties_by_id = {
+            self._string_value(observed_property, "id", "uid"): observed_property
+            for observed_property in observed_properties_payload
+        }
+        processing_levels_by_id = {
+            self._string_value(processing_level, "id", "uid"): processing_level
+            for processing_level in processing_levels_payload
+        }
+
+        return [
+            DatastreamSummary(
+                id=self._string_value(datastream, "id", "uid"),
+                name=self._string_value(datastream, "name") or "Unnamed datastream",
+                thing_id=thing_id,
+                thing_name=self._string_value(things_by_id.get(thing_id), "name"),
+                observed_property_name=self._string_value(
+                    observed_properties_by_id.get(observed_property_id), "name"
+                ),
+                processing_level_definition=self._string_value(
+                    processing_levels_by_id.get(processing_level_id), "definition"
+                ),
+                unit_name=self._string_value(units_by_id.get(unit_id), "name"),
+                unit_symbol=self._string_value(units_by_id.get(unit_id), "symbol"),
+                sampled_medium="",
+                sensor_name="",
+                result_type="",
+            )
+            for datastream in datastreams_payload
+            for thing_id in [self._string_value(datastream, "thing_id", "thingId")]
+            for observed_property_id in [
+                self._string_value(
+                    datastream, "observed_property_id", "observedPropertyId"
+                )
+            ]
+            for processing_level_id in [
+                self._string_value(
+                    datastream, "processing_level_id", "processingLevelId"
+                )
+            ]
+            for unit_id in [self._string_value(datastream, "unit_id", "unitId")]
+        ]
+
+    def _list_units_by_id(
+        self, client: object, workspace_id: str
+    ) -> dict[str, object] | None:
+        units_service = getattr(client, "units", None)
+        if units_service is None or not hasattr(units_service, "list"):
+            return None
+
+        try:
+            units = units_service.list(workspace=workspace_id, fetch_all=True)
+        except Exception:
+            return None
+
+        return {
+            unit_id: unit
+            for unit in self._collection_items(units)
+            if (unit_id := self._resource_id(unit))
+        }
+
+    def _list_datastreams_expanded(
+        self, client: object, workspace_id: str
+    ) -> list[DatastreamSummary] | None:
+        if not hasattr(client, "request"):
+            return None
+
+        page = 1
+        datastreams: list[DatastreamSummary] = []
+
+        while True:
+            try:
+                response = client.request(
+                    "get",
+                    f"{getattr(client, 'base_route', '/api/data')}/datastreams",
+                    params={
+                        "workspace_id": workspace_id,
+                        "expand_related": "true",
+                        "page": page,
+                        "page_size": self._DATASTREAM_PAGE_SIZE,
+                    },
+                )
+            except Exception:
+                return None
+
+            payload = self._response_json(response)
+            if not isinstance(payload, list):
+                return None
+
+            if not payload:
+                break
+
+            datastreams.extend(
+                self._expanded_datastream_to_summary(item) for item in payload
+            )
+
+            total_pages = self._header_int(response, "X-Total-Pages")
+            if total_pages is not None:
+                if page >= total_pages:
+                    break
+            elif len(payload) < self._DATASTREAM_PAGE_SIZE:
+                break
+
+            page += 1
+
+        return datastreams
+
+    def _expanded_datastream_to_summary(self, item: object) -> DatastreamSummary:
+        thing = self._value(item, "thing")
+        observed_property = self._value(
+            item, "observed_property", "observedProperty"
+        )
+        processing_level = self._value(
+            item, "processing_level", "processingLevel"
+        )
+        unit = self._value(item, "unit")
+        sensor = self._value(item, "sensor")
+
+        thing_id = self._string_value(item, "thing_id", "thingId") or self._string_value(
+            thing, "id", "uid"
+        )
+        observed_property_id = self._string_value(
+            item, "observed_property_id", "observedPropertyId"
+        ) or self._string_value(observed_property, "id", "uid")
+        processing_level_id = self._string_value(
+            item, "processing_level_id", "processingLevelId"
+        ) or self._string_value(processing_level, "id", "uid")
+        unit_id = self._string_value(item, "unit_id", "unitId") or self._string_value(
+            unit, "id", "uid"
+        )
+
+        return DatastreamSummary(
+            id=self._string_value(item, "id", "uid"),
+            name=self._string_value(item, "name") or "Unnamed datastream",
+            thing_id=thing_id,
+            thing_name=self._string_value(thing, "name"),
+            observed_property_name=self._string_value(observed_property, "name"),
+            processing_level_definition=self._string_value(
+                processing_level, "definition"
+            ),
+            unit_name=self._string_value(unit, "name"),
+            unit_symbol=self._string_value(unit, "symbol"),
+            sampled_medium=self._string_value(item, "sampled_medium", "sampledMedium"),
+            sensor_name=self._string_value(sensor, "name"),
+            result_type=self._string_value(item, "result_type", "resultType"),
+        )
 
     def _build_client(self, server: ServerConfig):
         if HydroServer is None:
@@ -382,6 +594,21 @@ class HydroServerService:
             return ""
         return str(value)
 
+    def _value(self, item: object, *attributes: str) -> object | None:
+        if isinstance(item, dict):
+            for attribute in attributes:
+                if attribute in item and item[attribute] is not None:
+                    return item[attribute]
+            return None
+
+        return self._first_attribute(item, *attributes)
+
+    def _string_value(self, item: object, *attributes: str) -> str:
+        value = self._value(item, *attributes)
+        if value is None:
+            return ""
+        return str(value)
+
     def _first_attribute(self, item: object, *attributes: str) -> object | None:
         for attribute in attributes:
             value = self._safe_attribute(item, attribute)
@@ -455,3 +682,46 @@ class HydroServerService:
             return response.json()
         except ValueError:
             return None
+
+    def _header_int(self, response: requests.Response, header: str) -> int | None:
+        value = response.headers.get(header)
+        if value is None:
+            return None
+
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    def _datastream_cache_key(self, server: ServerConfig, workspace_id: str) -> str:
+        credential = server.api_key if server.auth_type == "apikey" else server.username
+        return "|".join(
+            [
+                server.auth_type,
+                server.url.strip().rstrip("/"),
+                workspace_id,
+                credential.strip(),
+            ]
+        )
+
+    def _get_cached_datastreams(
+        self, cache_key: str
+    ) -> list[DatastreamSummary] | None:
+        cached = self._datastream_cache.get(cache_key)
+        if cached is None:
+            return None
+
+        cached_at, datastreams = cached
+        if datetime.now(timezone.utc) - cached_at > self._DATASTREAM_CACHE_TTL:
+            self._datastream_cache.pop(cache_key, None)
+            return None
+
+        return datastreams
+
+    def _set_cached_datastreams(
+        self, cache_key: str, datastreams: list[DatastreamSummary]
+    ) -> None:
+        self._datastream_cache[cache_key] = (
+            datetime.now(timezone.utc),
+            datastreams,
+        )
