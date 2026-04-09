@@ -171,29 +171,34 @@ class HydroServerService:
         if not datastreams:
             return []
 
-        thing_by_id = self._build_resource_lookup(
-            getattr(client, "things", None), workspace_id
-        )
+        thing_service = getattr(client, "things", None)
+        observed_property_service = getattr(client, "observedproperties", None)
+        processing_level_service = getattr(client, "processinglevels", None)
+        unit_service = getattr(client, "units", None)
+        sensor_service = getattr(client, "sensors", None)
+
+        thing_by_id = self._build_resource_lookup(thing_service, workspace_id)
         observed_property_by_id = self._build_resource_lookup(
-            getattr(client, "observedproperties", None), workspace_id
+            observed_property_service, workspace_id
         )
         processing_level_by_id = self._build_resource_lookup(
-            getattr(client, "processinglevels", None), workspace_id
+            processing_level_service, workspace_id
         )
-        unit_by_id = self._build_resource_lookup(
-            getattr(client, "units", None), workspace_id
-        )
-        sensor_by_id = self._build_resource_lookup(
-            getattr(client, "sensors", None), workspace_id
-        )
+        unit_by_id = self._build_resource_lookup(unit_service, workspace_id)
+        sensor_by_id = self._build_resource_lookup(sensor_service, workspace_id)
 
         return [
             self._to_summary(
                 item,
+                thing_service=thing_service,
                 thing_by_id=thing_by_id,
+                observed_property_service=observed_property_service,
                 observed_property_by_id=observed_property_by_id,
+                processing_level_service=processing_level_service,
                 processing_level_by_id=processing_level_by_id,
+                unit_service=unit_service,
                 unit_by_id=unit_by_id,
+                sensor_service=sensor_service,
                 sensor_by_id=sensor_by_id,
             )
             for item in datastreams
@@ -232,32 +237,52 @@ class HydroServerService:
         self,
         item: object,
         *,
+        thing_service: object | None = None,
         thing_by_id: Mapping[str, object] | None = None,
+        observed_property_service: object | None = None,
         observed_property_by_id: Mapping[str, object] | None = None,
+        processing_level_service: object | None = None,
         processing_level_by_id: Mapping[str, object] | None = None,
+        unit_service: object | None = None,
         unit_by_id: Mapping[str, object] | None = None,
+        sensor_service: object | None = None,
         sensor_by_id: Mapping[str, object] | None = None,
     ) -> DatastreamSummary:
         datastream_id = getattr(item, "uid", None) or getattr(item, "id", "")
         name = getattr(item, "name", "Unnamed datastream")
-        thing_id = self._string_attribute(item, "thing_id")
-        observed_property_id = self._string_attribute(item, "observed_property_id")
-        processing_level_id = self._string_attribute(item, "processing_level_id")
-        unit_id = self._string_attribute(item, "unit_id")
-        sensor_id = self._string_attribute(item, "sensor_id")
+        thing_id = self._string_attribute(item, "thing_id", "thingId")
+        observed_property_id = self._string_attribute(
+            item, "observed_property_id", "observedPropertyId"
+        )
+        processing_level_id = self._string_attribute(
+            item, "processing_level_id", "processingLevelId"
+        )
+        unit_id = self._string_attribute(item, "unit_id", "unitId")
+        sensor_id = self._string_attribute(item, "sensor_id", "sensorId")
 
-        thing = self._related_resource(item, "thing", thing_id, thing_by_id)
+        thing = self._related_resource(
+            item, "thing", thing_id, thing_by_id, service=thing_service
+        )
         observed_property = self._related_resource(
-            item, "observed_property", observed_property_id, observed_property_by_id
+            item,
+            "observed_property",
+            observed_property_id,
+            observed_property_by_id,
+            service=observed_property_service,
         )
         processing_level = self._related_resource(
             item,
             "processing_level",
             processing_level_id,
             processing_level_by_id,
+            service=processing_level_service,
         )
-        unit = self._related_resource(item, "unit", unit_id, unit_by_id)
-        sensor = self._related_resource(item, "sensor", sensor_id, sensor_by_id)
+        unit = self._related_resource(
+            item, "unit", unit_id, unit_by_id, service=unit_service
+        )
+        sensor = self._related_resource(
+            item, "sensor", sensor_id, sensor_by_id, service=sensor_service
+        )
 
         if not thing_id:
             thing_id = self._resource_id(thing)
@@ -311,17 +336,33 @@ class HydroServerService:
         attribute: str,
         resource_id: str,
         lookup: Mapping[str, object] | None,
+        *,
+        service: object | None = None,
     ) -> object | None:
-        cached = self._safe_attribute(item, f"_{attribute}")
+        cached = self._first_attribute(
+            item, f"_{attribute}", f"_{self._to_camel_case(attribute)}"
+        )
         if cached is not None:
             return cached
 
-        direct = self._safe_attribute(item, attribute)
+        direct = self._first_attribute(item, attribute, self._to_camel_case(attribute))
         if direct is not None:
             return direct
 
         if resource_id and lookup is not None:
-            return lookup.get(resource_id)
+            resource = lookup.get(resource_id)
+            if resource is not None:
+                return resource
+
+        if resource_id and service is not None and hasattr(service, "get"):
+            try:
+                resource = service.get(resource_id)
+            except Exception:
+                return None
+
+            if resource is not None and isinstance(lookup, dict):
+                lookup[resource_id] = resource
+            return resource
 
         return None
 
@@ -335,11 +376,22 @@ class HydroServerService:
         except Exception:
             return None
 
-    def _string_attribute(self, item: object, attribute: str) -> str:
-        value = self._safe_attribute(item, attribute)
+    def _string_attribute(self, item: object, *attributes: str) -> str:
+        value = self._first_attribute(item, *attributes)
         if value is None:
             return ""
         return str(value)
+
+    def _first_attribute(self, item: object, *attributes: str) -> object | None:
+        for attribute in attributes:
+            value = self._safe_attribute(item, attribute)
+            if value is not None:
+                return value
+        return None
+
+    def _to_camel_case(self, value: str) -> str:
+        head, *tail = value.split("_")
+        return "".join([head, *[part.capitalize() for part in tail]])
 
     def _resource_id(self, item: object) -> str:
         if item is None:

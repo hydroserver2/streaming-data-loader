@@ -401,7 +401,14 @@ function connectDatastream(datastreamId: string): void {
 }
 
 function datastreamTitle(datastream: DatastreamSummary): string {
-  return datastream.observed_property_name || datastream.name
+  const observedPropertyName = datastream.observed_property_name.trim()
+  const unitSymbol = datastream.unit_symbol.trim()
+
+  if (observedPropertyName && unitSymbol) {
+    return `${observedPropertyName} (${unitSymbol})`
+  }
+
+  return observedPropertyName || datastream.name
 }
 
 function datastreamThing(datastream: DatastreamSummary): string {
