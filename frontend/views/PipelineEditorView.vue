@@ -62,6 +62,7 @@ function goToSetupStep(): void {
 <template>
   <section
     class="page-shell animate-fade-in onboarding-shell pipeline-editor-shell"
+    :class="{ 'pipeline-editor-shell-fullscreen': editorStep === 2 }"
   >
     <header class="page-header wizard-header">
       <div class="wizard-header-bar">

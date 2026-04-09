@@ -88,6 +88,13 @@
     background: #2f3133;
   }
 
+  html:has(.pipeline-editor-shell-fullscreen),
+  body:has(.pipeline-editor-shell-fullscreen),
+  #main-content:has(.pipeline-editor-shell-fullscreen) {
+    overflow: hidden;
+    scrollbar-gutter: auto;
+  }
+
   * {
     scrollbar-color: #5b6674 #2f3133;
   }
@@ -480,11 +487,21 @@
   }
 
   .pipeline-editor-shell.page-shell {
-    @apply pt-28 md:pt-24;
+    @apply max-w-7xl px-8 pt-28 md:px-8 md:pt-24;
   }
 
   .pipeline-editor-shell .wizard-header-bar {
-    @apply py-3;
+    @apply max-w-7xl px-8 py-3;
+  }
+
+  .pipeline-editor-shell-fullscreen.page-shell {
+    @apply max-w-none gap-0 overflow-hidden px-0 pb-0;
+    height: 100vh;
+    padding-top: calc(4.75rem - 2px);
+  }
+
+  .pipeline-editor-shell-fullscreen .wizard-header-bar {
+    @apply max-w-none px-8;
   }
 
   .onboarding-shell .page-copy {
@@ -832,6 +849,11 @@
 
   .pipeline-editor-workspace {
     @apply flex flex-1 flex-col gap-4;
+  }
+
+  .pipeline-editor-shell-fullscreen .pipeline-editor-workspace {
+    @apply min-h-0 gap-0 overflow-hidden;
+    margin-top: -3px;
   }
 
   .pipeline-editor-workspace-empty {
@@ -1255,9 +1277,18 @@
     @apply flex min-h-0 flex-col;
   }
 
+  .pipeline-editor-shell-fullscreen .preview-workbench {
+    @apply h-full overflow-hidden;
+  }
+
   .preview-shell {
     @apply grid overflow-hidden rounded-xl border lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)];
     height: calc(100vh - 16rem);
+  }
+
+  .pipeline-editor-shell-fullscreen .preview-shell {
+    @apply rounded-none border-x-0 border-t-0 border-b-0;
+    height: calc(100vh - (4.75rem - 2px));
   }
 
   .preview-panel {
@@ -1270,6 +1301,10 @@
 
   .preview-panel-settings .preview-panel-body {
     @apply px-5 py-5;
+  }
+
+  .pipeline-editor-shell-fullscreen .preview-panel-settings .preview-panel-body {
+    @apply overflow-hidden;
   }
 
   .preview-panel-data {
