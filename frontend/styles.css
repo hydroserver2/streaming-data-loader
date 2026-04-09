@@ -661,8 +661,12 @@
   }
 
   .onboarding-shell .mapping-connector-item-mapped .mapping-column-item-name,
-  .onboarding-shell .mapping-connector-item-mapped .mapping-datastream-item-name,
-  .onboarding-shell .mapping-connector-item-mapped .mapping-datastream-item-thing {
+  .onboarding-shell
+    .mapping-connector-item-mapped
+    .mapping-datastream-item-name,
+  .onboarding-shell
+    .mapping-connector-item-mapped
+    .mapping-datastream-item-thing {
     color: var(--mapping-text);
   }
 
@@ -670,7 +674,8 @@
     color: var(--mapping-badge);
   }
 
-  .onboarding-shell .mapping-datastream-item-disabled:not(.mapping-connector-item-mapped) {
+  .onboarding-shell
+    .mapping-datastream-item-disabled:not(.mapping-connector-item-mapped) {
     opacity: 0.52;
   }
 
@@ -1251,7 +1256,7 @@
   }
 
   .preview-shell {
-    @apply grid overflow-hidden rounded-xl border lg:grid-cols-[minmax(0,23rem)_minmax(0,1fr)];
+    @apply grid overflow-hidden rounded-xl border lg:grid-cols-[minmax(0,28rem)_minmax(0,1fr)];
     height: calc(100vh - 16rem);
   }
 
@@ -1261,6 +1266,10 @@
 
   .preview-panel-settings {
     @apply grid-rows-[minmax(0,1fr)];
+  }
+
+  .preview-panel-settings .preview-panel-body {
+    @apply px-5 py-5;
   }
 
   .preview-panel-data {
@@ -1297,6 +1306,11 @@
 
   .preview-panel-body-table {
     @apply min-h-0 overflow-hidden p-0;
+  }
+
+  .onboarding-shell .preview-panel-settings .pipeline-subcard,
+  .onboarding-shell .preview-panel-settings .transformer-section {
+    @apply border-0 bg-transparent p-0 shadow-none;
   }
 
   .preview-panel-footer {
