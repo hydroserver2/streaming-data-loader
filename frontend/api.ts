@@ -261,3 +261,11 @@ export function updateJob(jobId: string, payload: JobUpsertRequest): Promise<Job
     body: JSON.stringify(payload),
   })
 }
+
+export function getJob(jobId: string): Promise<JobDetail> {
+  return request<JobDetail>(`/jobs/${encodeURIComponent(jobId)}`)
+}
+
+export function getJobLogs(jobId: string): Promise<JobLogEntry[]> {
+  return request<JobLogEntry[]>(`/jobs/${encodeURIComponent(jobId)}/logs`)
+}
