@@ -63,16 +63,41 @@ function mappingCount(job: JobConfig): number {
               <p class="mapping-summary-title">{{ job.name }}</p>
               <p class="mapping-help break-all">{{ job.file_path }}</p>
             </div>
-            <p class="mapping-help whitespace-nowrap">
-              <span
-                :class="job.enabled ? 'text-emerald-300' : 'text-slate-500'"
-              >
-                {{ job.enabled ? 'Enabled' : 'Paused' }}
-              </span>
-              ·
-              {{ mappingCount(job) }}
-              {{ mappingCount(job) === 1 ? 'mapping' : 'mappings' }}
-            </p>
+            <div class="flex flex-col items-end gap-3">
+              <p class="mapping-help whitespace-nowrap">
+                <span
+                  :class="job.enabled ? 'text-emerald-300' : 'text-slate-500'"
+                >
+                  {{ job.enabled ? 'Enabled' : 'Paused' }}
+                </span>
+                ·
+                {{ mappingCount(job) }}
+                {{ mappingCount(job) === 1 ? 'mapping' : 'mappings' }}
+              </p>
+              <div class="flex flex-wrap justify-end gap-2">
+                <button
+                  class="btn-ghost px-3 py-1.5 text-xs"
+                  type="button"
+                  @click="void model.editPipelineSourceFile(job.id)"
+                >
+                  Source File
+                </button>
+                <button
+                  class="btn-ghost px-3 py-1.5 text-xs"
+                  type="button"
+                  @click="void model.editPipelineCsvSetup(job.id)"
+                >
+                  CSV Setup
+                </button>
+                <button
+                  class="btn-ghost px-3 py-1.5 text-xs"
+                  type="button"
+                  @click="void model.editPipelineMappings(job.id)"
+                >
+                  Mappings
+                </button>
+              </div>
+            </div>
           </div>
         </article>
 

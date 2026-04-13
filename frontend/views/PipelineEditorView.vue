@@ -11,8 +11,11 @@ import { useAppModel } from "../composables/useAppModel";
 const model = useAppModel();
 type PipelineEditorStep = 1 | 2;
 
-const editorStep = ref<PipelineEditorStep>(model.state.pipelinePreview ? 2 : 1);
+const editorStep = ref<PipelineEditorStep>(
+  model.state.pipelineEditorStartStep ?? (model.state.pipelinePreview ? 2 : 1)
+);
 const hasPreview = computed(() => Boolean(model.state.pipelinePreview));
+const isEditing = computed(() => Boolean(model.state.pipelineEditTarget));
 
 watch(
   () => model.state.pipelinePreview,
@@ -24,11 +27,18 @@ watch(
 );
 
 const wizardStepLabel = computed(
-  () => `Data Source Creation · Step ${editorStep.value} of 3`
+  () =>
+    `${isEditing.value ? "Edit Data Source" : "Data Source Creation"} · Step ${editorStep.value} of 3`
 );
 
 const wizardTitle = computed(() =>
-  editorStep.value === 1 ? "Select CSV File" : "Configure CSV Import"
+  editorStep.value === 1
+    ? isEditing.value
+      ? "Edit Source File"
+      : "Select CSV File"
+    : isEditing.value
+      ? "Edit CSV Setup"
+      : "Configure CSV Import"
 );
 const canReturnToDashboard = computed(() => model.hasSavedDatasources.value);
 

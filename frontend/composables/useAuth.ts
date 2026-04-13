@@ -162,6 +162,7 @@ export async function disconnectHydroServer(): Promise<void> {
     state.pipelineForm = createEmptyPipelineForm()
     state.pipelinePreview = null
     state.pipelineSelectionTarget = null
+    state.pipelineEditorStartStep = null
     state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE
     state.pipelineValidationAttempted = false
     state.pipelineReadyForMapping = false
@@ -170,6 +171,7 @@ export async function disconnectHydroServer(): Promise<void> {
     state.pipelineDatastreamsLoading = false
     state.pipelineMappingDrafts = []
     state.validatedColumnMappings = []
+    state.pipelineEditTarget = null
     state.pipelineCreateFeedback = null
     state.pipelineCreateSubmitting = false
     resetFieldStates("apikey")

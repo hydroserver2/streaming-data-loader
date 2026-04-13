@@ -254,3 +254,10 @@ export function createJob(payload: JobUpsertRequest): Promise<JobDetail> {
     body: JSON.stringify(payload),
   })
 }
+
+export function updateJob(jobId: string, payload: JobUpsertRequest): Promise<JobDetail> {
+  return request<JobDetail>(`/jobs/${encodeURIComponent(jobId)}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  })
+}

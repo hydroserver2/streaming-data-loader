@@ -3,6 +3,9 @@ import assert from "node:assert/strict"
 
 import type { CsvPreviewResponse } from "./api"
 import {
+  editPipelineCsvSetup,
+  editPipelineMappings,
+  editPipelineSourceFile,
   abandonPipelineCreation,
   applyPreviewColumnSelection,
   buildPipelineTransformerSettings,
@@ -57,6 +60,7 @@ function resetPipelineState(): void {
   state.pipelineForm = createEmptyPipelineForm()
   state.pipelinePreview = null
   state.pipelineSelectionTarget = null
+  state.pipelineEditorStartStep = null
   state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE
   state.pipelineFieldStates = createPipelineFieldStates()
   state.pipelineValidationAttempted = false
@@ -66,6 +70,7 @@ function resetPipelineState(): void {
   state.pipelineDatastreamsLoading = false
   state.pipelineMappingDrafts = []
   state.validatedColumnMappings = []
+  state.pipelineEditTarget = null
   state.connectionSummary = null
   state.lastConnectionState = null
   state.config = null
@@ -545,12 +550,441 @@ test("createPipelineDatasource sends the expected payload and resets the wizard 
   assert.deepEqual(state.validatedColumnMappings, [])
   assert.deepEqual(state.pipelineMappingDrafts, [])
   assert.equal(state.pipelineCreateSubmitting, false)
-  assert.deepEqual(state.pipelineCreateFeedback, {
-    tone: "success",
-    message: 'Created data source "river.stage".',
-  })
+  assert.equal(state.pipelineCreateFeedback, null)
   assert.equal(globalThis.window.location.hash, "#dashboard")
   assert.equal(state.config?.jobs.length, 1)
+})
+
+test("editPipelineSourceFile preloads an existing datasource on step 1", async () => {
+  Object.defineProperty(globalThis, "window", {
+    value: { location: { hash: "#dashboard" } },
+    configurable: true,
+    writable: true,
+  })
+
+  globalThis.fetch = async (_input) => {
+    const url = String(_input)
+    if (url.includes("/csv/preview")) {
+      return jsonResponse(createPreview())
+    }
+
+    throw new Error(`Unexpected request: ${url}`)
+  }
+
+  state.config = {
+    version: 1,
+    server: {
+      auth_type: "apikey",
+      url: "https://example.com",
+      api_key: "secret",
+      username: "",
+      password: "",
+      workspace_id: "workspace-123",
+    },
+    jobs: [
+      {
+        id: "job-1",
+        name: "existing-source",
+        enabled: true,
+        file_path: "/tmp/data/existing.csv",
+        schedule_minutes: 15,
+        file_config: {
+          headerRow: 1,
+          dataStartRow: 2,
+          delimiter: ",",
+          identifierType: "name",
+          timestamp: {
+            key: "recorded_at",
+            format: "ISO8601",
+            timezoneMode: "embeddedOffset",
+          },
+        },
+        column_mappings: [
+          {
+            csv_column: "value",
+            datastream_id: "stream-1",
+            datastream_name: "Stage Datastream",
+          },
+        ],
+      },
+    ],
+  }
+
+  await editPipelineSourceFile("job-1")
+
+  assert.equal(state.pipelineEditTarget?.jobId, "job-1")
+  assert.equal(state.pipelineEditorStartStep, 1)
+  assert.equal(state.pipelineForm.filePath, "/tmp/data/existing.csv")
+  assert.notEqual(state.pipelinePreview, null)
+  assert.deepEqual(state.validatedPipelineSettings, {
+    headerRow: 1,
+    dataStartRow: 2,
+    delimiter: ",",
+    identifierType: "name",
+    timestamp: {
+      key: "recorded_at",
+      format: "ISO8601",
+      timezoneMode: "embeddedOffset",
+    },
+  })
+  assert.equal(globalThis.window.location.hash, "#jobs/new")
+})
+
+test("editPipelineCsvSetup opens the existing datasource on step 2", async () => {
+  Object.defineProperty(globalThis, "window", {
+    value: { location: { hash: "#dashboard" } },
+    configurable: true,
+    writable: true,
+  })
+
+  globalThis.fetch = async (_input) => {
+    const url = String(_input)
+    if (url.includes("/csv/preview")) {
+      return jsonResponse(createPreview())
+    }
+
+    throw new Error(`Unexpected request: ${url}`)
+  }
+
+  state.config = {
+    version: 1,
+    server: {
+      auth_type: "apikey",
+      url: "https://example.com",
+      api_key: "secret",
+      username: "",
+      password: "",
+      workspace_id: "workspace-123",
+    },
+    jobs: [
+      {
+        id: "job-1",
+        name: "existing-source",
+        enabled: true,
+        file_path: "/tmp/data/existing.csv",
+        schedule_minutes: 15,
+        file_config: {
+          headerRow: 1,
+          dataStartRow: 2,
+          delimiter: ",",
+          identifierType: "name",
+          timestamp: {
+            key: "recorded_at",
+            format: "ISO8601",
+            timezoneMode: "embeddedOffset",
+          },
+        },
+        column_mappings: [],
+      },
+    ],
+  }
+
+  await editPipelineCsvSetup("job-1")
+
+  assert.equal(state.pipelineEditTarget?.jobId, "job-1")
+  assert.equal(state.pipelineEditorStartStep, 2)
+  assert.notEqual(state.pipelinePreview, null)
+  assert.equal(globalThis.window.location.hash, "#jobs/new")
+})
+
+test("editPipelineMappings preloads mappings and routes to step 3", async () => {
+  Object.defineProperty(globalThis, "window", {
+    value: { location: { hash: "#dashboard" } },
+    configurable: true,
+    writable: true,
+  })
+
+  globalThis.fetch = async (_input) => {
+    const url = String(_input)
+    if (url.includes("/csv/preview")) {
+      return jsonResponse(createPreview())
+    }
+
+    if (url.endsWith("/datastreams")) {
+      return jsonResponse([
+        {
+          id: "stream-1",
+          name: "Stage Datastream",
+          thing_id: "thing-1",
+          thing_name: "Station 1",
+          observed_property_name: "Stage",
+          processing_level_definition: "Raw",
+          unit_name: "meter",
+          unit_symbol: "m",
+          sampled_medium: "Water",
+          sensor_name: "Sensor 1",
+          result_type: "number",
+        },
+      ])
+    }
+
+    throw new Error(`Unexpected request: ${url}`)
+  }
+
+  state.config = {
+    version: 1,
+    server: {
+      auth_type: "apikey",
+      url: "https://example.com",
+      api_key: "secret",
+      username: "",
+      password: "",
+      workspace_id: "workspace-123",
+    },
+    jobs: [
+      {
+        id: "job-1",
+        name: "existing-source",
+        enabled: true,
+        file_path: "/tmp/data/existing.csv",
+        schedule_minutes: 15,
+        file_config: {
+          headerRow: 1,
+          dataStartRow: 2,
+          delimiter: ",",
+          identifierType: "name",
+          timestamp: {
+            key: "recorded_at",
+            format: "ISO8601",
+            timezoneMode: "embeddedOffset",
+          },
+        },
+        column_mappings: [
+          {
+            csv_column: "value",
+            datastream_id: "stream-1",
+            datastream_name: "Stage Datastream",
+          },
+        ],
+      },
+    ],
+  }
+
+  await editPipelineMappings("job-1")
+
+  assert.equal(state.pipelineEditTarget?.jobId, "job-1")
+  assert.equal(state.pipelineReadyForMapping, true)
+  assert.deepEqual(state.pipelineMappingDrafts, [
+    {
+      csvColumn: "value",
+      thingId: "",
+      datastreamId: "stream-1",
+    },
+  ])
+  assert.deepEqual(state.validatedColumnMappings, [
+    {
+      csv_column: "value",
+      datastream_id: "stream-1",
+      datastream_name: "Stage Datastream",
+    },
+  ])
+  assert.equal(globalThis.window.location.hash, "#jobs/new/mapping")
+})
+
+test("createPipelineDatasource updates an existing datasource when editing", async () => {
+  let requestUrl = ""
+  let requestMethod = ""
+  let requestBody: Record<string, unknown> | null = null
+
+  Object.defineProperty(globalThis, "window", {
+    value: { location: { hash: "#jobs/new/mapping" } },
+    configurable: true,
+    writable: true,
+  })
+
+  globalThis.fetch = async (_input, init) => {
+    const url = String(_input)
+    if (url.endsWith("/jobs/job-1")) {
+      requestUrl = url
+      requestMethod = String(init?.method ?? "")
+      requestBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
+      return jsonResponse({
+        id: "job-1",
+        name: "existing-source",
+        enabled: false,
+        file_path: "/tmp/data/updated.csv",
+        schedule_minutes: 30,
+        file_config: {
+          headerRow: 1,
+          dataStartRow: 2,
+          delimiter: ",",
+          identifierType: "name",
+          timestamp: {
+            key: "recorded_at",
+            format: "ISO8601",
+            timezoneMode: "embeddedOffset",
+          },
+        },
+        column_mappings: [
+          {
+            csv_column: "value",
+            datastream_id: "stream-1",
+            datastream_name: "Stage Datastream",
+          },
+        ],
+        recent_logs: [],
+        status: "pending",
+        status_message: "Ready for the next run",
+        last_pushed_timestamp: null,
+        last_run_at: null,
+        last_error: null,
+      })
+    }
+
+    if (url.endsWith("/config")) {
+      return jsonResponse({
+        version: 1,
+        server: {
+          auth_type: "apikey",
+          url: "https://example.com",
+          api_key: "secret",
+          username: "",
+          password: "",
+          workspace_id: "workspace-123",
+        },
+        jobs: [
+          {
+            id: "job-1",
+            name: "existing-source",
+            enabled: false,
+            file_path: "/tmp/data/updated.csv",
+            schedule_minutes: 30,
+            file_config: {
+              headerRow: 1,
+              dataStartRow: 2,
+              delimiter: ",",
+              identifierType: "name",
+              timestamp: {
+                key: "recorded_at",
+                format: "ISO8601",
+                timezoneMode: "embeddedOffset",
+              },
+            },
+            column_mappings: [
+              {
+                csv_column: "value",
+                datastream_id: "stream-1",
+                datastream_name: "Stage Datastream",
+              },
+            ],
+          },
+        ],
+      })
+    }
+
+    throw new Error(`Unexpected request: ${url}`)
+  }
+
+  state.connectionSummary = {
+    ok: true,
+    state: "connected",
+    message: "Connected",
+    instance_name: "HydroServer",
+    workspace_id: "workspace-123",
+    workspace_name: "Primary Workspace",
+    workspace_count: 1,
+    datastream_count: 2,
+    permissions_ok: true,
+  }
+  state.lastConnectionState = "connected"
+  state.config = {
+    version: 1,
+    server: {
+      auth_type: "apikey",
+      url: "https://example.com",
+      api_key: "secret",
+      username: "",
+      password: "",
+      workspace_id: "workspace-123",
+    },
+    jobs: [
+      {
+        id: "job-1",
+        name: "existing-source",
+        enabled: false,
+        file_path: "/tmp/data/existing.csv",
+        schedule_minutes: 30,
+        file_config: {
+          headerRow: 1,
+          dataStartRow: 2,
+          delimiter: ",",
+          identifierType: "name",
+          timestamp: {
+            key: "recorded_at",
+            format: "ISO8601",
+            timezoneMode: "embeddedOffset",
+          },
+        },
+        column_mappings: [
+          {
+            csv_column: "value",
+            datastream_id: "stream-1",
+            datastream_name: "Stage Datastream",
+          },
+        ],
+      },
+    ],
+  }
+  state.pipelineEditTarget = {
+    jobId: "job-1",
+    name: "existing-source",
+    enabled: false,
+    scheduleMinutes: 30,
+  }
+  state.pipelinePreview = createPreview()
+  state.pipelineForm.filePath = "/tmp/data/updated.csv"
+  state.pipelineReadyForMapping = true
+  state.validatedPipelineSettings = {
+    headerRow: 1,
+    dataStartRow: 2,
+    delimiter: ",",
+    identifierType: "name",
+    timestamp: {
+      key: "recorded_at",
+      format: "ISO8601",
+      timezoneMode: "embeddedOffset",
+    },
+  }
+  state.validatedColumnMappings = [
+    {
+      csv_column: "value",
+      datastream_id: "stream-1",
+      datastream_name: "Stage Datastream",
+    },
+  ]
+
+  await createPipelineDatasource()
+
+  assert.equal(requestMethod, "PUT")
+  assert.match(requestUrl, /\/jobs\/job-1$/)
+  assert.deepEqual(requestBody, {
+    name: "existing-source",
+    enabled: false,
+    file_path: "/tmp/data/updated.csv",
+    schedule_minutes: 30,
+    file_config: {
+      headerRow: 1,
+      dataStartRow: 2,
+      delimiter: ",",
+      identifierType: "name",
+      timestamp: {
+        key: "recorded_at",
+        format: "ISO8601",
+        timezoneMode: "embeddedOffset",
+      },
+    },
+    column_mappings: [
+      {
+        csv_column: "value",
+        datastream_id: "stream-1",
+        datastream_name: "Stage Datastream",
+      },
+    ],
+  })
+  assert.equal(state.pipelineEditTarget, null)
+  assert.equal(state.pipelineCreateFeedback, null)
+  assert.equal(globalThis.window.location.hash, "#dashboard")
+  assert.equal(state.config?.jobs[0]?.file_path, "/tmp/data/updated.csv")
 })
 
 test("createPipelineDatasource blocks submission when no columns are mapped", async () => {

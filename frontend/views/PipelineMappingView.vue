@@ -95,9 +95,14 @@ const previewFileName = computed(
     model.state.pipelineForm.filePath.split(/[\\/]/).filter(Boolean).at(-1) ??
     model.state.pipelineForm.filePath
 )
+const isEditing = computed(() => Boolean(model.state.pipelineEditTarget))
 
-const wizardStepLabel = 'Data Source Creation · Step 3 of 3'
-const wizardTitle = 'Map Columns to Datastreams'
+const wizardStepLabel = computed(() =>
+  isEditing.value ? 'Edit Data Source · Step 3 of 3' : 'Data Source Creation · Step 3 of 3'
+)
+const wizardTitle = computed(() =>
+  isEditing.value ? 'Edit Source Mappings' : 'Map Columns to Datastreams'
+)
 
 const hasDatastreamInventory = computed(
   () => model.state.pipelineDatastreams.length > 0
@@ -130,9 +135,13 @@ const currentMappedDatastream = computed(
 const mappedColumnCount = computed(
   () => mappingRows.value.filter((row) => row.datastreamId).length
 )
-const createButtonLabel = computed(() =>
-  model.state.pipelineCreateSubmitting ? 'Creating...' : 'Create'
-)
+const createButtonLabel = computed(() => {
+  if (model.state.pipelineCreateSubmitting) {
+    return isEditing.value ? 'Saving...' : 'Creating...'
+  }
+
+  return isEditing.value ? 'Save Changes' : 'Create'
+})
 const createDisabled = computed(
   () =>
     model.state.pipelineCreateSubmitting ||
@@ -257,7 +266,8 @@ watch(
       return
     }
 
-    activeCsvColumn.value = ''
+    activeCsvColumn.value =
+      rows.find((row) => row.datastreamId)?.csvColumn ?? ''
   },
   { immediate: true }
 )

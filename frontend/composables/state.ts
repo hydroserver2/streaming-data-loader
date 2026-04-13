@@ -25,6 +25,7 @@ import type {
 } from "../api";
 
 export type PipelineIdentifierType = "name" | "index";
+export type PipelineEditorStep = 1 | 2;
 
 export type PipelineFormState = {
   filePath: string;
@@ -40,6 +41,13 @@ export type PipelineMappingDraft = {
   csvColumn: string;
   thingId: string;
   datastreamId: string;
+};
+
+export type PipelineEditTarget = {
+  jobId: string;
+  name: string;
+  enabled: boolean;
+  scheduleMinutes: number;
 };
 
 export type PreviewSelectionTarget =
@@ -70,6 +78,7 @@ type UiState = {
   pipelineFieldStates: PipelineFieldStates;
   authSubmitting: boolean;
   pipelineSelectionTarget: PreviewSelectionTarget;
+  pipelineEditorStartStep: PipelineEditorStep | null;
   pipelinePreviewRowsRequested: number;
   pipelineValidationAttempted: boolean;
   pipelineReadyForMapping: boolean;
@@ -78,6 +87,7 @@ type UiState = {
   pipelineDatastreamsLoading: boolean;
   pipelineMappingDrafts: PipelineMappingDraft[];
   validatedColumnMappings: ColumnMapping[];
+  pipelineEditTarget: PipelineEditTarget | null;
   pipelineCreateFeedback: Feedback;
   pipelineCreateSubmitting: boolean;
 };
@@ -132,6 +142,7 @@ export const state = reactive<UiState>({
   pipelineFieldStates: createPipelineFieldStates(),
   authSubmitting: false,
   pipelineSelectionTarget: null,
+  pipelineEditorStartStep: null,
   pipelinePreviewRowsRequested: PREVIEW_PAGE_SIZE,
   pipelineValidationAttempted: false,
   pipelineReadyForMapping: false,
@@ -140,6 +151,7 @@ export const state = reactive<UiState>({
   pipelineDatastreamsLoading: false,
   pipelineMappingDrafts: [],
   validatedColumnMappings: [],
+  pipelineEditTarget: null,
   pipelineCreateFeedback: null,
   pipelineCreateSubmitting: false,
 });

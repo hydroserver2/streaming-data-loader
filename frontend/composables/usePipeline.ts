@@ -1,12 +1,13 @@
 import { computed } from "vue"
 
 import type {
+  JobConfig,
   JobUpsertRequest,
   CsvPreviewResponse,
   CsvTransformerSettings,
   CsvTransformerTimestampSettings,
 } from "../api"
-import { createJob, getConfig, getCsvPreview } from "../api"
+import { createJob, getConfig, getCsvPreview, updateJob } from "../api"
 import {
   createPipelineFieldStates,
   type PipelineFieldName,
@@ -22,6 +23,8 @@ import {
   type PipelineIdentifierType,
 } from "./state"
 import type { TimezoneMode, TimestampFormat } from "../models/timestamp"
+
+type PipelineEditSection = "file" | "setup" | "mappings"
 
 type DetectedTimestampPattern = Pick<
   CsvTransformerTimestampSettings,
@@ -742,6 +745,81 @@ function basenameWithoutExtension(path: string): string {
   return basename.slice(0, extensionIndex)
 }
 
+function pipelineFormFromJob(job: JobConfig) {
+  return {
+    filePath: job.file_path,
+    hasHeaderRow: job.file_config.headerRow !== null,
+    headerRow: job.file_config.headerRow ?? 1,
+    dataStartRow: job.file_config.dataStartRow,
+    delimiter: job.file_config.delimiter,
+    identifierType: job.file_config.identifierType,
+    timestamp: {
+      ...job.file_config.timestamp,
+    },
+  }
+}
+
+function pipelineMappingDraftsFromJob(job: JobConfig) {
+  return job.column_mappings.map((mapping) => ({
+    csvColumn: mapping.csv_column,
+    thingId:
+      state.pipelineDatastreams.find(
+        (datastream) => datastream.id === mapping.datastream_id
+      )?.thing_id ?? "",
+    datastreamId: mapping.datastream_id,
+  }))
+}
+
+function currentPipelineJob(): JobConfig | null {
+  const jobId = state.pipelineEditTarget?.jobId
+  if (!jobId) return null
+
+  return state.config?.jobs.find((job) => job.id === jobId) ?? null
+}
+
+async function preparePipelineEditFlow(
+  job: JobConfig,
+  section: PipelineEditSection
+): Promise<void> {
+  resetPipelineCreationFlow()
+  state.pipelineEditTarget = {
+    jobId: job.id,
+    name: job.name,
+    enabled: job.enabled,
+    scheduleMinutes: job.schedule_minutes,
+  }
+  state.pipelineEditorStartStep = section === "file" ? 1 : 2
+  state.pipelineForm = pipelineFormFromJob(job)
+
+  await loadPipelinePreview(job.file_path)
+  state.pipelineForm = pipelineFormFromJob(job)
+  state.pipelineFieldStates = createPipelineFieldStates()
+  state.pipelineValidationAttempted = false
+  state.validatedPipelineSettings = {
+    ...job.file_config,
+    timestamp: {
+      ...job.file_config.timestamp,
+    },
+  }
+  state.pipelineMappingDrafts = job.column_mappings.map((mapping) => ({
+    csvColumn: mapping.csv_column,
+    thingId: "",
+    datastreamId: mapping.datastream_id,
+  }))
+  state.validatedColumnMappings = [...job.column_mappings]
+  state.pipelineReadyForMapping = section === "mappings"
+
+  if (section === "mappings") {
+    const { loadPipelineDatastreams } = await import("./useMapping")
+    await loadPipelineDatastreams()
+    state.pipelineMappingDrafts = pipelineMappingDraftsFromJob(job)
+    navigate("jobs-new-mapping")
+    return
+  }
+
+  navigate("jobs-new")
+}
+
 function canCreatePipelineDatasource(): { ok: true } | { ok: false; message: string } {
   if (!(state.connectionSummary?.ok && state.lastConnectionState === "connected")) {
     return {
@@ -794,6 +872,7 @@ export function resetPipelineCreationFlow(options?: {
   state.pipelineForm = createEmptyPipelineForm()
   state.pipelinePreview = null
   state.pipelineSelectionTarget = null
+  state.pipelineEditorStartStep = null
   state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE
   state.pipelineFieldStates = createPipelineFieldStates()
   state.pipelineValidationAttempted = false
@@ -801,6 +880,7 @@ export function resetPipelineCreationFlow(options?: {
   state.validatedPipelineSettings = null
   state.pipelineMappingDrafts = []
   state.validatedColumnMappings = []
+  state.pipelineEditTarget = null
   state.pipelineCreateSubmitting = false
   state.pipelineCreateFeedback = options?.feedback ?? null
 }
@@ -808,6 +888,77 @@ export function resetPipelineCreationFlow(options?: {
 export function abandonPipelineCreation(): void {
   resetPipelineCreationFlow()
   navigate("dashboard")
+}
+
+export async function editPipelineSourceFile(jobId: string): Promise<void> {
+  const job = state.config?.jobs.find((item) => item.id === jobId)
+  if (!job) {
+    state.pipelineCreateFeedback = {
+      tone: "error",
+      message: "That data source could not be found.",
+    }
+    return
+  }
+
+  try {
+    await preparePipelineEditFlow(job, "file")
+  } catch {
+    state.pipelineEditTarget = {
+      jobId: job.id,
+      name: job.name,
+      enabled: job.enabled,
+      scheduleMinutes: job.schedule_minutes,
+    }
+    state.pipelineEditorStartStep = 1
+    state.pipelineForm = pipelineFormFromJob(job)
+    state.pipelineFieldStates = createPipelineFieldStates()
+    state.pipelineCreateFeedback = {
+      tone: "error",
+      message: "Couldn't load the current CSV file. Update the file path to continue.",
+    }
+    navigate("jobs-new")
+  }
+}
+
+export async function editPipelineCsvSetup(jobId: string): Promise<void> {
+  await editPipelineSection(jobId, "setup")
+}
+
+export async function editPipelineMappings(jobId: string): Promise<void> {
+  await editPipelineSection(jobId, "mappings")
+}
+
+async function editPipelineSection(
+  jobId: string,
+  section: PipelineEditSection
+): Promise<void> {
+  const job = state.config?.jobs.find((item) => item.id === jobId)
+  if (!job) {
+    state.pipelineCreateFeedback = {
+      tone: "error",
+      message: "That data source could not be found.",
+    }
+    return
+  }
+
+  try {
+    await preparePipelineEditFlow(job, section)
+  } catch {
+    state.pipelineEditTarget = {
+      jobId: job.id,
+      name: job.name,
+      enabled: job.enabled,
+      scheduleMinutes: job.schedule_minutes,
+    }
+    state.pipelineEditorStartStep = 1
+    state.pipelineForm = pipelineFormFromJob(job)
+    state.pipelineFieldStates = createPipelineFieldStates()
+    state.pipelineCreateFeedback = {
+      tone: "error",
+      message: "Couldn't load the current CSV file. Update the file path to continue.",
+    }
+    navigate("jobs-new")
+  }
 }
 
 export async function createPipelineDatasource(): Promise<void> {
@@ -819,27 +970,30 @@ export async function createPipelineDatasource(): Promise<void> {
     return
   }
 
-  const name = basenameWithoutExtension(state.pipelineForm.filePath)
+  const editingTarget = state.pipelineEditTarget
+  const existingJob = currentPipelineJob()
+  const name = editingTarget?.name ?? basenameWithoutExtension(state.pipelineForm.filePath)
   const payload: JobUpsertRequest = {
     name,
-    enabled: true,
+    enabled: editingTarget?.enabled ?? existingJob?.enabled ?? true,
     file_path: state.pipelineForm.filePath.trim(),
     file_config: state.validatedPipelineSettings!,
     column_mappings: state.validatedColumnMappings,
+    schedule_minutes:
+      editingTarget?.scheduleMinutes ?? existingJob?.schedule_minutes,
   }
 
   state.pipelineCreateSubmitting = true
   state.pipelineCreateFeedback = null
 
   try {
-    await createJob(payload)
+    if (editingTarget) {
+      await updateJob(editingTarget.jobId, payload)
+    } else {
+      await createJob(payload)
+    }
     state.config = await getConfig()
-    resetPipelineCreationFlow({
-      feedback: {
-        tone: "success",
-        message: `Created data source "${name}".`,
-      },
-    })
+    resetPipelineCreationFlow()
     navigate("dashboard")
   } catch (error) {
     state.pipelineCreateFeedback = {
@@ -847,6 +1001,8 @@ export async function createPipelineDatasource(): Promise<void> {
       message:
         error instanceof Error
           ? error.message
+          : editingTarget
+          ? "Couldn't update the data source right now."
           : "Couldn't create the data source right now.",
     }
   } finally {
