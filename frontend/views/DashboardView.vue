@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed } from "vue"
+import { computed } from 'vue'
 
-import type { JobConfig } from "../api"
-import AccountMenuButton from "../components/AccountMenuButton.vue"
-import FeedbackBanner from "../components/FeedbackBanner.vue"
-import { useAppModel } from "../composables/useAppModel"
-import { navigate } from "../router"
+import type { JobConfig } from '../api'
+import AccountMenuButton from '../components/AccountMenuButton.vue'
+import FeedbackBanner from '../components/FeedbackBanner.vue'
+import { useAppModel } from '../composables/useAppModel'
+import { navigate } from '../router'
 
 const model = useAppModel()
 
@@ -15,10 +15,10 @@ const workspaceLabel = computed(
     model.state.connectionSummary?.workspace_name?.trim() ||
     model.state.connectionSummary?.workspace_id?.trim() ||
     model.state.config?.server.workspace_id ||
-    "Current workspace"
+    'Current workspace'
 )
 const datasourceCountLabel = computed(() =>
-  jobs.value.length === 1 ? "1 source" : `${jobs.value.length} sources`
+  jobs.value.length === 1 ? '1 source' : `${jobs.value.length} sources`
 )
 
 function mappingCount(job: JobConfig): number {
@@ -27,7 +27,9 @@ function mappingCount(job: JobConfig): number {
 </script>
 
 <template>
-  <section class="page-shell animate-fade-in onboarding-shell pipeline-editor-shell">
+  <section
+    class="page-shell animate-fade-in onboarding-shell pipeline-editor-shell"
+  >
     <header class="page-header wizard-header">
       <div class="wizard-header-bar">
         <div class="wizard-title-block">
@@ -36,11 +38,11 @@ function mappingCount(job: JobConfig): number {
         </div>
         <div class="button-row wizard-actions">
           <button
-            class="btn-ghost wizard-nav-button"
+            class="btn-primary wizard-nav-button"
             type="button"
             @click="navigate('jobs-new')"
           >
-            Add Source
+            + Add Data Source
           </button>
           <AccountMenuButton />
         </div>
@@ -62,12 +64,14 @@ function mappingCount(job: JobConfig): number {
               <p class="mapping-help break-all">{{ job.file_path }}</p>
             </div>
             <p class="mapping-help whitespace-nowrap">
-              <span :class="job.enabled ? 'text-emerald-300' : 'text-slate-500'">
-                {{ job.enabled ? "Enabled" : "Paused" }}
+              <span
+                :class="job.enabled ? 'text-emerald-300' : 'text-slate-500'"
+              >
+                {{ job.enabled ? 'Enabled' : 'Paused' }}
               </span>
               ·
               {{ mappingCount(job) }}
-              {{ mappingCount(job) === 1 ? "mapping" : "mappings" }}
+              {{ mappingCount(job) === 1 ? 'mapping' : 'mappings' }}
             </p>
           </div>
         </article>
