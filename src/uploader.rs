@@ -29,8 +29,13 @@ pub fn spawn_upload_worker(
     config_store: Arc<ConfigStore>,
 ) -> JoinHandle<()> {
     tokio::spawn(async move {
+        let rps = std::env::var("SDL_REQUESTS_PER_SECOND")
+            .ok()
+            .and_then(|value| value.trim().parse::<u32>().ok())
+            .filter(|value| *value > 0)
+            .unwrap_or(DEFAULT_REQUESTS_PER_SECOND);
         let rate_limiter = RateLimiter::direct(Quota::per_second(
-            NonZeroU32::new(DEFAULT_REQUESTS_PER_SECOND).expect("non-zero rate"),
+            NonZeroU32::new(rps).expect("non-zero rate"),
         ));
         let mut batches: HashMap<BatchKey, PendingBatch> = HashMap::new();
         let mut flush_timer = interval(FLUSH_INTERVAL);
@@ -163,16 +168,27 @@ async fn upload_with_retry(
             .post_observations_batch(context.server.as_ref(), &context.datastream_id, payload)
             .await
         {
-            Ok(()) => return Ok(()),
+            Ok(()) => {
+                if attempt > 0 {
+                    info!(
+                        datastream_id = %context.datastream_id,
+                        attempt = attempt + 1,
+                        "upload succeeded after retry"
+                    );
+                }
+                return Ok(());
+            }
             Err(error) if error.is_retryable() && attempt < MAX_RETRIES => {
+                let jitter = jitter_duration(backoff);
+                let delay = backoff + jitter;
                 warn!(
                     datastream_id = %context.datastream_id,
                     attempt = attempt + 1,
-                    delay_ms = backoff.as_millis(),
+                    delay_ms = delay.as_millis(),
                     error = %error,
                     "upload attempt failed with a retryable error"
                 );
-                sleep(backoff).await;
+                sleep(delay).await;
                 backoff *= 2;
             }
             Err(error) => return Err(error.to_string()),
@@ -180,6 +196,16 @@ async fn upload_with_retry(
     }
 
     Err("Observation upload failed after retries.".to_string())
+}
+
+/// Returns a jitter of 0..25% of the base duration, derived from system time nanos.
+fn jitter_duration(base: Duration) -> Duration {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.subsec_nanos())
+        .unwrap_or(0);
+    let jitter_fraction = (nanos % 250) as f64 / 1000.0; // 0.0 to 0.249
+    Duration::from_secs_f64(base.as_secs_f64() * jitter_fraction)
 }
 
 async fn persist_success(config_store: Arc<ConfigStore>, batch: &PendingBatch) {
@@ -296,4 +322,93 @@ struct JobUploadSummary {
     max_timestamp: DateTime<Utc>,
     max_row_index: u64,
     observation_count: usize,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn test_observation(
+        job_id: &str,
+        datastream_id: &str,
+        row_index: u64,
+    ) -> QueuedObservation {
+        QueuedObservation {
+            context: Arc::new(ObservationContext {
+                server: Arc::new(crate::models::ServerConfig::default()),
+                job_id: job_id.to_string(),
+                datastream_id: datastream_id.to_string(),
+                datastream_name: "Test".to_string(),
+            }),
+            timestamp: Utc::now(),
+            row_index,
+            value: json!(1.0),
+        }
+    }
+
+    #[test]
+    fn batch_key_groups_by_server_and_datastream() {
+        let obs_a1 = test_observation("job-1", "ds-a", 1);
+        let obs_a2 = test_observation("job-1", "ds-a", 2);
+        let obs_b1 = test_observation("job-1", "ds-b", 1);
+
+        let key_a1 = BatchKey::from(&obs_a1);
+        let key_a2 = BatchKey::from(&obs_a2);
+        let key_b1 = BatchKey::from(&obs_b1);
+
+        assert_eq!(key_a1, key_a2, "same datastream should produce same key");
+        assert_ne!(key_a1, key_b1, "different datastreams should differ");
+    }
+
+    #[test]
+    fn summarize_batch_tracks_max_timestamp_and_row_index() {
+        let t1 = Utc::now() - chrono::Duration::minutes(10);
+        let t2 = Utc::now();
+
+        let batch = PendingBatch {
+            context: Arc::new(ObservationContext {
+                server: Arc::new(crate::models::ServerConfig::default()),
+                job_id: "job-1".to_string(),
+                datastream_id: "ds-1".to_string(),
+                datastream_name: "Test".to_string(),
+            }),
+            rows: vec![
+                QueuedObservation {
+                    context: Arc::new(ObservationContext {
+                        server: Arc::new(crate::models::ServerConfig::default()),
+                        job_id: "job-1".to_string(),
+                        datastream_id: "ds-1".to_string(),
+                        datastream_name: "Test".to_string(),
+                    }),
+                    timestamp: t1,
+                    row_index: 5,
+                    value: json!(1.0),
+                },
+                QueuedObservation {
+                    context: Arc::new(ObservationContext {
+                        server: Arc::new(crate::models::ServerConfig::default()),
+                        job_id: "job-1".to_string(),
+                        datastream_id: "ds-1".to_string(),
+                        datastream_name: "Test".to_string(),
+                    }),
+                    timestamp: t2,
+                    row_index: 10,
+                    value: json!(2.0),
+                },
+            ],
+        };
+
+        let summaries = summarize_batch(&batch);
+        let summary = summaries.get("job-1").expect("should have job-1");
+        assert_eq!(summary.observation_count, 2);
+        assert_eq!(summary.max_timestamp, t2);
+        assert_eq!(summary.max_row_index, 10);
+    }
+
+    #[test]
+    fn batch_size_constant_is_reasonable() {
+        assert_eq!(BATCH_SIZE, 500);
+        assert_eq!(FLUSH_INTERVAL, Duration::from_secs(1));
+    }
 }

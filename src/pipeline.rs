@@ -12,7 +12,7 @@ use tokio::{
     sync::{mpsc, Mutex, RwLock},
     task::JoinHandle,
 };
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::{
     config_store::ConfigStore,
@@ -35,7 +35,7 @@ pub struct PipelineService {
 
 struct PipelineInner {
     config_store: Arc<ConfigStore>,
-    observation_tx: ObservationSender,
+    observation_tx: Mutex<Option<ObservationSender>>,
     hydroserver: Arc<HydroServerService>,
     event_tx: mpsc::UnboundedSender<PathBuf>,
     watch_plan: RwLock<WatchPlan>,
@@ -85,7 +85,7 @@ impl PipelineService {
         let service = Self {
             inner: Arc::new(PipelineInner {
                 config_store: config_store.clone(),
-                observation_tx,
+                observation_tx: Mutex::new(Some(observation_tx)),
                 hydroserver: hydroserver.clone(),
                 event_tx,
                 watch_plan: RwLock::new(WatchPlan::default()),
@@ -114,6 +114,10 @@ impl PipelineService {
         }
 
         let watched_paths = snapshot.jobs_by_path.keys().cloned().collect::<Vec<_>>();
+        info!(
+            watched_file_count = watched_paths.len(),
+            "reloading pipeline watcher"
+        );
         let watcher = FilesystemWatcher::start(watched_paths.clone(), self.inner.event_tx.clone())?;
         *self.inner.watcher.lock().await = watcher;
 
@@ -122,6 +126,9 @@ impl PipelineService {
             row_counts.retain(|path, _| snapshot.jobs_by_path.contains_key(path));
         }
 
+        for path in &watched_paths {
+            debug!(file = %path.display(), "queuing initial scan");
+        }
         for path in watched_paths {
             let _ = self.inner.event_tx.send(path);
         }
@@ -130,6 +137,7 @@ impl PipelineService {
     }
 
     pub async fn shutdown(&self) {
+        info!("pipeline shutting down; draining pending uploads");
         *self.inner.watcher.lock().await = None;
 
         if let Ok(mut slot) = self.inner.event_task.lock() {
@@ -138,10 +146,19 @@ impl PipelineService {
             }
         }
 
-        if let Ok(mut slot) = self.inner.uploader_task.lock() {
-            if let Some(task) = slot.take() {
-                task.abort();
-            }
+        // Drop the observation sender so the uploader sees channel-closed and
+        // drains its remaining batches instead of waiting forever.
+        self.inner.observation_tx.lock().await.take();
+
+        let uploader_task = self
+            .inner
+            .uploader_task
+            .lock()
+            .ok()
+            .and_then(|mut slot| slot.take());
+
+        if let Some(task) = uploader_task {
+            let _ = tokio::time::timeout(std::time::Duration::from_secs(30), task).await;
         }
     }
 
@@ -236,8 +253,10 @@ impl PipelineService {
     async fn scan_path(&self, path: PathBuf) -> Result<(), String> {
         let path = normalize_watched_path(path);
         if !self.begin_path_scan(&path).await {
+            debug!(file = %path.display(), "skipping scan; already in flight");
             return Ok(());
         }
+        debug!(file = %path.display(), "scanning watched file for new rows");
 
         let outcome = async {
             let snapshot = {
@@ -349,15 +368,17 @@ impl PipelineService {
                 datastream_id: observation.datastream_id,
                 datastream_name: observation.datastream_name,
             });
-            self.inner
-                .observation_tx
-                .send(QueuedObservation {
-                    context,
-                    timestamp: observation.timestamp,
-                    row_index: observation.row_index,
-                    value: observation.value,
-                })
-                .await?;
+            let tx = self.inner.observation_tx.lock().await;
+            let Some(tx) = tx.as_ref() else {
+                return Err("Pipeline is shutting down.".to_string());
+            };
+            tx.send(QueuedObservation {
+                context,
+                timestamp: observation.timestamp,
+                row_index: observation.row_index,
+                value: observation.value,
+            })
+            .await?;
             queued += 1;
         }
 
@@ -681,6 +702,176 @@ Timestamp,Stage_ft,WaterTemp_C
         assert_eq!(result.file_row_count, 5);
         assert_eq!(result.observations.len(), 1);
         assert_eq!(result.observations[0].row_index, 5);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn scan_persists_row_count_across_successive_events() {
+        let path = std::env::temp_dir().join(format!(
+            "sdl-pipeline-persist-{}-{}.csv",
+            std::process::id(),
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+
+        // Initial write: 3 header/preamble rows + 2 data rows = 5 total
+        std::fs::write(
+            &path,
+            "\
+Station,Example Creek at Demo Site
+Generated At,2026-04-03 09:00:00
+Timestamp,Stage_ft,WaterTemp_C
+2026-04-03 08:00:00,2.41,7.8
+2026-04-03 08:05:00,2.45,7.9
+",
+        )
+        .expect("write csv");
+
+        let job = sample_job(path.to_str().expect("utf-8 path"));
+
+        // First scan with previous_row_count=0 sees both data rows
+        let result1 = scan_job_file(job.clone(), 0, JobCursor::default(), ScanMode::Incremental)
+            .expect("scan 1");
+        assert_eq!(result1.file_row_count, 5);
+        assert_eq!(result1.observations.len(), 2);
+
+        // Second scan with previous_row_count=5 sees nothing new
+        let result2 = scan_job_file(
+            job.clone(),
+            result1.file_row_count,
+            JobCursor::default(),
+            ScanMode::Incremental,
+        )
+        .expect("scan 2");
+        assert_eq!(result2.observations.len(), 0);
+
+        // Append one row
+        std::fs::write(
+            &path,
+            "\
+Station,Example Creek at Demo Site
+Generated At,2026-04-03 09:00:00
+Timestamp,Stage_ft,WaterTemp_C
+2026-04-03 08:00:00,2.41,7.8
+2026-04-03 08:05:00,2.45,7.9
+2026-04-03 08:10:00,2.50,8.0
+",
+        )
+        .expect("append csv");
+
+        // Third scan with previous_row_count=5 sees only the new row
+        let result3 = scan_job_file(
+            job.clone(),
+            result2.file_row_count,
+            JobCursor::default(),
+            ScanMode::Incremental,
+        )
+        .expect("scan 3");
+        assert_eq!(result3.file_row_count, 6);
+        assert_eq!(result3.observations.len(), 1);
+        assert_eq!(result3.observations[0].row_index, 6);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn scan_detects_file_truncation_and_rescans() {
+        let path = std::env::temp_dir().join(format!(
+            "sdl-pipeline-truncate-{}-{}.csv",
+            std::process::id(),
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+
+        std::fs::write(
+            &path,
+            "\
+Station,Example Creek at Demo Site
+Generated At,2026-04-03 09:00:00
+Timestamp,Stage_ft,WaterTemp_C
+2026-04-03 08:00:00,2.41,7.8
+2026-04-03 08:05:00,2.45,7.9
+2026-04-03 08:10:00,2.50,8.0
+",
+        )
+        .expect("write csv");
+
+        let job = sample_job(path.to_str().expect("utf-8 path"));
+
+        // First scan sees 3 data rows
+        let result1 = scan_job_file(job.clone(), 0, JobCursor::default(), ScanMode::Incremental)
+            .expect("scan 1");
+        assert_eq!(result1.file_row_count, 6);
+        assert_eq!(result1.observations.len(), 3);
+
+        // Truncate and rewrite with fewer rows
+        std::fs::write(
+            &path,
+            "\
+Station,Example Creek at Demo Site
+Generated At,2026-04-03 10:00:00
+Timestamp,Stage_ft,WaterTemp_C
+2026-04-03 09:00:00,2.60,8.1
+",
+        )
+        .expect("rewrite csv");
+
+        // Scan detects reset (4 < 6) and rescans from data_start_row
+        let result2 = scan_job_file(
+            job.clone(),
+            result1.file_row_count,
+            JobCursor::default(),
+            ScanMode::Incremental,
+        )
+        .expect("scan 2");
+        assert!(result2.reset_detected);
+        assert_eq!(result2.file_row_count, 4);
+        assert_eq!(result2.observations.len(), 1);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn large_csv_scan_produces_bounded_observations() {
+        let path = std::env::temp_dir().join(format!(
+            "sdl-pipeline-large-{}-{}.csv",
+            std::process::id(),
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+
+        // Generate a 10,000-row CSV using epoch seconds to avoid invalid dates
+        let mut csv = String::from("Station,Example Creek\nGenerated At,2026-04-03\nTimestamp,Stage_ft,WaterTemp_C\n");
+        let base = chrono::NaiveDate::from_ymd_opt(2026, 1, 1)
+            .unwrap()
+            .and_hms_opt(0, 0, 0)
+            .unwrap();
+        for i in 0..10_000u64 {
+            let ts = base + chrono::Duration::minutes(i as i64 * 5);
+            csv.push_str(&format!(
+                "{},{:.2},{:.1}\n",
+                ts.format("%Y-%m-%dT%H:%M:%S"),
+                2.0 + (i as f64) * 0.01,
+                7.0 + (i as f64) * 0.001,
+            ));
+        }
+        std::fs::write(&path, &csv).expect("write large csv");
+
+        let job = sample_job(path.to_str().expect("utf-8 path"));
+
+        // Full scan from row 0 — should produce exactly 10,000 observations
+        let result = scan_job_file(job.clone(), 0, JobCursor::default(), ScanMode::Incremental)
+            .expect("scan large file");
+        assert_eq!(result.file_row_count, 10_003); // 3 header + 10,000 data
+        assert_eq!(result.observations.len(), 10_000);
+
+        // Incremental scan with previous_row_count = full file — should produce 0
+        let result2 = scan_job_file(
+            job.clone(),
+            result.file_row_count,
+            JobCursor::default(),
+            ScanMode::Incremental,
+        )
+        .expect("incremental scan of unchanged file");
+        assert_eq!(result2.observations.len(), 0);
 
         let _ = std::fs::remove_file(path);
     }
