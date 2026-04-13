@@ -1,27 +1,54 @@
-use std::{
-    collections::HashMap,
-    fs,
-    path::{Path, PathBuf},
-    process::{Child, Command, Stdio},
-    sync::Mutex,
+mod commands;
+mod config_store;
+mod csv_preview;
+mod hydroserver;
+mod models;
+mod runtime;
+mod timestamp;
+
+use tauri::{
+    image::Image,
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager,
 };
 
-struct SidecarState(Mutex<Option<Child>>);
+use runtime::{resolve_config_dir, AppState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .manage(SidecarState(Mutex::new(None)))
         .setup(|app| {
-            start_sidecar(app)?;
+            let state = AppState::new(resolve_config_dir(&app.handle())?)?;
+            state.initialize()?;
+            app.manage(state);
             setup_tray(app)?;
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![
+            commands::get_health,
+            commands::get_config,
+            commands::update_server_config,
+            commands::clear_server_config,
+            commands::test_connection,
+            commands::validate_server_url,
+            commands::get_jobs,
+            commands::create_job,
+            commands::get_job,
+            commands::update_job,
+            commands::delete_job,
+            commands::run_job_now,
+            commands::enable_job,
+            commands::disable_job,
+            commands::get_job_logs,
+            commands::get_datastreams,
+            commands::get_csv_preview,
+        ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                window.hide().unwrap();
+                let _ = window.hide();
                 api.prevent_close();
             }
         })
@@ -29,62 +56,7 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn start_sidecar(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    use tauri::Manager;
-
-    if !cfg!(debug_assertions) {
-        return Ok(());
-    }
-
-    let env_vars = read_env_file(&workspace_root().join(".env.development"))?;
-    let child = Command::new("node")
-        .arg("./scripts/run-sidecar.mjs")
-        .current_dir(workspace_root())
-        .envs(env_vars)
-        .env("SDL_TAURI_MANAGED", "1")
-        .stdin(Stdio::null())
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit())
-        .spawn()?;
-
-    *app.state::<SidecarState>().0.lock().unwrap() = Some(child);
-
-    Ok(())
-}
-
-fn workspace_root() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-}
-
-fn read_env_file(path: &Path) -> Result<HashMap<String, String>, Box<dyn std::error::Error>> {
-    let mut env_vars = HashMap::new();
-
-    if !path.exists() {
-        return Ok(env_vars);
-    }
-
-    for line in fs::read_to_string(path)?.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-
-        if let Some((key, value)) = trimmed.split_once('=') {
-            env_vars.insert(key.trim().to_string(), value.trim().to_string());
-        }
-    }
-
-    Ok(env_vars)
-}
-
 fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    use tauri::{
-        image::Image,
-        menu::{Menu, MenuItem},
-        tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-        Manager,
-    };
-
     let show = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
     let hide = MenuItem::with_id(app, "hide", "Hide Window", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -97,20 +69,17 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "show" => {
                 if let Some(window) = app.get_webview_window("main") {
-                    window.show().unwrap();
-                    window.set_focus().unwrap();
+                    let _ = window.show();
+                    let _ = window.set_focus();
                 }
             }
             "hide" => {
                 if let Some(window) = app.get_webview_window("main") {
-                    window.hide().unwrap();
+                    let _ = window.hide();
                 }
             }
             "quit" => {
-                // Kill the sidecar before quitting
-                if let Some(mut child) = app.state::<SidecarState>().0.lock().unwrap().take() {
-                    let _ = child.kill();
-                }
+                app.state::<AppState>().shutdown();
                 app.exit(0);
             }
             _ => {}
@@ -125,10 +94,10 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                 let app = tray.app_handle();
                 if let Some(window) = app.get_webview_window("main") {
                     if window.is_visible().unwrap_or(false) {
-                        window.hide().unwrap();
+                        let _ = window.hide();
                     } else {
-                        window.show().unwrap();
-                        window.set_focus().unwrap();
+                        let _ = window.show();
+                        let _ = window.set_focus();
                     }
                 }
             }
@@ -136,7 +105,7 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .build(app)?;
 
     if let Some(window) = app.get_webview_window("main") {
-        window.show().unwrap();
+        let _ = window.show();
     }
 
     Ok(())

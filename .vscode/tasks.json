@@ -19,23 +19,6 @@
       "problemMatcher": []
     },
     {
-      "label": "SDL: Bootstrap Sidecar",
-      "type": "shell",
-      "command": "node",
-      "args": [
-        "./scripts/bootstrap-sidecar.mjs"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "group": "sdl-bootstrap"
-      },
-      "problemMatcher": []
-    },
-    {
       "label": "SDL: Tailwind",
       "type": "shell",
       "command": "npm",
@@ -94,39 +77,10 @@
       }
     },
     {
-      "label": "SDL: Sidecar",
-      "type": "shell",
-      "command": "node",
-      "args": [
-        "./scripts/run-sidecar.mjs"
-      ],
-      "options": {
-        "cwd": "${workspaceFolder}"
-      },
-      "isBackground": true,
-      "presentation": {
-        "reveal": "always",
-        "panel": "dedicated",
-        "group": "sdl-dev"
-      },
-      "problemMatcher": {
-        "owner": "uvicorn",
-        "pattern": {
-          "regexp": ".+"
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".",
-          "endsPattern": "Uvicorn running on .*"
-        }
-      }
-    },
-    {
       "label": "SDL: Dev Services",
       "dependsOrder": "sequence",
       "dependsOn": [
         "SDL: Bootstrap Frontend",
-        "SDL: Bootstrap Sidecar",
         "SDL: Tailwind",
         "SDL: Frontend"
       ],
@@ -137,10 +91,8 @@
       "dependsOrder": "sequence",
       "dependsOn": [
         "SDL: Bootstrap Frontend",
-        "SDL: Bootstrap Sidecar",
         "SDL: Tailwind",
-        "SDL: Frontend",
-        "SDL: Sidecar"
+        "SDL: Frontend"
       ],
       "problemMatcher": []
     }

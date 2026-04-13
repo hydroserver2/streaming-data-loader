@@ -4,19 +4,18 @@
   "version": "0.1.0",
   "type": "module",
   "dependencies": {
+    "@tauri-apps/api": "^2.8.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
     "vue": "^3.5.32"
   },
   "scripts": {
     "bootstrap:frontend": "node ./scripts/bootstrap-frontend.mjs",
-    "bootstrap:sidecar": "node ./scripts/bootstrap-sidecar.mjs",
     "dev": "vite",
     "dev:tauri": "node ./scripts/tauri-dev.mjs",
     "build": "npm run tailwind:build && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && vite build",
     "preview": "vite preview",
-    "test": "npm run test:frontend && npm run test:sidecar",
+    "test": "npm run test:frontend",
     "test:frontend": "tsx --test frontend/**/*.test.ts",
-    "test:sidecar": "./.venv/bin/python -m unittest discover -s sidecar/tests -p 'test_*.py'",
     "tailwind:watch": "tailwindcss -i ./frontend/styles.css -o ./frontend/generated.css --watch",
     "tailwind:build": "tailwindcss -i ./frontend/styles.css -o ./frontend/generated.css --minify",
     "tauri": "node ./scripts/run-tauri.mjs"

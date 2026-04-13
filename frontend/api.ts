@@ -157,6 +157,13 @@ function buildApiUrl(path: string): string {
   return `${apiBaseUrl.replace(/\/$/, "")}${path}`
 }
 
+function isTauriRuntime(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    "__TAURI_INTERNALS__" in (window as Window & typeof globalThis)
+  )
+}
+
 function formatErrorDetail(detail: unknown): string | null {
   if (typeof detail === "string" && detail.trim()) {
     return detail
@@ -196,6 +203,12 @@ function formatErrorDetail(detail: unknown): string | null {
   return null
 }
 
+function normalizeError(error: unknown): Error {
+  if (error instanceof Error) return error
+  if (typeof error === "string" && error.trim()) return new Error(error)
+  return new Error("Request failed.")
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
     headers: {
@@ -224,15 +237,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return (await response.json()) as T
 }
 
+async function invokeCommand<T>(
+  command: string,
+  payload?: Record<string, unknown>
+): Promise<T> {
+  try {
+    const { invoke } = await import("@tauri-apps/api/core")
+    return await invoke<T>(command, payload)
+  } catch (error) {
+    throw normalizeError(error)
+  }
+}
+
 export function getHealth(): Promise<HealthResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<HealthResponse>("get_health")
+  }
   return request<HealthResponse>("/health")
 }
 
 export function getConfig(): Promise<AppConfig> {
+  if (isTauriRuntime()) {
+    return invokeCommand<AppConfig>("get_config")
+  }
   return request<AppConfig>("/config")
 }
 
 export function updateServerConfig(server: ServerConfig): Promise<AppConfig> {
+  if (isTauriRuntime()) {
+    return invokeCommand<AppConfig>("update_server_config", { server })
+  }
   return request<AppConfig>("/config/server", {
     method: "PUT",
     body: JSON.stringify(server),
@@ -240,12 +274,18 @@ export function updateServerConfig(server: ServerConfig): Promise<AppConfig> {
 }
 
 export function clearServerConfig(): Promise<AppConfig> {
+  if (isTauriRuntime()) {
+    return invokeCommand<AppConfig>("clear_server_config")
+  }
   return request<AppConfig>("/config/server", {
     method: "DELETE",
   })
 }
 
 export function testConnection(server: ServerConfig): Promise<ConnectionTestResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<ConnectionTestResponse>("test_connection", { server })
+  }
   return request<ConnectionTestResponse>("/connection/test", {
     method: "POST",
     body: JSON.stringify(server),
@@ -253,6 +293,9 @@ export function testConnection(server: ServerConfig): Promise<ConnectionTestResp
 }
 
 export function validateServerUrl(url: string): Promise<ServerUrlValidationResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<ServerUrlValidationResponse>("validate_server_url", { url })
+  }
   const params = new URLSearchParams({ url })
   return request<ServerUrlValidationResponse>(
     `/connection/validate-url?${params.toString()}`
@@ -260,6 +303,9 @@ export function validateServerUrl(url: string): Promise<ServerUrlValidationRespo
 }
 
 export function getCsvPreview(path: string, rows = 100): Promise<CsvPreviewResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<CsvPreviewResponse>("get_csv_preview", { path, rows })
+  }
   const params = new URLSearchParams({
     path,
     rows: String(rows),
@@ -268,10 +314,16 @@ export function getCsvPreview(path: string, rows = 100): Promise<CsvPreviewRespo
 }
 
 export function getDatastreams(): Promise<DatastreamSummary[]> {
+  if (isTauriRuntime()) {
+    return invokeCommand<DatastreamSummary[]>("get_datastreams")
+  }
   return request<DatastreamSummary[]>("/datastreams")
 }
 
 export function createJob(payload: JobUpsertRequest): Promise<JobDetail> {
+  if (isTauriRuntime()) {
+    return invokeCommand<JobDetail>("create_job", { payload })
+  }
   return request<JobDetail>("/jobs", {
     method: "POST",
     body: JSON.stringify(payload),
@@ -279,6 +331,9 @@ export function createJob(payload: JobUpsertRequest): Promise<JobDetail> {
 }
 
 export function updateJob(jobId: string, payload: JobUpsertRequest): Promise<JobDetail> {
+  if (isTauriRuntime()) {
+    return invokeCommand<JobDetail>("update_job", { jobId, payload })
+  }
   return request<JobDetail>(`/jobs/${encodeURIComponent(jobId)}`, {
     method: "PUT",
     body: JSON.stringify(payload),
@@ -286,13 +341,63 @@ export function updateJob(jobId: string, payload: JobUpsertRequest): Promise<Job
 }
 
 export function getJob(jobId: string): Promise<JobDetail> {
+  if (isTauriRuntime()) {
+    return invokeCommand<JobDetail>("get_job", { jobId })
+  }
   return request<JobDetail>(`/jobs/${encodeURIComponent(jobId)}`)
 }
 
 export function getJobLogs(jobId: string): Promise<JobLogEntry[]> {
+  if (isTauriRuntime()) {
+    return invokeCommand<JobLogEntry[]>("get_job_logs", { jobId })
+  }
   return request<JobLogEntry[]>(`/jobs/${encodeURIComponent(jobId)}/logs`)
 }
 
 export function getJobs(): Promise<JobStatusSummary[]> {
+  if (isTauriRuntime()) {
+    return invokeCommand<JobStatusSummary[]>("get_jobs")
+  }
   return request<JobStatusSummary[]>("/jobs")
+}
+
+export interface ActionResponse {
+  ok: boolean
+  message: string
+}
+
+export function deleteJob(jobId: string): Promise<ActionResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<ActionResponse>("delete_job", { jobId })
+  }
+  return request<ActionResponse>(`/jobs/${encodeURIComponent(jobId)}`, {
+    method: "DELETE",
+  })
+}
+
+export function runJobNow(jobId: string): Promise<ActionResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<ActionResponse>("run_job_now", { jobId })
+  }
+  return request<ActionResponse>(`/jobs/${encodeURIComponent(jobId)}/run`, {
+    method: "POST",
+  })
+}
+
+export function enableJob(jobId: string): Promise<ActionResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<ActionResponse>("enable_job", { jobId })
+  }
+  return request<ActionResponse>(`/jobs/${encodeURIComponent(jobId)}/enable`, {
+    method: "POST",
+  })
+}
+
+export function disableJob(jobId: string): Promise<ActionResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<ActionResponse>("disable_job", { jobId })
+  }
+  return request<ActionResponse>(`/jobs/${encodeURIComponent(jobId)}/disable`, {
+    method: "POST",
+  })
 }
