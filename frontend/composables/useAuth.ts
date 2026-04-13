@@ -135,7 +135,7 @@ export async function submitAuthConfig(
         await syncAuthenticationStatus(state.config.server)
         state[feedbackKey] = { tone: "success", message: result.message }
         if (formId === "welcome-form") {
-          navigate("jobs-new")
+          navigate(state.config.jobs.length > 0 ? "dashboard" : "jobs-new")
         }
       },
     })
@@ -170,6 +170,8 @@ export async function disconnectHydroServer(): Promise<void> {
     state.pipelineDatastreamsLoading = false
     state.pipelineMappingDrafts = []
     state.validatedColumnMappings = []
+    state.pipelineCreateFeedback = null
+    state.pipelineCreateSubmitting = false
     resetFieldStates("apikey")
     navigate("welcome")
   } catch (error) {

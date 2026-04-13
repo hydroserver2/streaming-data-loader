@@ -11,6 +11,7 @@ import {
   PREVIEW_PAGE_SIZE,
 } from "./state"
 import { syncAuthenticationStatus, serverConfigured } from "./useAuth"
+import type { AppRoute } from "../router"
 
 export { APP_NAME, API_KEY_DOCS_URL, PREVIEW_PAGE_INCREMENT, PREVIEW_PAGE_SIZE }
 export type { PreviewSelectionTarget, PreviewRowSelectionTarget } from "./state"
@@ -22,6 +23,41 @@ const isConnected = computed(
   () => state.connectionSummary?.ok === true && state.lastConnectionState === "connected"
 )
 
+const hasSavedDatasources = computed(
+  () => (state.config?.jobs?.length ?? 0) > 0
+)
+
+export function resolveAuthenticatedRoute(params: {
+  route: AppRoute
+  hasSavedDatasources: boolean
+  pipelineReadyForMapping: boolean
+}): AppRoute {
+  const { route, hasSavedDatasources, pipelineReadyForMapping } = params
+  const fallbackRoute: AppRoute = hasSavedDatasources ? "dashboard" : "jobs-new"
+
+  if (route === "jobs-new-mapping" && !pipelineReadyForMapping) {
+    return fallbackRoute
+  }
+
+  if (route === "welcome") {
+    return fallbackRoute
+  }
+
+  if (route === "dashboard" && !hasSavedDatasources) {
+    return "jobs-new"
+  }
+
+  if (
+    route !== "dashboard" &&
+    route !== "jobs-new" &&
+    route !== "jobs-new-mapping"
+  ) {
+    return fallbackRoute
+  }
+
+  return route
+}
+
 function syncRouteState(): void {
   let route = getRouteFromHash()
 
@@ -32,12 +68,14 @@ function syncRouteState(): void {
         route = "welcome"
       }
     } else {
-      if (route === "jobs-new-mapping" && !state.pipelineReadyForMapping) {
-        navigate("jobs-new")
-        route = "jobs-new"
-      } else if (route !== "jobs-new" && route !== "jobs-new-mapping") {
-        navigate("jobs-new")
-        route = "jobs-new"
+      const nextRoute = resolveAuthenticatedRoute({
+        route,
+        hasSavedDatasources: hasSavedDatasources.value,
+        pipelineReadyForMapping: state.pipelineReadyForMapping,
+      })
+      if (nextRoute !== route) {
+        navigate(nextRoute)
+        route = nextRoute
       }
     }
   }
@@ -46,7 +84,12 @@ function syncRouteState(): void {
 }
 
 watch(
-  [isConnected, () => state.loading, () => state.pipelineReadyForMapping],
+  [
+    isConnected,
+    hasSavedDatasources,
+    () => state.loading,
+    () => state.pipelineReadyForMapping,
+  ],
   syncRouteState
 )
 
@@ -56,6 +99,7 @@ export const useWelcomeSurface = computed(
       state.loading ||
         state.bootstrapError ||
         state.route === "welcome" ||
+        state.route === "dashboard" ||
         state.route === "jobs-new" ||
         state.route === "jobs-new-mapping"
     )
@@ -180,6 +224,7 @@ const model = {
   PREVIEW_PAGE_INCREMENT,
   PREVIEW_PAGE_SIZE,
   isConnected,
+  hasSavedDatasources,
   useWelcomeSurface,
   parsedPreviewRows,
   previewHeaders,

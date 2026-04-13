@@ -16,6 +16,7 @@ export interface ServerConfig {
 export interface AppConfig {
   version: number
   server: ServerConfig
+  jobs: JobConfig[]
 }
 
 export interface ConnectionStatus {
@@ -90,6 +91,16 @@ export interface ColumnMapping {
   csv_column: string
   datastream_id: string
   datastream_name: string
+}
+
+export interface JobConfig {
+  id: string
+  name: string
+  enabled: boolean
+  file_path: string
+  schedule_minutes: number
+  file_config: CsvTransformerSettings
+  column_mappings: ColumnMapping[]
 }
 
 export interface JobLogEntry {

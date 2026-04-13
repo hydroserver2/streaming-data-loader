@@ -387,38 +387,84 @@ test("createPipelineDatasource sends the expected payload and resets the wizard 
   })
 
   globalThis.fetch = async (_input, init) => {
-    requestBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
-    return jsonResponse({
-      id: "job-1",
-      name: "river.stage",
-      enabled: true,
-      file_path: "/tmp/data/river.stage.csv",
-      schedule_minutes: 15,
-      file_config: {
-        headerRow: 1,
-        dataStartRow: 2,
-        delimiter: ",",
-        identifierType: "name",
-        timestamp: {
-          key: "recorded_at",
-          format: "ISO8601",
-          timezoneMode: "embeddedOffset",
+    const url = String(_input)
+    if (url.endsWith("/jobs")) {
+      requestBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
+      return jsonResponse({
+        id: "job-1",
+        name: "river.stage",
+        enabled: true,
+        file_path: "/tmp/data/river.stage.csv",
+        schedule_minutes: 15,
+        file_config: {
+          headerRow: 1,
+          dataStartRow: 2,
+          delimiter: ",",
+          identifierType: "name",
+          timestamp: {
+            key: "recorded_at",
+            format: "ISO8601",
+            timezoneMode: "embeddedOffset",
+          },
         },
-      },
-      column_mappings: [
-        {
-          csv_column: "value",
-          datastream_id: "stream-1",
-          datastream_name: "Stage Datastream",
+        column_mappings: [
+          {
+            csv_column: "value",
+            datastream_id: "stream-1",
+            datastream_name: "Stage Datastream",
+          },
+        ],
+        recent_logs: [],
+        status: "pending",
+        status_message: "Ready for the first run",
+        last_pushed_timestamp: null,
+        last_run_at: null,
+        last_error: null,
+      })
+    }
+
+    if (url.endsWith("/config")) {
+      return jsonResponse({
+        version: 1,
+        server: {
+          auth_type: "apikey",
+          url: "https://example.com",
+          api_key: "secret",
+          username: "",
+          password: "",
+          workspace_id: "workspace-123",
         },
-      ],
-      recent_logs: [],
-      status: "pending",
-      status_message: "Ready for the first run",
-      last_pushed_timestamp: null,
-      last_run_at: null,
-      last_error: null,
-    })
+        jobs: [
+          {
+            id: "job-1",
+            name: "river.stage",
+            enabled: true,
+            file_path: "/tmp/data/river.stage.csv",
+            schedule_minutes: 15,
+            file_config: {
+              headerRow: 1,
+              dataStartRow: 2,
+              delimiter: ",",
+              identifierType: "name",
+              timestamp: {
+                key: "recorded_at",
+                format: "ISO8601",
+                timezoneMode: "embeddedOffset",
+              },
+            },
+            column_mappings: [
+              {
+                csv_column: "value",
+                datastream_id: "stream-1",
+                datastream_name: "Stage Datastream",
+              },
+            ],
+          },
+        ],
+      })
+    }
+
+    throw new Error(`Unexpected request: ${url}`)
   }
 
   state.connectionSummary = {
@@ -443,6 +489,7 @@ test("createPipelineDatasource sends the expected payload and resets the wizard 
       password: "",
       workspace_id: "workspace-123",
     },
+    jobs: [],
   }
   state.pipelinePreview = createPreview()
   state.pipelineForm.filePath = "/tmp/data/river.stage.csv"
@@ -501,7 +548,8 @@ test("createPipelineDatasource sends the expected payload and resets the wizard 
     tone: "success",
     message: 'Created data source "river.stage".',
   })
-  assert.equal(globalThis.window.location.hash, "#jobs/new")
+  assert.equal(globalThis.window.location.hash, "#dashboard")
+  assert.equal(state.config?.jobs.length, 1)
 })
 
 test("createPipelineDatasource blocks submission when no columns are mapped", async () => {
@@ -534,6 +582,7 @@ test("createPipelineDatasource blocks submission when no columns are mapped", as
       password: "",
       workspace_id: "workspace-123",
     },
+    jobs: [],
   }
   state.pipelinePreview = createPreview()
   state.pipelineForm.filePath = "/tmp/data/river.stage.csv"
@@ -588,6 +637,7 @@ test("createPipelineDatasource clears submitting state and keeps step-3 state on
       password: "",
       workspace_id: "workspace-123",
     },
+    jobs: [],
   }
   state.pipelinePreview = createPreview()
   state.pipelineForm.filePath = "/tmp/data/river.stage.csv"

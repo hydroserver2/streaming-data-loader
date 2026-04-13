@@ -6,7 +6,7 @@ import type {
   CsvTransformerSettings,
   CsvTransformerTimestampSettings,
 } from "../api"
-import { createJob, getCsvPreview } from "../api"
+import { createJob, getConfig, getCsvPreview } from "../api"
 import {
   createPipelineFieldStates,
   type PipelineFieldName,
@@ -828,13 +828,14 @@ export async function createPipelineDatasource(): Promise<void> {
 
   try {
     await createJob(payload)
+    state.config = await getConfig()
     resetPipelineCreationFlow({
       feedback: {
         tone: "success",
         message: `Created data source "${name}".`,
       },
     })
-    navigate("jobs-new")
+    navigate("dashboard")
   } catch (error) {
     state.pipelineCreateFeedback = {
       tone: "error",
