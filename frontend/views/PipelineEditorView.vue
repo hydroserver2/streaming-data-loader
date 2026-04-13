@@ -30,6 +30,7 @@ const wizardStepLabel = computed(
 const wizardTitle = computed(() =>
   editorStep.value === 1 ? "Select CSV File" : "Configure CSV Import"
 );
+const canReturnToDashboard = computed(() => model.hasSavedDatasources.value);
 
 function fieldError(field: PipelineFieldName): string | null {
   const state = model.state.pipelineFieldStates[field];
@@ -73,6 +74,15 @@ function goToSetupStep(): void {
           <h1 class="wizard-page-title">{{ wizardTitle }}</h1>
         </div>
         <div class="button-row wizard-actions">
+          <button
+            v-if="canReturnToDashboard && editorStep === 1"
+            class="btn-ghost wizard-nav-button"
+            type="button"
+            @click="model.abandonPipelineCreation()"
+          >
+            <span class="wizard-nav-glyph" aria-hidden="true">←</span>
+            <span>Back to Dashboard</span>
+          </button>
           <button
             v-if="editorStep === 1 && hasPreview"
             class="btn-ghost wizard-nav-button"

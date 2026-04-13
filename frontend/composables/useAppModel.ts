@@ -184,6 +184,7 @@ import {
 } from "./useAuth"
 
 import {
+  abandonPipelineCreation,
   buildPipelineTransformerSettings,
   createPipelineDatasource,
   submitPipelineConfig,
@@ -229,6 +230,7 @@ const model = {
   parsedPreviewRows,
   previewHeaders,
   selectedPreviewTimestampColumn,
+  abandonPipelineCreation,
   buildPipelineTransformerSettings,
   buildPipelineColumnMappings,
   submitPipelineConfig,

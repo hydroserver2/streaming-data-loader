@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 
 import type { CsvPreviewResponse } from "./api"
 import {
+  abandonPipelineCreation,
   applyPreviewColumnSelection,
   buildPipelineTransformerSettings,
   createPipelineDatasource,
@@ -670,4 +671,62 @@ test("createPipelineDatasource clears submitting state and keeps step-3 state on
     tone: "error",
     message: "Create failed",
   })
+})
+
+test("abandonPipelineCreation resets the wizard and returns to the dashboard", () => {
+  Object.defineProperty(globalThis, "window", {
+    value: { location: { hash: "#jobs/new/mapping" } },
+    configurable: true,
+    writable: true,
+  })
+
+  state.pipelinePreview = createPreview()
+  state.pipelineForm.filePath = "/tmp/data/river.stage.csv"
+  state.pipelineSelectionTarget = "header-row"
+  state.pipelineValidationAttempted = true
+  state.pipelineReadyForMapping = true
+  state.validatedPipelineSettings = {
+    headerRow: 1,
+    dataStartRow: 2,
+    delimiter: ",",
+    identifierType: "name",
+    timestamp: {
+      key: "recorded_at",
+      format: "ISO8601",
+      timezoneMode: "embeddedOffset",
+    },
+  }
+  state.pipelineMappingDrafts = [
+    {
+      csvColumn: "value",
+      thingId: "thing-1",
+      datastreamId: "stream-1",
+    },
+  ]
+  state.validatedColumnMappings = [
+    {
+      csv_column: "value",
+      datastream_id: "stream-1",
+      datastream_name: "Stage Datastream",
+    },
+  ]
+  state.pipelineCreateSubmitting = true
+  state.pipelineCreateFeedback = {
+    tone: "error",
+    message: "Create failed",
+  }
+
+  abandonPipelineCreation()
+
+  assert.equal(state.pipelineForm.filePath, "")
+  assert.equal(state.pipelinePreview, null)
+  assert.equal(state.pipelineSelectionTarget, null)
+  assert.equal(state.pipelineValidationAttempted, false)
+  assert.equal(state.pipelineReadyForMapping, false)
+  assert.equal(state.validatedPipelineSettings, null)
+  assert.deepEqual(state.pipelineMappingDrafts, [])
+  assert.deepEqual(state.validatedColumnMappings, [])
+  assert.equal(state.pipelineCreateSubmitting, false)
+  assert.equal(state.pipelineCreateFeedback, null)
+  assert.equal(globalThis.window.location.hash, "#dashboard")
 })

@@ -805,6 +805,11 @@ export function resetPipelineCreationFlow(options?: {
   state.pipelineCreateFeedback = options?.feedback ?? null
 }
 
+export function abandonPipelineCreation(): void {
+  resetPipelineCreationFlow()
+  navigate("dashboard")
+}
+
 export async function createPipelineDatasource(): Promise<void> {
   if (state.pipelineCreateSubmitting) return
 
