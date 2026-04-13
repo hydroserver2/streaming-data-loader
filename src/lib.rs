@@ -1,10 +1,14 @@
 mod commands;
 mod config_store;
 mod csv_preview;
+mod file_watcher;
 mod hydroserver;
 mod models;
+mod observation_queue;
+mod pipeline;
 mod runtime;
 mod timestamp;
+mod uploader;
 
 use tauri::{
     image::Image,
@@ -17,6 +21,11 @@ use runtime::{resolve_config_dir, AppState};
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let _ = tracing_subscriber::fmt()
+        .with_target(false)
+        .with_max_level(tracing::Level::INFO)
+        .try_init();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())

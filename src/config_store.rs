@@ -90,22 +90,6 @@ impl ConfigStore {
         Ok(config)
     }
 
-    pub fn load_with_datasources(
-        &self,
-    ) -> Result<(ServerConfig, Vec<PersistedDatasource>), String> {
-        let _guard = self
-            .lock
-            .lock()
-            .map_err(|_| "Config lock poisoned.".to_string())?;
-        self.ensure_locked()?;
-        let config = self.read_config_locked()?;
-        let datasources = self
-            .load_workspace_locked(&config.server.workspace_id)?
-            .map(|w| w.datasources)
-            .unwrap_or_default();
-        Ok((config.server, datasources))
-    }
-
     pub fn list_jobs(&self) -> Result<Vec<JobConfig>, String> {
         Ok(self.load()?.jobs)
     }

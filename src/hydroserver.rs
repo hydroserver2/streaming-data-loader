@@ -19,8 +19,8 @@ const DATASTREAM_CACHE_TTL_SECONDS: i64 = 300;
 
 #[derive(Debug, Clone)]
 pub struct ObservationPayloadRow {
-    pub timestamp: DateTime<Utc>,
-    pub value: Value,
+    pub phenomenon_time: DateTime<Utc>,
+    pub result: Value,
 }
 
 pub struct HydroServerService {
@@ -306,44 +306,24 @@ impl HydroServerService {
         Ok(summaries)
     }
 
-    pub async fn get_datastream_cutoff(
-        &self,
-        server: &ServerConfig,
-        datastream_id: &str,
-    ) -> Result<Option<DateTime<Utc>>, String> {
-        let mut session = HydroServerSession::new(self.http.clone(), server.clone().normalized());
-        let value = session
-            .request_json(
-                Method::GET,
-                &format!("{BASE_ROUTE}/datastreams/{datastream_id}"),
-                &[],
-                None,
-            )
-            .await
-            .map_err(|err| err.to_string())?;
-
-        Ok(value
-            .get("phenomenonEndTime")
-            .and_then(Value::as_str)
-            .and_then(parse_datetime))
-    }
-
-    pub async fn post_observations(
+    pub(crate) async fn post_observations_batch(
         &self,
         server: &ServerConfig,
         datastream_id: &str,
         observations: &[ObservationPayloadRow],
-    ) -> Result<(), String> {
+    ) -> Result<(), RequestError> {
         if observations.is_empty() {
             return Ok(());
         }
 
         let mut session = HydroServerSession::new(self.http.clone(), server.clone().normalized());
+        // The earlier Rust port posted ["timestamp", "value"], which does not match the
+        // HydroServer bulk observation schema. The API expects SensorThings field names.
         let body = json!({
-            "fields": ["timestamp", "value"],
+            "fields": ["phenomenonTime", "result"],
             "data": observations
                 .iter()
-                .map(|row| json!([row.timestamp.to_rfc3339(), row.value]))
+                .map(|row| json!([row.phenomenon_time.to_rfc3339(), row.result]))
                 .collect::<Vec<_>>(),
         });
 
@@ -356,7 +336,6 @@ impl HydroServerService {
             )
             .await
             .map(|_| ())
-            .map_err(|err| err.to_string())
     }
 
     async fn list_datastreams_from_bootstrap(
@@ -787,7 +766,7 @@ impl HydroServerSession {
 }
 
 #[derive(Debug)]
-enum RequestError {
+pub(crate) enum RequestError {
     Connection,
     Timeout,
     Http {
@@ -805,6 +784,19 @@ impl std::fmt::Display for RequestError {
             RequestError::Http { message, .. } | RequestError::Other(message) => {
                 write!(f, "{message}")
             }
+        }
+    }
+}
+
+impl RequestError {
+    pub(crate) fn is_retryable(&self) -> bool {
+        match self {
+            Self::Connection | Self::Timeout => true,
+            Self::Http {
+                status: Some(status),
+                ..
+            } => status.is_server_error(),
+            Self::Http { .. } | Self::Other(_) => false,
         }
     }
 }
@@ -1046,17 +1038,6 @@ fn string_value_from_map(
         .and_then(|key| items.get(key))
         .and_then(|item| string_value(item, keys))
         .unwrap_or_default()
-}
-
-fn parse_datetime(value: &str) -> Option<DateTime<Utc>> {
-    DateTime::parse_from_rfc3339(value)
-        .ok()
-        .map(|value| value.with_timezone(&Utc))
-        .or_else(|| {
-            chrono::NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S")
-                .ok()
-                .map(|value| DateTime::<Utc>::from_naive_utc_and_offset(value, Utc))
-        })
 }
 
 fn header_int(headers: &HeaderMap, header: &str) -> Option<u32> {

@@ -32,18 +32,22 @@ pub async fn update_server_config(
     }
 
     let workspace_id = connection.workspace_id.unwrap_or_default();
-    state.config_store().set_server(
+    let config = state.config_store().set_server(
         ServerConfig {
             workspace_id,
             ..normalized
         },
         connection.workspace_name.as_deref().unwrap_or_default(),
-    )
+    )?;
+    state.reload_pipeline().await?;
+    Ok(config)
 }
 
 #[tauri::command]
-pub fn clear_server_config(state: State<'_, AppState>) -> Result<AppConfig, String> {
-    state.config_store().clear_server()
+pub async fn clear_server_config(state: State<'_, AppState>) -> Result<AppConfig, String> {
+    let config = state.config_store().clear_server()?;
+    state.reload_pipeline().await?;
+    Ok(config)
 }
 
 #[tauri::command]
@@ -76,12 +80,13 @@ pub fn get_jobs(state: State<'_, AppState>) -> Result<Vec<JobStatusSummary>, Str
 }
 
 #[tauri::command]
-pub fn create_job(
+pub async fn create_job(
     payload: JobUpsertRequest,
     state: State<'_, AppState>,
 ) -> Result<JobDetail, String> {
     let job = state.config_store().create_job(payload)?;
     let _ = state.append_log(&job.id, "Job created", crate::models::LogLevel::Info);
+    state.reload_pipeline().await?;
     state.build_job_detail(&job)
 }
 
@@ -94,7 +99,7 @@ pub fn get_job(job_id: String, state: State<'_, AppState>) -> Result<JobDetail, 
 }
 
 #[tauri::command]
-pub fn update_job(
+pub async fn update_job(
     job_id: String,
     payload: JobUpsertRequest,
     state: State<'_, AppState>,
@@ -103,15 +108,20 @@ pub fn update_job(
         return Err("That job could not be found.".to_string());
     };
     let _ = state.append_log(&job.id, "Job updated", crate::models::LogLevel::Info);
+    state.reload_pipeline().await?;
     state.build_job_detail(&job)
 }
 
 #[tauri::command]
-pub fn delete_job(job_id: String, state: State<'_, AppState>) -> Result<ActionResponse, String> {
+pub async fn delete_job(
+    job_id: String,
+    state: State<'_, AppState>,
+) -> Result<ActionResponse, String> {
     if !state.config_store().delete_job(&job_id)? {
         return Err("That job could not be found.".to_string());
     }
     state.config_store().delete_job_runtime(&job_id)?;
+    state.reload_pipeline().await?;
     Ok(ActionResponse {
         ok: true,
         message: "Job deleted.".to_string(),
@@ -124,11 +134,15 @@ pub fn run_job_now(job_id: String, state: State<'_, AppState>) -> Result<ActionR
 }
 
 #[tauri::command]
-pub fn enable_job(job_id: String, state: State<'_, AppState>) -> Result<ActionResponse, String> {
+pub async fn enable_job(
+    job_id: String,
+    state: State<'_, AppState>,
+) -> Result<ActionResponse, String> {
     let Some(job) = state.config_store().set_job_enabled(&job_id, true)? else {
         return Err("That job could not be found.".to_string());
     };
     let _ = state.append_log(&job.id, "Job enabled", crate::models::LogLevel::Info);
+    state.reload_pipeline().await?;
     Ok(ActionResponse {
         ok: true,
         message: "Job enabled.".to_string(),
@@ -136,11 +150,15 @@ pub fn enable_job(job_id: String, state: State<'_, AppState>) -> Result<ActionRe
 }
 
 #[tauri::command]
-pub fn disable_job(job_id: String, state: State<'_, AppState>) -> Result<ActionResponse, String> {
+pub async fn disable_job(
+    job_id: String,
+    state: State<'_, AppState>,
+) -> Result<ActionResponse, String> {
     let Some(job) = state.config_store().set_job_enabled(&job_id, false)? else {
         return Err("That job could not be found.".to_string());
     };
     let _ = state.append_log(&job.id, "Job disabled", crate::models::LogLevel::Warning);
+    state.reload_pipeline().await?;
     Ok(ActionResponse {
         ok: true,
         message: "Job disabled.".to_string(),
