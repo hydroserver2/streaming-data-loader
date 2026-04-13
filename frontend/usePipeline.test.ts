@@ -5,6 +5,7 @@ import type { CsvPreviewResponse } from "./api"
 import {
   applyPreviewColumnSelection,
   buildPipelineTransformerSettings,
+  createPipelineDatasource,
   loadPipelinePreview,
   selectedPreviewTimestampColumn,
   setPipelineHasHeaderRow,
@@ -21,6 +22,7 @@ import {
 import { createPipelineFieldStates } from "./pipeline-submit"
 
 const originalFetch = globalThis.fetch
+const originalWindow = globalThis.window
 
 function createPreview(
   overrides: Partial<CsvPreviewResponse> = {}
@@ -63,6 +65,11 @@ function resetPipelineState(): void {
   state.pipelineDatastreamsLoading = false
   state.pipelineMappingDrafts = []
   state.validatedColumnMappings = []
+  state.connectionSummary = null
+  state.lastConnectionState = null
+  state.config = null
+  state.pipelineCreateFeedback = null
+  state.pipelineCreateSubmitting = false
 }
 
 test.beforeEach(() => {
@@ -72,6 +79,15 @@ test.beforeEach(() => {
 
 test.after(() => {
   globalThis.fetch = originalFetch
+  if (originalWindow === undefined) {
+    Reflect.deleteProperty(globalThis, "window")
+  } else {
+    Object.defineProperty(globalThis, "window", {
+      value: originalWindow,
+      configurable: true,
+      writable: true,
+    })
+  }
 })
 
 test("disabling the header row forces index mode and preserves the timestamp selection", () => {
@@ -359,4 +375,249 @@ test("changing the form after a submit attempt revalidates and clears mapping re
     state.pipelineFieldStates.custom_timestamp_format.state,
     "invalid"
   )
+})
+
+test("createPipelineDatasource sends the expected payload and resets the wizard after success", async () => {
+  let requestBody: Record<string, unknown> | null = null
+
+  Object.defineProperty(globalThis, "window", {
+    value: { location: { hash: "#jobs/new/mapping" } },
+    configurable: true,
+    writable: true,
+  })
+
+  globalThis.fetch = async (_input, init) => {
+    requestBody = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>
+    return jsonResponse({
+      id: "job-1",
+      name: "river.stage",
+      enabled: true,
+      file_path: "/tmp/data/river.stage.csv",
+      schedule_minutes: 15,
+      file_config: {
+        headerRow: 1,
+        dataStartRow: 2,
+        delimiter: ",",
+        identifierType: "name",
+        timestamp: {
+          key: "recorded_at",
+          format: "ISO8601",
+          timezoneMode: "embeddedOffset",
+        },
+      },
+      column_mappings: [
+        {
+          csv_column: "value",
+          datastream_id: "stream-1",
+          datastream_name: "Stage Datastream",
+        },
+      ],
+      recent_logs: [],
+      status: "pending",
+      status_message: "Ready for the first run",
+      last_pushed_timestamp: null,
+      last_run_at: null,
+      last_error: null,
+    })
+  }
+
+  state.connectionSummary = {
+    ok: true,
+    state: "connected",
+    message: "Connected",
+    instance_name: "HydroServer",
+    workspace_id: "workspace-123",
+    workspace_name: "Primary Workspace",
+    workspace_count: 1,
+    datastream_count: 2,
+    permissions_ok: true,
+  }
+  state.lastConnectionState = "connected"
+  state.config = {
+    version: 1,
+    server: {
+      auth_type: "apikey",
+      url: "https://example.com",
+      api_key: "secret",
+      username: "",
+      password: "",
+      workspace_id: "workspace-123",
+    },
+  }
+  state.pipelinePreview = createPreview()
+  state.pipelineForm.filePath = "/tmp/data/river.stage.csv"
+  state.pipelineReadyForMapping = true
+  state.validatedPipelineSettings = {
+    headerRow: 1,
+    dataStartRow: 2,
+    delimiter: ",",
+    identifierType: "name",
+    timestamp: {
+      key: "recorded_at",
+      format: "ISO8601",
+      timezoneMode: "embeddedOffset",
+    },
+  }
+  state.validatedColumnMappings = [
+    {
+      csv_column: "value",
+      datastream_id: "stream-1",
+      datastream_name: "Stage Datastream",
+    },
+  ]
+
+  await createPipelineDatasource()
+
+  assert.deepEqual(requestBody, {
+    name: "river.stage",
+    enabled: true,
+    file_path: "/tmp/data/river.stage.csv",
+    file_config: {
+      headerRow: 1,
+      dataStartRow: 2,
+      delimiter: ",",
+      identifierType: "name",
+      timestamp: {
+        key: "recorded_at",
+        format: "ISO8601",
+        timezoneMode: "embeddedOffset",
+      },
+    },
+    column_mappings: [
+      {
+        csv_column: "value",
+        datastream_id: "stream-1",
+        datastream_name: "Stage Datastream",
+      },
+    ],
+  })
+  assert.equal(state.pipelineForm.filePath, "")
+  assert.equal(state.pipelinePreview, null)
+  assert.equal(state.pipelineReadyForMapping, false)
+  assert.deepEqual(state.validatedColumnMappings, [])
+  assert.deepEqual(state.pipelineMappingDrafts, [])
+  assert.equal(state.pipelineCreateSubmitting, false)
+  assert.deepEqual(state.pipelineCreateFeedback, {
+    tone: "success",
+    message: 'Created data source "river.stage".',
+  })
+  assert.equal(globalThis.window.location.hash, "#jobs/new")
+})
+
+test("createPipelineDatasource blocks submission when no columns are mapped", async () => {
+  let fetchCalled = false
+
+  globalThis.fetch = async () => {
+    fetchCalled = true
+    return jsonResponse({})
+  }
+
+  state.connectionSummary = {
+    ok: true,
+    state: "connected",
+    message: "Connected",
+    instance_name: "HydroServer",
+    workspace_id: "workspace-123",
+    workspace_name: "Primary Workspace",
+    workspace_count: 1,
+    datastream_count: 2,
+    permissions_ok: true,
+  }
+  state.lastConnectionState = "connected"
+  state.config = {
+    version: 1,
+    server: {
+      auth_type: "apikey",
+      url: "https://example.com",
+      api_key: "secret",
+      username: "",
+      password: "",
+      workspace_id: "workspace-123",
+    },
+  }
+  state.pipelinePreview = createPreview()
+  state.pipelineForm.filePath = "/tmp/data/river.stage.csv"
+  state.validatedPipelineSettings = {
+    headerRow: 1,
+    dataStartRow: 2,
+    delimiter: ",",
+    identifierType: "name",
+    timestamp: {
+      key: "recorded_at",
+      format: "ISO8601",
+      timezoneMode: "embeddedOffset",
+    },
+  }
+
+  await createPipelineDatasource()
+
+  assert.equal(fetchCalled, false)
+  assert.deepEqual(state.pipelineCreateFeedback, {
+    tone: "error",
+    message: "Map at least one CSV column to a datastream before creating a data source.",
+  })
+  assert.equal(state.pipelineCreateSubmitting, false)
+})
+
+test("createPipelineDatasource clears submitting state and keeps step-3 state on failure", async () => {
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ detail: "Create failed" }), {
+      status: 400,
+      headers: { "Content-Type": "application/json" },
+    })
+
+  state.connectionSummary = {
+    ok: true,
+    state: "connected",
+    message: "Connected",
+    instance_name: "HydroServer",
+    workspace_id: "workspace-123",
+    workspace_name: "Primary Workspace",
+    workspace_count: 1,
+    datastream_count: 2,
+    permissions_ok: true,
+  }
+  state.lastConnectionState = "connected"
+  state.config = {
+    version: 1,
+    server: {
+      auth_type: "apikey",
+      url: "https://example.com",
+      api_key: "secret",
+      username: "",
+      password: "",
+      workspace_id: "workspace-123",
+    },
+  }
+  state.pipelinePreview = createPreview()
+  state.pipelineForm.filePath = "/tmp/data/river.stage.csv"
+  state.pipelineReadyForMapping = true
+  state.validatedPipelineSettings = {
+    headerRow: 1,
+    dataStartRow: 2,
+    delimiter: ",",
+    identifierType: "name",
+    timestamp: {
+      key: "recorded_at",
+      format: "ISO8601",
+      timezoneMode: "embeddedOffset",
+    },
+  }
+  state.validatedColumnMappings = [
+    {
+      csv_column: "value",
+      datastream_id: "stream-1",
+      datastream_name: "Stage Datastream",
+    },
+  ]
+
+  await createPipelineDatasource()
+
+  assert.equal(state.pipelineForm.filePath, "/tmp/data/river.stage.csv")
+  assert.notEqual(state.pipelinePreview, null)
+  assert.equal(state.pipelineCreateSubmitting, false)
+  assert.deepEqual(state.pipelineCreateFeedback, {
+    tone: "error",
+    message: "Create failed",
+  })
 })

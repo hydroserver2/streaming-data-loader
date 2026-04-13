@@ -176,6 +176,63 @@ class JobConfig(BaseModel):
     column_mappings: list[ColumnMapping] = Field(default_factory=list)
 
 
+class PersistedDatasource(BaseModel):
+    id: str
+    name: str
+    enabled: bool = True
+    file_path: str
+    schedule_minutes: int = 15
+    file_config: FileConfig = Field(default_factory=FileConfig)
+    column_mappings: list[ColumnMapping] = Field(default_factory=list)
+    last_pushed_timestamp: datetime | None = None
+    last_pushed_row_index: int | None = None
+    last_run_at: datetime | None = None
+    last_error: str | None = None
+    recent_logs: list["JobLogEntry"] = Field(default_factory=list)
+
+    def to_job_config(self) -> JobConfig:
+        return JobConfig(
+            id=self.id,
+            name=self.name,
+            enabled=self.enabled,
+            file_path=self.file_path,
+            schedule_minutes=self.schedule_minutes,
+            file_config=self.file_config,
+            column_mappings=self.column_mappings,
+        )
+
+    def to_cursor(self) -> "JobCursor":
+        return JobCursor(
+            last_pushed_timestamp=self.last_pushed_timestamp,
+            last_pushed_row_index=self.last_pushed_row_index,
+            last_run_at=self.last_run_at,
+            last_error=self.last_error,
+        )
+
+    @classmethod
+    def from_job(
+        cls,
+        job: JobConfig,
+        cursor: "JobCursor | None" = None,
+        recent_logs: list["JobLogEntry"] | None = None,
+    ) -> "PersistedDatasource":
+        cursor = cursor or JobCursor()
+        return cls(
+            id=job.id,
+            name=job.name,
+            enabled=job.enabled,
+            file_path=job.file_path,
+            schedule_minutes=job.schedule_minutes,
+            file_config=job.file_config,
+            column_mappings=job.column_mappings,
+            last_pushed_timestamp=cursor.last_pushed_timestamp,
+            last_pushed_row_index=cursor.last_pushed_row_index,
+            last_run_at=cursor.last_run_at,
+            last_error=cursor.last_error,
+            recent_logs=list(recent_logs or []),
+        )
+
+
 class AppConfig(BaseModel):
     version: int = 1
     server: ServerConfig = Field(default_factory=ServerConfig)
@@ -198,6 +255,14 @@ class JobLogEntry(BaseModel):
 class AppStateFile(BaseModel):
     cursors: dict[str, JobCursor] = Field(default_factory=dict)
     logs: dict[str, list[JobLogEntry]] = Field(default_factory=dict)
+
+
+class WorkspaceStateFile(BaseModel):
+    version: int = 1
+    workspace_id: str = Field(min_length=1)
+    workspace_name: str = ""
+    hydroserver_url: str = ""
+    datasources: list[PersistedDatasource] = Field(default_factory=list)
 
 
 class ConnectionStatus(BaseModel):

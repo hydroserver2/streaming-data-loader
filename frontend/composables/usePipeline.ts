@@ -1,18 +1,21 @@
 import { computed } from "vue"
 
 import type {
+  JobUpsertRequest,
   CsvPreviewResponse,
   CsvTransformerSettings,
   CsvTransformerTimestampSettings,
 } from "../api"
-import { getCsvPreview } from "../api"
+import { createJob, getCsvPreview } from "../api"
 import {
+  createPipelineFieldStates,
   type PipelineFieldName,
   resetPipelineFieldStates,
   validatePipelineFieldsForSubmit,
 } from "../pipeline-submit"
 import { navigate } from "../router"
 import {
+  createEmptyPipelineForm,
   PREVIEW_PAGE_INCREMENT,
   PREVIEW_PAGE_SIZE,
   state,
@@ -302,6 +305,10 @@ function invalidateValidatedPipeline(): void {
   state.validatedColumnMappings = []
 }
 
+function clearPipelineCreateFeedback(): void {
+  state.pipelineCreateFeedback = null
+}
+
 function validatePipelineForm(): boolean {
   resetPipelineFieldStates(state.pipelineFieldStates)
 
@@ -353,6 +360,7 @@ export function canShowMorePreviewLines(): boolean {
 }
 
 export function updateHeaderRowFromPreview(lineNumber: number): void {
+  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
   state.pipelineForm.hasHeaderRow = true
   state.pipelineForm.headerRow = lineNumber
@@ -364,6 +372,7 @@ export function updateHeaderRowFromPreview(lineNumber: number): void {
 }
 
 export function updateDataStartRowFromPreview(lineNumber: number): void {
+  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
   state.pipelineForm.dataStartRow = Math.max(
     state.pipelineForm.hasHeaderRow ? 2 : 1,
@@ -397,6 +406,7 @@ export function applyPreviewColumnSelection(columnName: string): void {
     return
   }
 
+  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
   state.pipelineForm.timestamp.key =
     state.pipelineForm.identifierType === "index"
@@ -407,6 +417,7 @@ export function applyPreviewColumnSelection(columnName: string): void {
 }
 
 export function setPipelineHasHeaderRow(enabled: boolean): void {
+  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
   const headersBeforeToggle = previewHeaders.value
   const currentVisibleTimestampColumn = resolveTimestampColumnName(
@@ -444,6 +455,7 @@ export function setPipelineHasHeaderRow(enabled: boolean): void {
 }
 
 export function setPipelineIdentifierType(identifierType: PipelineIdentifierType): void {
+  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
 
   if (!state.pipelineForm.hasHeaderRow && identifierType === "name") {
@@ -520,6 +532,7 @@ function applyDetectedTimestampPattern(pattern: DetectedTimestampPattern | null)
 }
 
 export function updatePipelineField(name: string, value: string): void {
+  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
 
   switch (name) {
@@ -590,6 +603,7 @@ export async function loadPipelinePreview(
   path: string,
   rows = PREVIEW_PAGE_SIZE
 ): Promise<void> {
+  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
 
   if (!path.trim()) {
@@ -671,6 +685,7 @@ export async function browseForCsvPath(): Promise<void> {
 }
 
 export function submitPipelineConfig(): void {
+  clearPipelineCreateFeedback()
   state.pipelineValidationAttempted = true
 
   const valid = validatePipelineForm()
@@ -713,4 +728,122 @@ export function buildPipelineTransformerSettings() {
   }
 
   return settings
+}
+
+function basenameWithoutExtension(path: string): string {
+  const basename = path.split(/[\\/]/).filter(Boolean).at(-1)?.trim() ?? ""
+  if (!basename) return ""
+
+  const extensionIndex = basename.lastIndexOf(".")
+  if (extensionIndex <= 0) {
+    return basename
+  }
+
+  return basename.slice(0, extensionIndex)
+}
+
+function canCreatePipelineDatasource(): { ok: true } | { ok: false; message: string } {
+  if (!(state.connectionSummary?.ok && state.lastConnectionState === "connected")) {
+    return {
+      ok: false,
+      message: "Connect to HydroServer before creating a data source.",
+    }
+  }
+
+  if (!(state.config?.server.workspace_id || state.authDraft.workspace_id)) {
+    return {
+      ok: false,
+      message: "Connect to a workspace before creating a data source.",
+    }
+  }
+
+  if (!state.validatedPipelineSettings) {
+    return {
+      ok: false,
+      message: "Validate the CSV configuration before creating a data source.",
+    }
+  }
+
+  if (state.validatedColumnMappings.length === 0) {
+    return {
+      ok: false,
+      message: "Map at least one CSV column to a datastream before creating a data source.",
+    }
+  }
+
+  if (!state.pipelineForm.filePath.trim()) {
+    return {
+      ok: false,
+      message: "Choose a CSV file before creating a data source.",
+    }
+  }
+
+  if (!basenameWithoutExtension(state.pipelineForm.filePath)) {
+    return {
+      ok: false,
+      message: "The selected CSV file must have a valid filename.",
+    }
+  }
+
+  return { ok: true }
+}
+
+export function resetPipelineCreationFlow(options?: {
+  feedback?: { tone: "success" | "error" | "info"; message: string } | null
+}): void {
+  state.pipelineForm = createEmptyPipelineForm()
+  state.pipelinePreview = null
+  state.pipelineSelectionTarget = null
+  state.pipelinePreviewRowsRequested = PREVIEW_PAGE_SIZE
+  state.pipelineFieldStates = createPipelineFieldStates()
+  state.pipelineValidationAttempted = false
+  state.pipelineReadyForMapping = false
+  state.validatedPipelineSettings = null
+  state.pipelineMappingDrafts = []
+  state.validatedColumnMappings = []
+  state.pipelineCreateSubmitting = false
+  state.pipelineCreateFeedback = options?.feedback ?? null
+}
+
+export async function createPipelineDatasource(): Promise<void> {
+  if (state.pipelineCreateSubmitting) return
+
+  const readiness = canCreatePipelineDatasource()
+  if (!readiness.ok) {
+    state.pipelineCreateFeedback = { tone: "error", message: readiness.message }
+    return
+  }
+
+  const name = basenameWithoutExtension(state.pipelineForm.filePath)
+  const payload: JobUpsertRequest = {
+    name,
+    enabled: true,
+    file_path: state.pipelineForm.filePath.trim(),
+    file_config: state.validatedPipelineSettings!,
+    column_mappings: state.validatedColumnMappings,
+  }
+
+  state.pipelineCreateSubmitting = true
+  state.pipelineCreateFeedback = null
+
+  try {
+    await createJob(payload)
+    resetPipelineCreationFlow({
+      feedback: {
+        tone: "success",
+        message: `Created data source "${name}".`,
+      },
+    })
+    navigate("jobs-new")
+  } catch (error) {
+    state.pipelineCreateFeedback = {
+      tone: "error",
+      message:
+        error instanceof Error
+          ? error.message
+          : "Couldn't create the data source right now.",
+    }
+  } finally {
+    state.pipelineCreateSubmitting = false
+  }
 }

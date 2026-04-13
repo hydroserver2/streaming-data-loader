@@ -96,7 +96,8 @@ def create_app(runtime: AppRuntime) -> FastAPI:
             raise HTTPException(status_code=status_code, detail=connection.message)
 
         return runtime.config_store.set_server(
-            server.model_copy(update={"workspace_id": connection.workspace_id or ""})
+            server.model_copy(update={"workspace_id": connection.workspace_id or ""}),
+            workspace_name=connection.workspace_name or "",
         )
 
     @app.delete("/config/server", response_model=AppConfig, tags=["config"])

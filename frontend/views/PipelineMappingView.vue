@@ -11,6 +11,7 @@ import {
 import type { DatastreamSummary } from '../api'
 import AccountMenuButton from '../components/AccountMenuButton.vue'
 import AnimatedLoadingIcon from '../components/AnimatedLoadingIcon.vue'
+import FeedbackBanner from '../components/FeedbackBanner.vue'
 import type {
   MappingDatastreamBrowserEntry,
   PipelineMappingRow,
@@ -128,6 +129,16 @@ const currentMappedDatastream = computed(
 
 const mappedColumnCount = computed(
   () => mappingRows.value.filter((row) => row.datastreamId).length
+)
+const createButtonLabel = computed(() =>
+  model.state.pipelineCreateSubmitting ? 'Creating...' : 'Create'
+)
+const createDisabled = computed(
+  () =>
+    model.state.pipelineCreateSubmitting ||
+    model.state.pipelineDatastreamsLoading ||
+    mappingRows.value.length === 0 ||
+    mappedColumnCount.value === 0
 )
 
 const mappingRecord = computed<Record<string, string>>(() =>
@@ -501,12 +512,22 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
             <span aria-hidden="true">&larr;</span>
             <span>Back to CSV Setup</span>
           </button>
+          <button
+            class="btn-primary"
+            type="button"
+            :disabled="createDisabled"
+            @click="model.createPipelineDatasource()"
+          >
+            {{ createButtonLabel }}
+          </button>
           <AccountMenuButton />
         </div>
       </div>
     </header>
 
     <article class="pipeline-subcard mapping-subcard pipeline-mapping-workspace">
+      <FeedbackBanner :feedback="model.state.pipelineCreateFeedback" />
+
       <div v-if="model.state.pipelineDatastreamsLoading" class="empty-panel">
         <AnimatedLoadingIcon :size="96" />
         <p class="section-copy">Loading datastreams.</p>

@@ -4,6 +4,7 @@ import {
   createAuthFieldStates,
   type AuthFieldName,
   type FieldValidationState,
+  type Feedback,
 } from "../auth-submit";
 import {
   createPipelineFieldStates,
@@ -59,8 +60,8 @@ type UiState = {
   connectionSummary: ConnectionTestResponse | null;
   loading: boolean;
   bootstrapError: string | null;
-  welcomeFeedback: import("../auth-submit").Feedback;
-  settingsFeedback: import("../auth-submit").Feedback;
+  welcomeFeedback: Feedback;
+  settingsFeedback: Feedback;
   lastConnectionState: ConnectionState | null;
   pipelineForm: PipelineFormState;
   pipelinePreview: CsvPreviewResponse | null;
@@ -77,6 +78,8 @@ type UiState = {
   pipelineDatastreamsLoading: boolean;
   pipelineMappingDrafts: PipelineMappingDraft[];
   validatedColumnMappings: ColumnMapping[];
+  pipelineCreateFeedback: Feedback;
+  pipelineCreateSubmitting: boolean;
 };
 
 export const PREVIEW_PAGE_SIZE = 100;
@@ -137,4 +140,6 @@ export const state = reactive<UiState>({
   pipelineDatastreamsLoading: false,
   pipelineMappingDrafts: [],
   validatedColumnMappings: [],
+  pipelineCreateFeedback: null,
+  pipelineCreateSubmitting: false,
 });

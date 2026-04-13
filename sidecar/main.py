@@ -17,6 +17,18 @@ from sidecar.core.state import StateStore
 
 
 def default_config_dir() -> Path:
+    candidates = [
+        Path.cwd() / "Streaming Data Loader Data",
+        Path.home() / "Streaming Data Loader",
+    ]
+
+    for candidate in candidates:
+        try:
+            candidate.mkdir(parents=True, exist_ok=True)
+            return candidate
+        except OSError:
+            continue
+
     return Path(platformdirs.user_data_dir("com.hydroserver.sdl"))
 
 
@@ -43,10 +55,11 @@ def build_runtime() -> AppRuntime:
         config_dir = (Path.cwd() / config_dir).resolve()
 
     settings = RuntimeSettings(host=args.host, port=args.port, config_dir=config_dir)
+    config_store = ConfigStore(config_dir)
     return AppRuntime(
         settings=settings,
-        config_store=ConfigStore(config_dir),
-        state_store=StateStore(config_dir),
+        config_store=config_store,
+        state_store=StateStore(config_store),
         hydroserver=HydroServerService(),
         scheduler=SchedulerService(),
     )

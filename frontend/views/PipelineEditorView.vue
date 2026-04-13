@@ -5,6 +5,7 @@ import type { PipelineFieldName } from "../pipeline-submit";
 
 import AccountMenuButton from "../components/AccountMenuButton.vue";
 import CsvPreview from "../components/CsvPreview.vue";
+import FeedbackBanner from "../components/FeedbackBanner.vue";
 import { useAppModel } from "../composables/useAppModel";
 
 const model = useAppModel();
@@ -108,6 +109,8 @@ function goToSetupStep(): void {
       class="pipeline-editor-workspace"
       :class="{ 'pipeline-editor-workspace-empty': editorStep === 1 }"
     >
+      <FeedbackBanner :feedback="model.state.pipelineCreateFeedback" />
+
       <form
         v-if="editorStep === 1"
         id="pipeline-form"

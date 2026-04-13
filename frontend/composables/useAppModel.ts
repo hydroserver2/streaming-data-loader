@@ -141,6 +141,7 @@ import {
 
 import {
   buildPipelineTransformerSettings,
+  createPipelineDatasource,
   submitPipelineConfig,
   parsedPreviewRows,
   previewHeaders,
@@ -186,6 +187,7 @@ const model = {
   buildPipelineTransformerSettings,
   buildPipelineColumnMappings,
   submitPipelineConfig,
+  createPipelineDatasource,
   canShowMorePreviewLines,
   pipelineDatastreamBrowserEntries,
   pipelineMappingRows,

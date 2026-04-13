@@ -92,6 +92,33 @@ export interface ColumnMapping {
   datastream_name: string
 }
 
+export interface JobLogEntry {
+  timestamp: string
+  level: "info" | "warning" | "error"
+  message: string
+}
+
+export interface JobUpsertRequest {
+  name: string
+  enabled?: boolean
+  file_path: string
+  schedule_minutes?: number
+  file_config: CsvTransformerSettings
+  column_mappings: ColumnMapping[]
+}
+
+export interface JobDetail extends JobUpsertRequest {
+  id: string
+  enabled: boolean
+  schedule_minutes: number
+  recent_logs: JobLogEntry[]
+  status: "healthy" | "warning" | "error" | "disabled" | "pending" | "running"
+  status_message: string
+  last_pushed_timestamp: string | null
+  last_run_at: string | null
+  last_error: string | null
+}
+
 function buildApiUrl(path: string): string {
   return `${apiBaseUrl.replace(/\/$/, "")}${path}`
 }
@@ -208,4 +235,11 @@ export function getCsvPreview(path: string, rows = 100): Promise<CsvPreviewRespo
 
 export function getDatastreams(): Promise<DatastreamSummary[]> {
   return request<DatastreamSummary[]>("/datastreams")
+}
+
+export function createJob(payload: JobUpsertRequest): Promise<JobDetail> {
+  return request<JobDetail>("/jobs", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  })
 }
