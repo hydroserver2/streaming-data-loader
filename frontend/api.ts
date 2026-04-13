@@ -109,6 +109,29 @@ export interface JobLogEntry {
   message: string
 }
 
+export type JobStatus =
+  | "healthy"
+  | "warning"
+  | "error"
+  | "disabled"
+  | "pending"
+  | "running"
+
+export interface JobStatusSummary {
+  id: string
+  name: string
+  enabled: boolean
+  file_path: string
+  schedule_minutes: number
+  file_config: CsvTransformerSettings
+  column_mappings: ColumnMapping[]
+  status: JobStatus
+  status_message: string
+  last_pushed_timestamp: string | null
+  last_run_at: string | null
+  last_error: string | null
+}
+
 export interface JobUpsertRequest {
   name: string
   enabled?: boolean
@@ -123,7 +146,7 @@ export interface JobDetail extends JobUpsertRequest {
   enabled: boolean
   schedule_minutes: number
   recent_logs: JobLogEntry[]
-  status: "healthy" | "warning" | "error" | "disabled" | "pending" | "running"
+  status: JobStatus
   status_message: string
   last_pushed_timestamp: string | null
   last_run_at: string | null
@@ -268,4 +291,8 @@ export function getJob(jobId: string): Promise<JobDetail> {
 
 export function getJobLogs(jobId: string): Promise<JobLogEntry[]> {
   return request<JobLogEntry[]>(`/jobs/${encodeURIComponent(jobId)}/logs`)
+}
+
+export function getJobs(): Promise<JobStatusSummary[]> {
+  return request<JobStatusSummary[]>("/jobs")
 }

@@ -1,12 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 
 import {
+  getJobs,
   getJob,
   getJobLogs,
   type JobConfig,
   type JobDetail,
   type JobLogEntry,
+  type JobStatus,
+  type JobStatusSummary,
 } from '../api'
 import AccountMenuButton from '../components/AccountMenuButton.vue'
 import FeedbackBanner from '../components/FeedbackBanner.vue'
@@ -26,6 +29,7 @@ const workspaceLabel = computed(
 const datasourceCountLabel = computed(() =>
   jobs.value.length === 1 ? '1 source' : `${jobs.value.length} sources`
 )
+const jobStatusById = ref<Record<string, JobStatusSummary>>({})
 const displayedDiagnosticsLogs = computed(() => [...diagnosticsLogs.value].reverse())
 const diagnosticsJobId = ref<string | null>(null)
 const diagnosticsLoading = ref(false)
@@ -35,6 +39,26 @@ const diagnosticsLogs = ref<JobLogEntry[]>([])
 
 function mappingCount(job: JobConfig): number {
   return job.column_mappings.length
+}
+
+function dashboardStatus(job: JobConfig): {
+  label: 'Pending' | 'Up to Date' | 'Behind Schedule' | 'Needs Attention'
+  className: string
+} {
+  const status = jobStatusById.value[job.id]?.status
+  if (status === 'healthy' || status === 'running') {
+    return { label: 'Up to Date', className: 'text-emerald-300' }
+  }
+
+  if (status === 'warning') {
+    return { label: 'Behind Schedule', className: 'text-amber-300' }
+  }
+
+  if (status === 'error' || status === 'disabled') {
+    return { label: 'Needs Attention', className: 'text-red-300' }
+  }
+
+  return { label: 'Pending', className: 'text-sky-300' }
 }
 
 function isLogsOpen(jobId: string): boolean {
@@ -94,6 +118,31 @@ async function toggleLogs(jobId: string): Promise<void> {
     }
   }
 }
+
+async function loadJobStatuses(): Promise<void> {
+  if (jobs.value.length === 0) {
+    jobStatusById.value = {}
+    return
+  }
+
+  try {
+    const summaries = await getJobs()
+    const nextStatuses = Object.fromEntries(
+      summaries.map((summary) => [summary.id, summary])
+    ) as Record<string, JobStatusSummary>
+    jobStatusById.value = nextStatuses
+  } catch {
+    jobStatusById.value = {}
+  }
+}
+
+watch(
+  () => jobs.value.map((job) => job.id).join('|'),
+  () => {
+    void loadJobStatuses()
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -135,10 +184,8 @@ async function toggleLogs(jobId: string): Promise<void> {
             </div>
             <div class="flex flex-col items-end gap-3">
               <p class="mapping-help whitespace-nowrap">
-                <span
-                  :class="job.enabled ? 'text-emerald-300' : 'text-slate-500'"
-                >
-                  {{ job.enabled ? 'Enabled' : 'Paused' }}
+                <span :class="dashboardStatus(job).className">
+                  {{ dashboardStatus(job).label }}
                 </span>
                 ·
                 {{ mappingCount(job) }}
