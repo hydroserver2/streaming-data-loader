@@ -23,6 +23,7 @@ function createServerConfig(
     username: "",
     password: "",
     workspace_id: "",
+    workspace_name: "",
     ...overrides,
   };
 }
@@ -48,6 +49,7 @@ function createResult(
     ok: false,
     state: "error",
     message: "Generic auth error",
+    invalid_field: null,
     instance_name: "example.com",
     workspace_id: null,
     workspace_name: null,
@@ -69,7 +71,7 @@ test("validateAuthFieldsForSubmit rejects malformed URLs", () => {
   assert.equal(valid, false);
   assert.deepEqual(fieldStates.url, {
     state: "invalid",
-    message: "Enter a full http:// or https:// URL.",
+    message: "Please enter a full http:// or https:// URL.",
   });
 });
 
@@ -84,11 +86,11 @@ test("validateAuthFieldsForSubmit requires an API key for API key auth", () => {
   assert.equal(valid, false);
   assert.deepEqual(fieldStates.api_key, {
     state: "invalid",
-    message: "Enter the API key.",
+    message: "Please enter your API key.",
   });
 });
 
-test("validateAuthFieldsForSubmit requires username and password for userpass auth", () => {
+test("validateAuthFieldsForSubmit requires username, password, and workspace name for userpass auth", () => {
   const { fieldStates, markField } = createMarker();
 
   const valid = validateAuthFieldsForSubmit(
@@ -104,11 +106,15 @@ test("validateAuthFieldsForSubmit requires username and password for userpass au
   assert.equal(valid, false);
   assert.deepEqual(fieldStates.username, {
     state: "invalid",
-    message: "Enter the username.",
+    message: "Please enter your username.",
   });
   assert.deepEqual(fieldStates.password, {
     state: "invalid",
-    message: "Enter the password.",
+    message: "Please enter your password.",
+  });
+  assert.deepEqual(fieldStates.workspace_name, {
+    state: "invalid",
+    message: "Please enter a workspace name.",
   });
 });
 
@@ -144,12 +150,43 @@ test("applyConnectionValidationResult marks the credential field when auth fails
   );
 });
 
+test("applyConnectionValidationResult marks only workspace name when the workspace is invalid", () => {
+  const { fieldStates, markField } = createMarker();
+  const server = createServerConfig({
+    auth_type: "userpass",
+    api_key: "",
+    username: "user@example.com",
+    password: "hunter2",
+    workspace_name: "Missing Workspace",
+  });
+
+  applyConnectionValidationResult(
+    server,
+    createResult({
+      invalid_field: "workspace_name",
+      message:
+        "No related workspace named \"Missing Workspace\" was found for this account. Check the workspace name and try again.",
+    }),
+    markField
+  );
+
+  assert.equal(fieldStates.url.state, "valid");
+  assert.equal(fieldStates.username.state, "valid");
+  assert.equal(fieldStates.password.state, "valid");
+  assert.equal(fieldStates.workspace_name.state, "invalid");
+  assert.equal(
+    fieldStates.workspace_name.message,
+    "No related workspace named \"Missing Workspace\" was found for this account. Check the workspace name and try again."
+  );
+});
+
 test("resetAuthFieldStates clears state for the current auth mode", () => {
   const fieldStates = createAuthFieldStates();
   fieldStates.url = { state: "invalid", message: "Bad URL" };
   fieldStates.api_key = { state: "invalid", message: "Bad key" };
   fieldStates.username = { state: "invalid", message: "Bad user" };
   fieldStates.password = { state: "invalid", message: "Bad password" };
+  fieldStates.workspace_name = { state: "invalid", message: "Bad workspace" };
 
   resetAuthFieldStates(fieldStates, "apikey");
 

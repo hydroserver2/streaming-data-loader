@@ -26,7 +26,7 @@ import {
 export function serverConfigured(server: ServerConfig | null | undefined): boolean {
   if (!server?.url.trim()) return false
   if (server.auth_type === "userpass") {
-    return Boolean(server.username.trim() && server.password.trim())
+    return Boolean(server.username.trim() && server.password.trim() && (server.workspace_id.trim() || server.workspace_name.trim()))
   }
   return Boolean(server.api_key.trim())
 }
@@ -51,7 +51,9 @@ function normalizeServerDraft(): ServerConfig {
     api_key: server.auth_type === "apikey" ? server.api_key.trim() : server.api_key,
     username: server.auth_type === "userpass" ? server.username.trim() : server.username,
     password: server.auth_type === "userpass" ? server.password.trim() : server.password,
-    workspace_id: "",
+    workspace_id: server.auth_type === "userpass" ? server.workspace_id.trim() : "",
+    workspace_name:
+      server.auth_type === "userpass" ? server.workspace_name.trim() : server.workspace_name,
   }
 }
 
@@ -61,6 +63,14 @@ export function updateAuthDraftField(
   value: string
 ): void {
   state.authDraft[field] = value
+  if (
+    field === "url" ||
+    field === "username" ||
+    field === "password" ||
+    field === "workspace_name"
+  ) {
+    state.authDraft.workspace_id = ""
+  }
   markField(field, "idle")
 }
 
@@ -79,8 +89,12 @@ export async function syncAuthenticationStatus(
   state.lastConnectionState = result.state
 
   if (result.ok && result.workspace_id) {
-    if (state.config) state.config.server.workspace_id = result.workspace_id
+    if (state.config) {
+      state.config.server.workspace_id = result.workspace_id
+      state.config.server.workspace_name = result.workspace_name ?? state.config.server.workspace_name
+    }
     state.authDraft.workspace_id = result.workspace_id
+    state.authDraft.workspace_name = result.workspace_name ?? state.authDraft.workspace_name
   }
 
   return result

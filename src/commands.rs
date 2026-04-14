@@ -34,9 +34,14 @@ pub async fn update_server_config(
     }
 
     let workspace_id = connection.workspace_id.unwrap_or_default();
+    let workspace_name = connection
+        .workspace_name
+        .clone()
+        .unwrap_or_else(|| normalized.workspace_name.clone());
     let config = state.config_store().set_server(
         ServerConfig {
             workspace_id,
+            workspace_name,
             ..normalized
         },
         connection.workspace_name.as_deref().unwrap_or_default(),

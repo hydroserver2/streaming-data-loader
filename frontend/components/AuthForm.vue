@@ -15,7 +15,9 @@ const submitLabelText = computed(() =>
   model.state.authSubmitting ? "Connecting..." : props.submitLabel
 )
 
-function fieldError(name: "url" | "api_key" | "username" | "password"): string | null {
+function fieldError(
+  name: "url" | "api_key" | "username" | "password" | "workspace_name"
+): string | null {
   const fieldState = model.state.authFieldStates[name]
   return fieldState.state === "invalid" ? fieldState.message : null
 }
@@ -78,6 +80,22 @@ function fieldError(name: "url" | "api_key" | "username" | "password"): string |
           />
           <p v-if="fieldError('password')" class="field-error">
             {{ fieldError("password") }}
+          </p>
+        </label>
+
+        <label class="field">
+          <span class="field-label-row">
+            <span class="label">Workspace name</span>
+          </span>
+          <input
+            :value="model.state.authDraft.workspace_name"
+            class="input"
+            type="text"
+            placeholder="Workspace"
+            @input="model.updateAuthDraftField(formId, 'workspace_name', ($event.target as HTMLInputElement).value)"
+          />
+          <p v-if="fieldError('workspace_name')" class="field-error">
+            {{ fieldError("workspace_name") }}
           </p>
         </label>
       </template>

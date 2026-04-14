@@ -101,6 +101,7 @@ export function emptyServerConfig(): ServerConfig {
     username: "",
     password: "",
     workspace_id: "",
+    workspace_name: "",
   };
 }
 

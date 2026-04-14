@@ -11,6 +11,7 @@ export interface ServerConfig {
   username: string
   password: string
   workspace_id: string
+  workspace_name: string
 }
 
 export interface AppConfig {
@@ -36,6 +37,7 @@ export interface ConnectionTestResponse {
   ok: boolean
   state: ConnectionState
   message: string
+  invalid_field: string | null
   instance_name: string | null
   workspace_id: string | null
   workspace_name: string | null

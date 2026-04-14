@@ -438,6 +438,7 @@ test("createPipelineDatasource sends the expected payload and resets the wizard 
           username: "",
           password: "",
           workspace_id: "workspace-123",
+          workspace_name: "Primary Workspace",
         },
         jobs: [
           {
@@ -476,6 +477,7 @@ test("createPipelineDatasource sends the expected payload and resets the wizard 
     ok: true,
     state: "connected",
     message: "Connected",
+    invalid_field: null,
     instance_name: "HydroServer",
     workspace_id: "workspace-123",
     workspace_name: "Primary Workspace",
@@ -493,6 +495,7 @@ test("createPipelineDatasource sends the expected payload and resets the wizard 
       username: "",
       password: "",
       workspace_id: "workspace-123",
+      workspace_name: "Primary Workspace",
     },
     jobs: [],
   }
@@ -578,6 +581,7 @@ test("editPipelineSourceFile preloads an existing datasource on step 1", async (
       username: "",
       password: "",
       workspace_id: "workspace-123",
+      workspace_name: "Primary Workspace",
     },
     jobs: [
       {
@@ -653,6 +657,7 @@ test("editPipelineCsvSetup opens the existing datasource on step 2", async () =>
       username: "",
       password: "",
       workspace_id: "workspace-123",
+      workspace_name: "Primary Workspace",
     },
     jobs: [
       {
@@ -728,6 +733,7 @@ test("editPipelineMappings preloads mappings and routes to step 3", async () => 
       username: "",
       password: "",
       workspace_id: "workspace-123",
+      workspace_name: "Primary Workspace",
     },
     jobs: [
       {
@@ -839,6 +845,7 @@ test("createPipelineDatasource updates an existing datasource when editing", asy
           username: "",
           password: "",
           workspace_id: "workspace-123",
+          workspace_name: "Primary Workspace",
         },
         jobs: [
           {
@@ -877,6 +884,7 @@ test("createPipelineDatasource updates an existing datasource when editing", asy
     ok: true,
     state: "connected",
     message: "Connected",
+    invalid_field: null,
     instance_name: "HydroServer",
     workspace_id: "workspace-123",
     workspace_name: "Primary Workspace",
@@ -894,6 +902,7 @@ test("createPipelineDatasource updates an existing datasource when editing", asy
       username: "",
       password: "",
       workspace_id: "workspace-123",
+      workspace_name: "Primary Workspace",
     },
     jobs: [
       {
@@ -996,6 +1005,7 @@ test("createPipelineDatasource blocks submission when no columns are mapped", as
     ok: true,
     state: "connected",
     message: "Connected",
+    invalid_field: null,
     instance_name: "HydroServer",
     workspace_id: "workspace-123",
     workspace_name: "Primary Workspace",
@@ -1013,6 +1023,7 @@ test("createPipelineDatasource blocks submission when no columns are mapped", as
       username: "",
       password: "",
       workspace_id: "workspace-123",
+      workspace_name: "Primary Workspace",
     },
     jobs: [],
   }
@@ -1047,6 +1058,7 @@ test("createPipelineDatasource clears submitting state and keeps step-3 state on
     ok: true,
     state: "connected",
     message: "Connected",
+    invalid_field: null,
     instance_name: "HydroServer",
     workspace_id: "workspace-123",
     workspace_name: "Primary Workspace",
@@ -1064,6 +1076,7 @@ test("createPipelineDatasource clears submitting state and keeps step-3 state on
       username: "",
       password: "",
       workspace_id: "workspace-123",
+      workspace_name: "Primary Workspace",
     },
     jobs: [],
   }

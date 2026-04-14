@@ -88,6 +88,8 @@ pub struct ServerConfig {
     pub password: String,
     #[serde(default)]
     pub workspace_id: String,
+    #[serde(default)]
+    pub workspace_name: String,
 }
 
 impl Default for ServerConfig {
@@ -99,6 +101,7 @@ impl Default for ServerConfig {
             username: String::new(),
             password: String::new(),
             workspace_id: String::new(),
+            workspace_name: String::new(),
         }
     }
 }
@@ -110,6 +113,7 @@ impl ServerConfig {
         self.username = self.username.trim().to_string();
         self.password = self.password.trim().to_string();
         self.workspace_id = self.workspace_id.trim().to_string();
+        self.workspace_name = self.workspace_name.trim().to_string();
 
         match self.auth_type {
             AuthType::Apikey => {
@@ -135,8 +139,12 @@ impl ServerConfig {
             AuthType::Apikey if server.api_key.is_empty() => {
                 Err("API key is required.".to_string())
             }
-            AuthType::Userpass if server.username.is_empty() || server.password.is_empty() => {
-                Err("Username and password are required.".to_string())
+            AuthType::Userpass
+                if server.username.is_empty()
+                    || server.password.is_empty()
+                    || (server.workspace_id.is_empty() && server.workspace_name.is_empty()) =>
+            {
+                Err("Username, password, and workspace name are required.".to_string())
             }
             _ => Ok(server),
         }
@@ -150,7 +158,10 @@ impl ServerConfig {
         match self.auth_type {
             AuthType::Apikey => !self.api_key.trim().is_empty(),
             AuthType::Userpass => {
-                !self.username.trim().is_empty() && !self.password.trim().is_empty()
+                !self.username.trim().is_empty()
+                    && !self.password.trim().is_empty()
+                    && (!self.workspace_id.trim().is_empty()
+                        || !self.workspace_name.trim().is_empty())
             }
         }
     }
@@ -608,6 +619,8 @@ pub struct ConnectionTestResponse {
     pub ok: bool,
     pub state: ConnectionState,
     pub message: String,
+    #[serde(default)]
+    pub invalid_field: Option<String>,
     #[serde(default)]
     pub instance_name: Option<String>,
     #[serde(default)]

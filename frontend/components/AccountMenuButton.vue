@@ -18,6 +18,7 @@ const authModeLabel = computed(() =>
 const workspaceLabel = computed(
   () =>
     model.state.connectionSummary?.workspace_name?.trim() ||
+    model.state.authDraft.workspace_name?.trim() ||
     model.state.connectionSummary?.workspace_id?.trim() ||
     model.state.config?.server.workspace_id ||
     model.state.authDraft.workspace_id ||
@@ -27,7 +28,9 @@ const submitLabelText = computed(() =>
   model.state.authSubmitting ? "Saving..." : "Save account changes"
 )
 
-function fieldError(name: "api_key" | "username" | "password"): string | null {
+function fieldError(
+  name: "api_key" | "username" | "password" | "workspace_name"
+): string | null {
   const fieldState = model.state.authFieldStates[name]
   return fieldState.state === "invalid" ? fieldState.message : null
 }
@@ -166,6 +169,20 @@ onBeforeUnmount(() => {
             />
             <p v-if="fieldError('password')" class="field-error">
               {{ fieldError("password") }}
+            </p>
+          </label>
+
+          <label class="field account-menu-field">
+            <span class="label">Workspace name</span>
+            <input
+              :value="model.state.authDraft.workspace_name"
+              class="input account-menu-input"
+              type="text"
+              placeholder="Workspace"
+              @input="model.updateAuthDraftField('settings-form', 'workspace_name', ($event.target as HTMLInputElement).value)"
+            />
+            <p v-if="fieldError('workspace_name')" class="field-error">
+              {{ fieldError("workspace_name") }}
             </p>
           </label>
         </template>

@@ -125,6 +125,7 @@ impl HydroServerService {
                 ok: false,
                 state: ConnectionState::NotConfigured,
                 message: "Enter the HydroServer URL and a valid set of credentials.".to_string(),
+                invalid_field: None,
                 instance_name: None,
                 workspace_id: None,
                 workspace_name: None,
@@ -135,36 +136,61 @@ impl HydroServerService {
         }
 
         let mut session = HydroServerSession::new(self.http.clone(), server.clone().normalized());
-        match session.associated_workspace().await {
-            Ok((Some(workspace_id), workspace_name, workspace_count)) => {
-                let instance_name = instance_name(&server.url);
-                ConnectionTestResponse {
-                    ok: true,
-                    state: ConnectionState::Connected,
-                    message: format!("Connected to {instance_name}."),
-                    instance_name: Some(instance_name),
-                    workspace_id: Some(workspace_id),
-                    workspace_name,
-                    workspace_count,
-                    datastream_count: 0,
-                    permissions_ok: true,
+        match session.associated_workspaces().await {
+            Ok(workspaces) => {
+                let workspace_count = workspaces.len() as u32;
+                let selected_workspace = match server.auth_type {
+                    AuthType::Apikey => resolve_api_key_workspace(server, &workspaces),
+                    AuthType::Userpass => resolve_userpass_workspace(server, &workspaces),
+                };
+
+                match selected_workspace {
+                    Ok(Some((workspace_id, workspace_name))) => {
+                        let instance_name = instance_name(&server.url);
+                        ConnectionTestResponse {
+                            ok: true,
+                            state: ConnectionState::Connected,
+                            message: format!("Connected to {instance_name}."),
+                            invalid_field: None,
+                            instance_name: Some(instance_name),
+                            workspace_id: Some(workspace_id),
+                            workspace_name: Some(workspace_name),
+                            workspace_count,
+                            datastream_count: 0,
+                            permissions_ok: true,
+                        }
+                    }
+                    Ok(None) => ConnectionTestResponse {
+                        ok: false,
+                        state: ConnectionState::Error,
+                        message: "That API key is invalid or is not attached to any accessible workspace. Check the API key permissions and try again.".to_string(),
+                        invalid_field: Some("api_key".to_string()),
+                        instance_name: Some(instance_name(&server.url)),
+                        workspace_id: None,
+                        workspace_name: None,
+                        workspace_count,
+                        datastream_count: 0,
+                        permissions_ok: false,
+                    },
+                    Err((invalid_field, message)) => ConnectionTestResponse {
+                        ok: false,
+                        state: ConnectionState::Error,
+                        message,
+                        invalid_field: Some(invalid_field.to_string()),
+                        instance_name: Some(instance_name(&server.url)),
+                        workspace_id: None,
+                        workspace_name: None,
+                        workspace_count,
+                        datastream_count: 0,
+                        permissions_ok: false,
+                    },
                 }
             }
-            Ok((None, _, workspace_count)) => ConnectionTestResponse {
-                ok: false,
-                state: ConnectionState::Error,
-                message: "That API key is invalid or is not attached to any accessible workspace. Check the API key permissions and try again.".to_string(),
-                instance_name: Some(instance_name(&server.url)),
-                workspace_id: None,
-                workspace_name: None,
-                workspace_count,
-                datastream_count: 0,
-                permissions_ok: false,
-            },
             Err(RequestError::Connection) | Err(RequestError::Timeout) => ConnectionTestResponse {
                 ok: false,
                 state: ConnectionState::Error,
                 message: "Couldn't reach HydroServer. Check the server URL and try again.".to_string(),
+                invalid_field: Some("url".to_string()),
                 instance_name: None,
                 workspace_id: None,
                 workspace_name: None,
@@ -179,6 +205,10 @@ impl HydroServerService {
                 ok: false,
                 state: ConnectionState::Error,
                 message: "These credentials are invalid or do not have the permissions the loader needs. Make sure they can access workspaces, datastreams, and orchestration systems.".to_string(),
+                invalid_field: Some(match server.auth_type {
+                    AuthType::Apikey => "api_key".to_string(),
+                    AuthType::Userpass => "username".to_string(),
+                }),
                 instance_name: None,
                 workspace_id: None,
                 workspace_name: None,
@@ -190,6 +220,7 @@ impl HydroServerService {
                 ok: false,
                 state: ConnectionState::Error,
                 message: "HydroServer returned an error while testing the connection. Try again in a moment.".to_string(),
+                invalid_field: None,
                 instance_name: None,
                 workspace_id: None,
                 workspace_name: None,
@@ -201,6 +232,7 @@ impl HydroServerService {
                 ok: false,
                 state: ConnectionState::Error,
                 message: "Couldn't complete the HydroServer connection test.".to_string(),
+                invalid_field: None,
                 instance_name: None,
                 workspace_id: None,
                 workspace_name: None,
@@ -558,36 +590,32 @@ impl HydroServerSession {
     async fn associated_workspace(
         &mut self,
     ) -> Result<(Option<String>, Option<String>, u32), RequestError> {
-        let response = self
-            .request_response(
-                Method::GET,
+        let workspaces = self.associated_workspaces().await?;
+        let workspace_count = workspaces.len() as u32;
+        let first_workspace = workspaces.first();
+        Ok((
+            first_workspace.map(|(id, _)| id.clone()),
+            first_workspace.map(|(_, name)| name.clone()),
+            workspace_count,
+        ))
+    }
+
+    async fn associated_workspaces(&mut self) -> Result<Vec<(String, String)>, RequestError> {
+        let items = self
+            .fetch_all_collection(
                 &format!("{BASE_ROUTE}/workspaces"),
-                &[
-                    ("page_size", "25".to_string()),
-                    ("is_associated", "true".to_string()),
-                ],
-                None,
+                &[("is_associated", "true".to_string())],
             )
             .await?;
 
-        let headers = response.headers().clone();
-        let payload = response
-            .json::<Value>()
-            .await
-            .map_err(|err| RequestError::Other(err.to_string()))?;
-        let Some(items) = payload.as_array() else {
-            return Ok((None, None, 0));
-        };
-
-        let workspace_count = header_int(&headers, "X-Total-Count")
-            .or_else(|| header_int(&headers, "X-Total-Count".to_ascii_lowercase().as_str()))
-            .unwrap_or(items.len() as u32);
-        let first_workspace = items.first();
-        Ok((
-            first_workspace.and_then(|item| string_value(item, &["id", "uid"])),
-            first_workspace.and_then(|item| string_value(item, &["name"])),
-            workspace_count,
-        ))
+        Ok(items
+            .into_iter()
+            .filter_map(|item| {
+                let id = string_value(&item, &["id", "uid"])?;
+                let name = string_value(&item, &["name"])?;
+                Some((id, name))
+            })
+            .collect())
     }
 
     async fn fetch_collection_lookup(
@@ -860,6 +888,80 @@ impl RequestError {
             } if *status == StatusCode::CONFLICT
         )
     }
+}
+
+fn resolve_api_key_workspace(
+    server: &ServerConfig,
+    workspaces: &[(String, String)],
+) -> Result<Option<(String, String)>, (&'static str, String)> {
+    if workspaces.is_empty() {
+        return Ok(None);
+    }
+
+    if let Some(workspace) = workspaces
+        .iter()
+        .find(|(id, _)| !server.workspace_id.trim().is_empty() && id == server.workspace_id.trim())
+    {
+        return Ok(Some(workspace.clone()));
+    }
+
+    Ok(workspaces.first().cloned())
+}
+
+fn resolve_userpass_workspace(
+    server: &ServerConfig,
+    workspaces: &[(String, String)],
+) -> Result<Option<(String, String)>, (&'static str, String)> {
+    if workspaces.is_empty() {
+        return Err((
+            "workspace_name",
+            "These credentials are valid, but this account does not have edit access to any related workspaces.".to_string(),
+        ));
+    }
+
+    let requested_workspace_id = server.workspace_id.trim();
+    if !requested_workspace_id.is_empty() {
+        return workspaces
+            .iter()
+            .find(|(id, _)| id == requested_workspace_id)
+            .cloned()
+            .map(Some)
+            .ok_or_else(|| {
+                (
+                    "workspace_name",
+                    "The saved workspace is no longer available to this account. Enter one of your related workspace names and try again.".to_string(),
+                )
+            });
+    }
+
+    let requested_workspace_name = server.workspace_name.trim();
+    if requested_workspace_name.is_empty() {
+        return Err((
+            "workspace_name",
+            "Please enter a workspace name.".to_string(),
+        ));
+    }
+
+    if let Some(workspace) = workspaces
+        .iter()
+        .find(|(_, name)| name.trim() == requested_workspace_name)
+    {
+        return Ok(Some(workspace.clone()));
+    }
+
+    if let Some(workspace) = workspaces
+        .iter()
+        .find(|(_, name)| name.trim().eq_ignore_ascii_case(requested_workspace_name))
+    {
+        return Ok(Some(workspace.clone()));
+    }
+
+    Err((
+        "workspace_name",
+        format!(
+            "No related workspace named \"{requested_workspace_name}\" was found for this account. Check the workspace name and try again."
+        ),
+    ))
 }
 
 fn build_url(base_url: &str, path: &str) -> String {
