@@ -2279,39 +2279,21 @@
   }
 
   .data-source-logs-panel {
-    @apply mt-1 flex flex-col gap-4 rounded-xl border px-4 py-4;
-    border-color: rgb(255 255 255 / 0.08);
+    @apply mt-1 flex flex-col gap-4 rounded-xl px-4 py-4;
     background: #181a1d;
   }
 
-  .data-source-logs-header {
-    @apply flex flex-wrap items-start justify-between gap-3;
-  }
-
-  .data-source-logs-status-row {
-    @apply flex flex-wrap items-center gap-2;
-  }
-
-  .data-source-logs-times {
-    @apply flex flex-col items-end gap-0.5 text-right text-[0.75rem] text-slate-400;
-  }
-
-  .data-source-logs-section-label {
-    @apply text-[0.6875rem] font-medium uppercase tracking-[0.14em] text-slate-500;
-  }
-
   .data-source-logs-list {
-    @apply max-h-72 overflow-auto rounded-lg border px-3 py-2;
-    border-color: rgb(255 255 255 / 0.06);
-    background: rgb(0 0 0 / 0.28);
+    @apply max-h-72 overflow-auto;
   }
 
   .data-source-log-entry {
-    @apply grid gap-1 py-1.5 text-[0.75rem] text-slate-300 first:pt-0 last:pb-0 md:grid-cols-[9rem_4.5rem_minmax(0,1fr)] md:gap-3;
+    @apply grid gap-1 py-1.5 text-[0.75rem] text-slate-300 first:pt-0 last:pb-0 md:grid-cols-[12rem_4.5rem_minmax(0,1fr)] md:gap-3;
     font-family: var(--font-mono);
   }
 
   .data-source-log-timestamp {
+    white-space: nowrap;
     color: #94a3b8;
   }
 

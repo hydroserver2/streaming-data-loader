@@ -3,7 +3,6 @@ import { computed, nextTick, ref, watch } from 'vue'
 
 import {
   getJobs,
-  getJob,
   getJobLogs,
   getConfig,
   deleteJob,
@@ -11,7 +10,6 @@ import {
   runJobNow,
   updateJob,
   type JobConfig,
-  type JobDetail,
   type JobLogEntry,
   type JobStatus,
   type JobStatusSummary,
@@ -184,12 +182,20 @@ function isEditingName(jobId: string): boolean {
 function isSavingName(jobId: string): boolean {
   return savingNameJobId.value === jobId
 }
-const displayedDiagnosticsLogs = computed(() => [...diagnosticsLogs.value].reverse())
 const diagnosticsJobId = ref<string | null>(null)
 const diagnosticsLoading = ref(false)
 const diagnosticsError = ref<string | null>(null)
-const diagnosticsDetail = ref<JobDetail | null>(null)
 const diagnosticsLogs = ref<JobLogEntry[]>([])
+const showAllDiagnosticsLogs = ref(false)
+const displayedDiagnosticsLogs = computed(() => [...diagnosticsLogs.value].reverse())
+const visibleDiagnosticsLogs = computed(() =>
+  showAllDiagnosticsLogs.value
+    ? displayedDiagnosticsLogs.value
+    : displayedDiagnosticsLogs.value.slice(0, 5)
+)
+const hasAdditionalDiagnosticsLogs = computed(
+  () => displayedDiagnosticsLogs.value.length > visibleDiagnosticsLogs.value.length
+)
 
 function mappingCount(job: JobConfig): number {
   return job.column_mappings.length
@@ -221,14 +227,6 @@ function statusClass(meta: DashboardStatusMeta): string {
 
 function isLogsOpen(jobId: string): boolean {
   return diagnosticsJobId.value === jobId
-}
-
-function statusToneClass(status: JobDetail['status']): string {
-  if (status === 'healthy') return 'pill-success'
-  if (status === 'warning') return 'pill-warning'
-  if (status === 'error') return 'pill-danger'
-  if (status === 'disabled') return 'pill-muted'
-  return 'pill-info'
 }
 
 function formatTimestamp(value: string | null): string {
@@ -295,23 +293,22 @@ async function openFileLocation(filePath: string): Promise<void> {
 async function toggleLogs(jobId: string): Promise<void> {
   if (diagnosticsJobId.value === jobId) {
     diagnosticsJobId.value = null
-    diagnosticsDetail.value = null
     diagnosticsLogs.value = []
     diagnosticsError.value = null
     diagnosticsLoading.value = false
+    showAllDiagnosticsLogs.value = false
     return
   }
 
   diagnosticsJobId.value = jobId
   diagnosticsLoading.value = true
   diagnosticsError.value = null
-  diagnosticsDetail.value = null
   diagnosticsLogs.value = []
+  showAllDiagnosticsLogs.value = false
 
   try {
-    const [detail, logs] = await Promise.all([getJob(jobId), getJobLogs(jobId)])
+    const logs = await getJobLogs(jobId)
     if (diagnosticsJobId.value !== jobId) return
-    diagnosticsDetail.value = detail
     diagnosticsLogs.value = logs
   } catch (error) {
     if (diagnosticsJobId.value !== jobId) return
@@ -577,43 +574,15 @@ watch(
 
             <div v-if="isLogsOpen(job.id)" class="data-source-logs-panel">
               <div v-if="diagnosticsLoading" class="mapping-help">
-                Loading logs and status…
+                Loading logs…
               </div>
 
               <div v-else-if="diagnosticsError" class="notice-error">
                 {{ diagnosticsError }}
               </div>
 
-              <div v-else-if="diagnosticsDetail" class="flex flex-col gap-4">
-                <div class="data-source-logs-header">
-                  <div class="flex flex-col gap-2">
-                    <div class="data-source-logs-status-row">
-                      <span :class="statusToneClass(diagnosticsDetail.status)">
-                        {{ diagnosticsDetail.status }}
-                      </span>
-                      <span class="mapping-help">
-                        {{ diagnosticsDetail.status_message }}
-                      </span>
-                    </div>
-                    <div v-if="diagnosticsDetail.last_error" class="notice-error">
-                      {{ diagnosticsDetail.last_error }}
-                    </div>
-                  </div>
-
-                  <div class="data-source-logs-times">
-                    <p>
-                      Last run {{ formatTimestamp(diagnosticsDetail.last_run_at) }}
-                    </p>
-                    <p>
-                      Last push
-                      {{ formatTimestamp(diagnosticsDetail.last_pushed_timestamp) }}
-                    </p>
-                  </div>
-                </div>
-
-                <div class="flex flex-col gap-2">
-                  <p class="data-source-logs-section-label">Recent Logs</p>
-
+              <div v-else class="flex flex-col gap-2">
+                <div>
                   <div
                     v-if="displayedDiagnosticsLogs.length === 0"
                     class="mapping-help"
@@ -623,7 +592,7 @@ watch(
 
                   <div v-else class="data-source-logs-list">
                     <div
-                      v-for="entry in displayedDiagnosticsLogs"
+                      v-for="entry in visibleDiagnosticsLogs"
                       :key="`${entry.timestamp}-${entry.level}-${entry.message}`"
                       class="data-source-log-entry"
                     >
@@ -645,6 +614,15 @@ watch(
                       <span class="wrap-break-word">{{ entry.message }}</span>
                     </div>
                   </div>
+
+                  <button
+                    v-if="hasAdditionalDiagnosticsLogs"
+                    class="data-source-action mt-2"
+                    type="button"
+                    @click="showAllDiagnosticsLogs = true"
+                  >
+                    View more
+                  </button>
                 </div>
               </div>
             </div>
