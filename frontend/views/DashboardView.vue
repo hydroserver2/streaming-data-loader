@@ -221,25 +221,25 @@ watch(
           :key="job.id"
           class="border-b border-white/6 px-8 py-4"
         >
-          <div class="flex flex-wrap items-start justify-between gap-3">
-            <div class="mapping-source-stack min-w-0">
-              <p class="mapping-summary-title">{{ job.name }}</p>
+          <div class="flex flex-col gap-3">
+            <div class="flex items-start justify-between gap-3">
+              <div class="mapping-source-stack min-w-0 flex-1">
+                <p class="mapping-summary-title">{{ job.name }}</p>
+              </div>
+              <span
+                class="inline-flex shrink-0 items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                :class="dashboardStatus(job).badgeClass"
+              >
+                {{ dashboardStatus(job).label }}
+              </span>
+            </div>
+
+            <div class="min-w-0">
               <p class="mapping-help break-all">{{ job.file_path }}</p>
             </div>
-            <div class="flex flex-col items-end gap-2">
-              <div class="flex items-center gap-2">
-                <p class="mapping-help whitespace-nowrap">
-                  {{ mappingCount(job) }}
-                  {{ mappingCount(job) === 1 ? 'mapping' : 'mappings' }}
-                </p>
-                <span
-                  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
-                  :class="dashboardStatus(job).badgeClass"
-                >
-                  {{ dashboardStatus(job).label }}
-                </span>
-              </div>
-              <div class="flex flex-wrap justify-end gap-2">
+
+            <div class="flex flex-wrap items-end justify-between gap-3">
+              <div class="flex flex-wrap gap-2">
                 <button
                   class="btn-ghost px-3 py-1.5 text-xs"
                   type="button"
@@ -309,6 +309,11 @@ watch(
                   </button>
                 </template>
               </div>
+
+              <p class="mapping-help whitespace-nowrap text-right">
+                {{ mappingCount(job) }}
+                {{ mappingCount(job) === 1 ? 'mapping' : 'mappings' }}
+              </p>
             </div>
           </div>
 
