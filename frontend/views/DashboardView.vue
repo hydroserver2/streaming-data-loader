@@ -48,9 +48,6 @@ const workspaceLabel = computed(
     model.state.config?.server.workspace_id ||
     'Current workspace'
 )
-const datasourceCountLabel = computed(() =>
-  jobs.value.length === 1 ? '1 source' : `${jobs.value.length} sources`
-)
 const datasourceCount = computed(() => jobs.value.length)
 const jobStatusById = ref<Record<string, JobStatusSummary>>({})
 const pendingDeleteJobId = ref<string | null>(null)
@@ -291,8 +288,8 @@ watch(
     <header class="page-header wizard-header">
       <div class="wizard-header-bar">
         <div class="wizard-title-block">
-          <h1 class="wizard-page-title">{{ workspaceLabel }}</h1>
-          <p class="mapping-help">{{ datasourceCountLabel }}</p>
+          <h1 class="wizard-page-title">Data Source Dashboard</h1>
+          <p class="mapping-help">{{ workspaceLabel }}</p>
         </div>
         <div class="button-row wizard-actions">
           <button
