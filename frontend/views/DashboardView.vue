@@ -87,22 +87,22 @@ function mappingCount(job: JobConfig): number {
 
 function dashboardStatus(job: JobConfig): {
   label: 'Pending' | 'Up to Date' | 'Behind Schedule' | 'Needs Attention'
-  className: string
+  badgeClass: string
 } {
   const status = jobStatusById.value[job.id]?.status
   if (status === 'healthy' || status === 'running') {
-    return { label: 'Up to Date', className: 'text-emerald-300' }
+    return { label: 'Up to Date', badgeClass: 'bg-emerald-900/60 text-emerald-300' }
   }
 
   if (status === 'warning') {
-    return { label: 'Behind Schedule', className: 'text-amber-300' }
+    return { label: 'Behind Schedule', badgeClass: 'bg-amber-900/60 text-amber-300' }
   }
 
   if (status === 'error' || status === 'disabled') {
-    return { label: 'Needs Attention', className: 'text-red-300' }
+    return { label: 'Needs Attention', badgeClass: 'bg-red-900/60 text-red-300' }
   }
 
-  return { label: 'Pending', className: 'text-sky-300' }
+  return { label: 'Pending', badgeClass: 'bg-sky-900/60 text-sky-300' }
 }
 
 function isLogsOpen(jobId: string): boolean {
@@ -226,15 +226,19 @@ watch(
               <p class="mapping-summary-title">{{ job.name }}</p>
               <p class="mapping-help break-all">{{ job.file_path }}</p>
             </div>
-            <div class="flex flex-col items-end gap-3">
-              <p class="mapping-help whitespace-nowrap">
-                <span :class="dashboardStatus(job).className">
+            <div class="flex flex-col items-end gap-2">
+              <div class="flex items-center gap-2">
+                <p class="mapping-help whitespace-nowrap">
+                  {{ mappingCount(job) }}
+                  {{ mappingCount(job) === 1 ? 'mapping' : 'mappings' }}
+                </p>
+                <span
+                  class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                  :class="dashboardStatus(job).badgeClass"
+                >
                   {{ dashboardStatus(job).label }}
                 </span>
-                ·
-                {{ mappingCount(job) }}
-                {{ mappingCount(job) === 1 ? 'mapping' : 'mappings' }}
-              </p>
+              </div>
               <div class="flex flex-wrap justify-end gap-2">
                 <button
                   class="btn-ghost px-3 py-1.5 text-xs"
