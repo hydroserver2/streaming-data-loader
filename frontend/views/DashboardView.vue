@@ -22,6 +22,25 @@ import { navigate } from '../router'
 const model = useAppModel()
 
 const jobs = computed(() => model.state.config?.jobs ?? [])
+type DashboardStatusLabel =
+  | 'Pending'
+  | 'Up to Date'
+  | 'Behind Schedule'
+  | 'Needs Attention'
+
+type DashboardStatusMeta = {
+  label: DashboardStatusLabel
+  badgeClass: string
+  metricClass: string
+}
+
+const DASHBOARD_STATUS_ORDER: DashboardStatusLabel[] = [
+  'Pending',
+  'Up to Date',
+  'Behind Schedule',
+  'Needs Attention',
+]
+
 const workspaceLabel = computed(
   () =>
     model.state.connectionSummary?.workspace_name?.trim() ||
@@ -32,9 +51,12 @@ const workspaceLabel = computed(
 const datasourceCountLabel = computed(() =>
   jobs.value.length === 1 ? '1 source' : `${jobs.value.length} sources`
 )
+const datasourceCount = computed(() => jobs.value.length)
 const jobStatusById = ref<Record<string, JobStatusSummary>>({})
 const pendingDeleteJobId = ref<string | null>(null)
 const deletingJobId = ref<string | null>(null)
+const textFilter = ref('')
+const statusFilter = ref<'all' | DashboardStatusLabel>('all')
 
 type NavSection = 'file' | 'setup' | 'mappings'
 const pendingNavigation = ref<{ jobId: string; section: NavSection } | null>(null)
@@ -86,24 +108,47 @@ function mappingCount(job: JobConfig): number {
   return job.column_mappings.length
 }
 
-function dashboardStatus(job: JobConfig): {
-  label: 'Pending' | 'Up to Date' | 'Behind Schedule' | 'Needs Attention'
-  badgeClass: string
-} {
-  const status = jobStatusById.value[job.id]?.status
+function dashboardStatusFor(status: JobStatus | undefined): DashboardStatusMeta {
   if (status === 'healthy' || status === 'running') {
-    return { label: 'Up to Date', badgeClass: 'bg-emerald-900/60 text-emerald-300' }
+    return {
+      label: 'Up to Date',
+      badgeClass: 'bg-emerald-900/60 text-emerald-300',
+      metricClass: 'border-emerald-900/60 bg-emerald-950/35 text-emerald-200',
+    }
   }
 
   if (status === 'warning') {
-    return { label: 'Behind Schedule', badgeClass: 'bg-amber-900/60 text-amber-300' }
+    return {
+      label: 'Behind Schedule',
+      badgeClass: 'bg-amber-900/60 text-amber-300',
+      metricClass: 'border-amber-900/60 bg-amber-950/35 text-amber-200',
+    }
   }
 
   if (status === 'error' || status === 'disabled') {
-    return { label: 'Needs Attention', badgeClass: 'bg-red-900/60 text-red-300' }
+    return {
+      label: 'Needs Attention',
+      badgeClass: 'bg-red-900/60 text-red-300',
+      metricClass: 'border-red-900/60 bg-red-950/35 text-red-200',
+    }
   }
 
-  return { label: 'Pending', badgeClass: 'bg-sky-900/60 text-sky-300' }
+  return {
+    label: 'Pending',
+    badgeClass: 'bg-sky-900/60 text-sky-300',
+    metricClass: 'border-sky-900/60 bg-sky-950/35 text-sky-200',
+  }
+}
+
+function dashboardStatus(job: JobConfig): DashboardStatusMeta {
+  return dashboardStatusFor(jobStatusById.value[job.id]?.status)
+}
+
+function dashboardStatusForLabel(label: DashboardStatusLabel): DashboardStatusMeta {
+  if (label === 'Up to Date') return dashboardStatusFor('healthy')
+  if (label === 'Behind Schedule') return dashboardStatusFor('warning')
+  if (label === 'Needs Attention') return dashboardStatusFor('error')
+  return dashboardStatusFor('pending')
 }
 
 function isLogsOpen(jobId: string): boolean {
@@ -134,6 +179,35 @@ function displayFileName(filePath: string): string {
   const segments = filePath.split(/[\\/]/)
   return segments[segments.length - 1] || filePath
 }
+
+const statusCounts = computed(() => {
+  const counts = Object.fromEntries(
+    DASHBOARD_STATUS_ORDER.map((label) => [label, 0])
+  ) as Record<DashboardStatusLabel, number>
+
+  for (const job of jobs.value) {
+    counts[dashboardStatus(job).label] += 1
+  }
+
+  return counts
+})
+
+const filteredJobs = computed(() => {
+  const query = textFilter.value.trim().toLowerCase()
+
+  return jobs.value.filter((job) => {
+    const statusMatches =
+      statusFilter.value === 'all' || dashboardStatus(job).label === statusFilter.value
+
+    if (!statusMatches) return false
+    if (!query) return true
+
+    const name = job.name.toLowerCase()
+    const fileName = displayFileName(job.file_path).toLowerCase()
+
+    return name.includes(query) || fileName.includes(query)
+  })
+})
 
 function isDesktopRuntime(): boolean {
   return (
@@ -234,13 +308,52 @@ watch(
     </header>
 
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div class="mx-auto w-full max-w-7xl px-8">
+      <div class="mx-auto flex w-full max-w-7xl flex-col gap-4 px-8 py-4">
         <FeedbackBanner :feedback="model.state.pipelineCreateFeedback" />
+
+        <section class="dashboard-filter-shell">
+          <div class="dashboard-filter-grid">
+            <label class="dashboard-filter-field">
+              <input
+                v-model="textFilter"
+                class="input dashboard-filter-input"
+                type="text"
+                placeholder="Filter by name or file"
+              />
+            </label>
+          </div>
+
+          <div class="dashboard-status-filter-row">
+            <button
+              class="dashboard-status-filter"
+              :class="statusFilter === 'all' ? 'dashboard-status-filter-active' : ''"
+              type="button"
+              @click="statusFilter = 'all'"
+            >
+              <span class="dashboard-status-filter-label">All</span>
+              <span class="dashboard-status-filter-count">{{ datasourceCount }}</span>
+            </button>
+            <button
+              v-for="label in DASHBOARD_STATUS_ORDER"
+              :key="label"
+              class="dashboard-status-filter"
+              :class="[
+                dashboardStatusForLabel(label).metricClass,
+                statusFilter === label ? 'dashboard-status-filter-active' : '',
+              ]"
+              type="button"
+              @click="statusFilter = label"
+            >
+              <span class="dashboard-status-filter-label">{{ label }}</span>
+              <span class="dashboard-status-filter-count">{{ statusCounts[label] }}</span>
+            </button>
+          </div>
+        </section>
       </div>
 
       <div class="flex min-h-0 flex-col overflow-y-auto">
         <article
-          v-for="(job, index) in jobs"
+          v-for="(job, index) in filteredJobs"
           :key="job.id"
           class="border-b border-white/6"
           :class="index % 2 === 0 ? 'bg-black/10' : 'bg-transparent'"
@@ -444,6 +557,13 @@ watch(
         >
           <p class="mapping-help">No data sources yet.</p>
         </article>
+
+        <article
+          v-else-if="filteredJobs.length === 0"
+          class="mx-auto w-full max-w-7xl rounded-2xl bg-[#111315] px-5 py-6"
+        >
+          <p class="mapping-help">No data sources match the current filters.</p>
+        </article>
       </div>
     </div>
   </section>
@@ -461,6 +581,83 @@ watch(
   padding-bottom: 0;
   padding-left: 0;
   padding-right: 0;
+}
+
+.dashboard-filter-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 1rem;
+  background: rgb(17 19 21 / 0.9);
+  padding: 1rem;
+}
+
+.dashboard-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.dashboard-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.dashboard-filter-input {
+  min-width: 0;
+}
+
+.dashboard-status-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.dashboard-status-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.03);
+  color: rgb(203 213 225 / 0.95);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.1;
+  padding: 0.125rem 0.625rem;
+}
+
+.dashboard-status-filter-label {
+  white-space: nowrap;
+}
+
+.dashboard-status-filter-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1rem;
+  height: 1rem;
+  border-radius: 9999px;
+  background: rgb(255 255 255 / 0.1);
+  color: inherit;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 0 0.3rem;
+}
+
+.dashboard-status-filter:hover {
+  border-color: rgb(255 255 255 / 0.18);
+  background: rgb(255 255 255 / 0.07);
+  color: rgb(241 245 249 / 0.98);
+}
+
+.dashboard-status-filter-active {
+  border-color: rgb(56 189 248 / 0.45);
+  background: rgb(8 47 73 / 0.42);
+  color: rgb(224 242 254 / 0.98);
 }
 
 .dashboard-item-button {
@@ -514,4 +711,5 @@ watch(
   border-color: rgb(56 189 248 / 0.5);
   background: rgb(12 74 110 / 0.42);
 }
+
 </style>
