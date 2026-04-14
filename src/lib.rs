@@ -109,7 +109,7 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let menu = Menu::with_items(app, &[&show, &hide, &quit])?;
 
     TrayIconBuilder::new()
-        .icon(Image::from_path("icons/32x32.png")?)
+        .icon(Image::from_path("icons/tray-icon.png")?)
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
