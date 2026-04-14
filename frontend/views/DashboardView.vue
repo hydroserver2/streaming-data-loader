@@ -560,7 +560,7 @@ watch(
 
         <article
           v-else-if="filteredJobs.length === 0"
-          class="mx-auto w-full max-w-7xl rounded-2xl bg-[#111315] px-5 py-6"
+          class="mx-auto w-full max-w-7xl px-8 py-6"
         >
           <p class="mapping-help">No data sources match the current filters.</p>
         </article>
