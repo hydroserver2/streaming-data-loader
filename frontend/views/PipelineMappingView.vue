@@ -1038,16 +1038,12 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
       >
         <header class="mapping-datastream-modal-header">
           <div class="mapping-datastream-modal-copy">
-            <p class="mapping-datastream-modal-kicker">Datastream metadata</p>
             <h2
               id="mapping-datastream-modal-title"
-              class="mapping-datastream-modal-title"
+              class="mapping-datastream-modal-kicker"
             >
-              {{ datastreamTitle(metadataDatastream) }}
+              Datastream metadata
             </h2>
-            <p class="mapping-datastream-modal-subtitle">
-              {{ metadataValue(metadataDatastream.name) }}
-            </p>
           </div>
           <button
             class="mapping-datastream-modal-close"

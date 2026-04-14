@@ -841,12 +841,10 @@
   }
 
   .onboarding-shell .mapping-datastream-modal-kicker,
-  .onboarding-shell .mapping-datastream-modal-subtitle,
   .onboarding-shell .mapping-datastream-metadata-item dt {
     color: #aba69e;
   }
 
-  .onboarding-shell .mapping-datastream-modal-title,
   .onboarding-shell .mapping-datastream-metadata-section-title,
   .onboarding-shell .mapping-datastream-metadata-item dd {
     color: #f3efe9;
@@ -1516,14 +1514,6 @@
 
   .mapping-datastream-modal-kicker {
     @apply text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-slate-500;
-  }
-
-  .mapping-datastream-modal-title {
-    @apply mt-1 text-lg font-semibold leading-tight text-slate-900;
-  }
-
-  .mapping-datastream-modal-subtitle {
-    @apply mt-1 truncate text-sm text-slate-500;
   }
 
   .mapping-datastream-modal-close {
