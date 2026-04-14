@@ -217,9 +217,10 @@ watch(
 
       <div class="-mx-8 flex flex-col">
         <article
-          v-for="job in jobs"
+          v-for="(job, index) in jobs"
           :key="job.id"
           class="border-b border-white/6 px-8 py-4"
+          :class="index % 2 === 1 ? 'bg-black/10' : 'bg-transparent'"
         >
           <div class="flex flex-col gap-3">
             <div class="flex items-start justify-between gap-3">
