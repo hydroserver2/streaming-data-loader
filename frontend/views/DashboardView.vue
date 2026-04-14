@@ -249,7 +249,7 @@ watch(
             <div class="flex flex-wrap items-end justify-between gap-3">
               <div class="flex flex-wrap gap-2">
                 <button
-                  class="btn-ghost px-3 py-1.5 text-xs"
+                  class="btn-ghost dashboard-item-button px-3 py-1.5 text-xs"
                   type="button"
                   :disabled="pendingNavigation !== null"
                   @click="void navigateTo(job.id, 'file')"
@@ -261,7 +261,7 @@ watch(
                   }}
                 </button>
                 <button
-                  class="btn-ghost px-3 py-1.5 text-xs"
+                  class="btn-ghost dashboard-item-button px-3 py-1.5 text-xs"
                   type="button"
                   :disabled="pendingNavigation !== null"
                   @click="void navigateTo(job.id, 'setup')"
@@ -273,7 +273,7 @@ watch(
                   }}
                 </button>
                 <button
-                  class="btn-ghost px-3 py-1.5 text-xs"
+                  class="btn-ghost dashboard-item-button px-3 py-1.5 text-xs"
                   type="button"
                   :disabled="pendingNavigation !== null"
                   @click="void navigateTo(job.id, 'mappings')"
@@ -285,7 +285,7 @@ watch(
                   }}
                 </button>
                 <button
-                  class="btn-ghost px-3 py-1.5 text-xs"
+                  class="btn-ghost dashboard-item-button px-3 py-1.5 text-xs"
                   type="button"
                   @click="void toggleLogs(job.id)"
                 >
@@ -293,7 +293,7 @@ watch(
                 </button>
                 <button
                   v-if="pendingDeleteJobId !== job.id"
-                  class="btn-ghost px-3 py-1.5 text-xs text-red-400 hover:text-red-300"
+                  class="btn-ghost dashboard-item-button dashboard-item-button-danger px-3 py-1.5 text-xs text-red-400 hover:text-red-300"
                   type="button"
                   :disabled="deletingJobId === job.id"
                   @click="requestDeleteJob(job.id)"
@@ -302,14 +302,14 @@ watch(
                 </button>
                 <template v-else>
                   <button
-                    class="btn-ghost px-3 py-1.5 text-xs"
+                    class="btn-ghost dashboard-item-button px-3 py-1.5 text-xs"
                     type="button"
                     @click="cancelDeleteJob(job.id)"
                   >
                     Cancel
                   </button>
                   <button
-                    class="btn-ghost px-3 py-1.5 text-xs text-red-400 hover:text-red-300"
+                    class="btn-ghost dashboard-item-button dashboard-item-button-danger px-3 py-1.5 text-xs text-red-400 hover:text-red-300"
                     type="button"
                     @click="void confirmDeleteJob(job.id)"
                   >
@@ -437,5 +437,31 @@ watch(
   padding-bottom: 0;
   padding-left: 0;
   padding-right: 0;
+}
+
+.dashboard-item-button {
+  border: 1px solid rgb(255 255 255 / 0.14);
+  background: rgb(255 255 255 / 0.04);
+  color: rgb(241 245 249 / 0.96);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.02);
+}
+
+.dashboard-item-button:hover:not(:disabled) {
+  border-color: rgb(255 255 255 / 0.24);
+  background: rgb(255 255 255 / 0.08);
+}
+
+.dashboard-item-button:disabled {
+  opacity: 0.55;
+}
+
+.dashboard-item-button-danger {
+  border-color: rgb(248 113 113 / 0.3);
+  background: rgb(127 29 29 / 0.18);
+}
+
+.dashboard-item-button-danger:hover:not(:disabled) {
+  border-color: rgb(248 113 113 / 0.42);
+  background: rgb(127 29 29 / 0.28);
 }
 </style>
