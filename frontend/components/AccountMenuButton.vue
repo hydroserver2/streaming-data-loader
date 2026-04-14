@@ -7,6 +7,7 @@ const model = useAppModel()
 
 const isOpen = ref(false)
 const showApiKeyEditor = ref(false)
+const showUserpassEditor = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
 
 const instanceName = computed(
@@ -42,6 +43,7 @@ function toggleMenu(): void {
 function closeMenu(): void {
   isOpen.value = false
   showApiKeyEditor.value = false
+  showUserpassEditor.value = false
 }
 
 function cancelApiKeyEdit(): void {
@@ -51,6 +53,18 @@ function cancelApiKeyEdit(): void {
     model.state.config?.server.api_key ?? ""
   )
   showApiKeyEditor.value = false
+}
+
+function cancelUserpassEdit(): void {
+  const server = model.state.config?.server
+  model.state.authDraft.username = server?.username ?? ""
+  model.state.authDraft.password = server?.password ?? ""
+  model.state.authDraft.workspace_name = server?.workspace_name ?? ""
+  model.state.authDraft.workspace_id = server?.workspace_id ?? ""
+  model.state.authFieldStates.username = { state: "idle", message: null }
+  model.state.authFieldStates.password = { state: "idle", message: null }
+  model.state.authFieldStates.workspace_name = { state: "idle", message: null }
+  showUserpassEditor.value = false
 }
 
 function onDocumentPointerDown(event: PointerEvent): void {
@@ -144,52 +158,63 @@ onBeforeUnmount(() => {
         </template>
 
         <template v-else>
-          <label class="field account-menu-field">
-            <span class="label">Username</span>
-            <input
-              :value="model.state.authDraft.username"
-              class="input account-menu-input"
-              type="text"
-              placeholder="name@example.com"
-              @input="model.updateAuthDraftField('settings-form', 'username', ($event.target as HTMLInputElement).value)"
-            />
-            <p v-if="fieldError('username')" class="field-error">
-              {{ fieldError("username") }}
-            </p>
-          </label>
+          <button
+            v-if="!showUserpassEditor"
+            class="btn-ghost account-menu-inline-action"
+            type="button"
+            @click="showUserpassEditor = true"
+          >
+            Update account credentials
+          </button>
 
-          <label class="field account-menu-field">
-            <span class="label">Password</span>
-            <input
-              :value="model.state.authDraft.password"
-              class="input account-menu-input"
-              type="password"
-              placeholder="Enter your HydroServer password"
-              @input="model.updateAuthDraftField('settings-form', 'password', ($event.target as HTMLInputElement).value)"
-            />
-            <p v-if="fieldError('password')" class="field-error">
-              {{ fieldError("password") }}
-            </p>
-          </label>
+          <template v-else>
+            <label class="field account-menu-field">
+              <span class="label">Username</span>
+              <input
+                :value="model.state.authDraft.username"
+                class="input account-menu-input"
+                type="text"
+                placeholder="name@example.com"
+                @input="model.updateAuthDraftField('settings-form', 'username', ($event.target as HTMLInputElement).value)"
+              />
+              <p v-if="fieldError('username')" class="field-error">
+                {{ fieldError("username") }}
+              </p>
+            </label>
 
-          <label class="field account-menu-field">
-            <span class="label">Workspace name</span>
-            <input
-              :value="model.state.authDraft.workspace_name"
-              class="input account-menu-input"
-              type="text"
-              placeholder="Workspace"
-              @input="model.updateAuthDraftField('settings-form', 'workspace_name', ($event.target as HTMLInputElement).value)"
-            />
-            <p v-if="fieldError('workspace_name')" class="field-error">
-              {{ fieldError("workspace_name") }}
-            </p>
-          </label>
+            <label class="field account-menu-field">
+              <span class="label">Password</span>
+              <input
+                :value="model.state.authDraft.password"
+                class="input account-menu-input"
+                type="password"
+                placeholder="Enter your HydroServer password"
+                @input="model.updateAuthDraftField('settings-form', 'password', ($event.target as HTMLInputElement).value)"
+              />
+              <p v-if="fieldError('password')" class="field-error">
+                {{ fieldError("password") }}
+              </p>
+            </label>
+
+            <label class="field account-menu-field">
+              <span class="label">Workspace name</span>
+              <input
+                :value="model.state.authDraft.workspace_name"
+                class="input account-menu-input"
+                type="text"
+                placeholder="Workspace"
+                @input="model.updateAuthDraftField('settings-form', 'workspace_name', ($event.target as HTMLInputElement).value)"
+              />
+              <p v-if="fieldError('workspace_name')" class="field-error">
+                {{ fieldError("workspace_name") }}
+              </p>
+            </label>
+          </template>
         </template>
 
         <div class="account-menu-actions">
           <button
-            v-if="model.state.authDraft.auth_type !== 'apikey' || showApiKeyEditor"
+            v-if="(model.state.authDraft.auth_type === 'apikey' && showApiKeyEditor) || (model.state.authDraft.auth_type !== 'apikey' && showUserpassEditor)"
             class="btn-primary account-menu-save"
             type="submit"
             :disabled="model.state.authSubmitting"
@@ -201,6 +226,14 @@ onBeforeUnmount(() => {
             class="btn-ghost account-menu-cancel"
             type="button"
             @click="cancelApiKeyEdit()"
+          >
+            Cancel
+          </button>
+          <button
+            v-if="model.state.authDraft.auth_type !== 'apikey' && showUserpassEditor"
+            class="btn-ghost account-menu-cancel"
+            type="button"
+            @click="cancelUserpassEdit()"
           >
             Cancel
           </button>
