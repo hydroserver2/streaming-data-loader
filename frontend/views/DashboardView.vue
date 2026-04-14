@@ -5,6 +5,8 @@ import {
   getJobs,
   getJob,
   getJobLogs,
+  getConfig,
+  deleteJob,
   type JobConfig,
   type JobDetail,
   type JobLogEntry,
@@ -30,6 +32,33 @@ const datasourceCountLabel = computed(() =>
   jobs.value.length === 1 ? '1 source' : `${jobs.value.length} sources`
 )
 const jobStatusById = ref<Record<string, JobStatusSummary>>({})
+const pendingDeleteJobId = ref<string | null>(null)
+const deletingJobId = ref<string | null>(null)
+
+function requestDeleteJob(jobId: string): void {
+  if (pendingDeleteJobId.value === jobId) {
+    return
+  }
+  pendingDeleteJobId.value = jobId
+}
+
+function cancelDeleteJob(jobId: string): void {
+  if (pendingDeleteJobId.value === jobId) {
+    pendingDeleteJobId.value = null
+  }
+}
+
+async function confirmDeleteJob(jobId: string): Promise<void> {
+  if (pendingDeleteJobId.value !== jobId) return
+  deletingJobId.value = jobId
+  pendingDeleteJobId.value = null
+  try {
+    await deleteJob(jobId)
+    model.state.config = await getConfig()
+  } finally {
+    deletingJobId.value = null
+  }
+}
 const displayedDiagnosticsLogs = computed(() => [...diagnosticsLogs.value].reverse())
 const diagnosticsJobId = ref<string | null>(null)
 const diagnosticsLoading = ref(false)
@@ -220,6 +249,31 @@ watch(
                 >
                   {{ isLogsOpen(job.id) ? 'Hide Logs' : 'View Logs' }}
                 </button>
+                <button
+                  v-if="pendingDeleteJobId !== job.id"
+                  class="btn-ghost px-3 py-1.5 text-xs text-red-400 hover:text-red-300"
+                  type="button"
+                  :disabled="deletingJobId === job.id"
+                  @click="requestDeleteJob(job.id)"
+                >
+                  {{ deletingJobId === job.id ? 'Deleting…' : 'Delete' }}
+                </button>
+                <template v-else>
+                  <button
+                    class="btn-ghost px-3 py-1.5 text-xs"
+                    type="button"
+                    @click="cancelDeleteJob(job.id)"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    class="btn-ghost px-3 py-1.5 text-xs text-red-400 hover:text-red-300"
+                    type="button"
+                    @click="void confirmDeleteJob(job.id)"
+                  >
+                    Confirm Delete
+                  </button>
+                </template>
               </div>
             </div>
           </div>
