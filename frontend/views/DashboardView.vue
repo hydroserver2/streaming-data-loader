@@ -215,11 +215,11 @@ watch(
     <div class="flex flex-col gap-4">
       <FeedbackBanner :feedback="model.state.pipelineCreateFeedback" />
 
-      <div class="flex flex-col gap-2">
+      <div class="-mx-8 flex flex-col">
         <article
           v-for="job in jobs"
           :key="job.id"
-          class="rounded-2xl bg-[#111315] px-5 py-4"
+          class="border-b border-white/6 px-8 py-4"
         >
           <div class="flex flex-wrap items-start justify-between gap-3">
             <div class="mapping-source-stack min-w-0">
