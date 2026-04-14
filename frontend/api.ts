@@ -313,6 +313,16 @@ export function getCsvPreview(path: string, rows = 100): Promise<CsvPreviewRespo
   return request<CsvPreviewResponse>(`/csv/preview?${params.toString()}`)
 }
 
+export function revealFileInFolder(path: string): Promise<ActionResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<ActionResponse>("reveal_file_in_folder", { path })
+  }
+
+  return Promise.reject(
+    new Error("Opening the local file system is only available in the desktop app.")
+  )
+}
+
 export function getDatastreams(): Promise<DatastreamSummary[]> {
   if (isTauriRuntime()) {
     return invokeCommand<DatastreamSummary[]>("get_datastreams")

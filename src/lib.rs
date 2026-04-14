@@ -90,6 +90,7 @@ pub fn run() {
             commands::get_job_logs,
             commands::get_datastreams,
             commands::get_csv_preview,
+            commands::reveal_file_in_folder,
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {

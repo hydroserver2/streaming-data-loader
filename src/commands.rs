@@ -1,3 +1,5 @@
+use std::{path::Path, process::Command};
+
 use tauri::State;
 
 use crate::{
@@ -190,4 +192,63 @@ pub async fn get_datastreams(state: State<'_, AppState>) -> Result<Vec<Datastrea
 pub fn get_csv_preview(path: String, rows: Option<usize>) -> Result<CsvPreviewResponse, String> {
     let rows = rows.unwrap_or(100).clamp(1, 500);
     preview_csv(&path, rows)
+}
+
+#[tauri::command]
+pub fn reveal_file_in_folder(path: String) -> Result<ActionResponse, String> {
+    let target = Path::new(&path);
+    if !target.exists() {
+        return Err("That file no longer exists.".to_string());
+    }
+
+    reveal_path_with_platform_file_manager(target)?;
+
+    Ok(ActionResponse {
+        ok: true,
+        message: "Opened the file location.".to_string(),
+    })
+}
+
+fn reveal_path_with_platform_file_manager(path: &Path) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        run_command(
+            Command::new("open")
+                .arg("-R")
+                .arg(path),
+        )
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let select_arg = format!("/select,{}", path.display());
+        run_command(Command::new("explorer").arg(select_arg))
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        let directory = if path.is_dir() {
+            path
+        } else {
+            path.parent()
+                .ok_or_else(|| "Couldn't determine the containing folder.".to_string())?
+        };
+
+        run_command(Command::new("xdg-open").arg(directory))
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        let _ = path;
+        Err("Opening files in the system file manager isn't supported on this OS.".to_string())
+    }
+}
+
+fn run_command(command: &mut Command) -> Result<(), String> {
+    let status = command.status().map_err(|err| err.to_string())?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err("The system file manager couldn't be opened.".to_string())
+    }
 }

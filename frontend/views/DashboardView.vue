@@ -7,6 +7,7 @@ import {
   getJobLogs,
   getConfig,
   deleteJob,
+  revealFileInFolder,
   type JobConfig,
   type JobDetail,
   type JobLogEntry,
@@ -134,6 +135,21 @@ function displayFileName(filePath: string): string {
   return segments[segments.length - 1] || filePath
 }
 
+function isDesktopRuntime(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    '__TAURI_INTERNALS__' in (window as Window & typeof globalThis)
+  )
+}
+
+async function openFileLocation(filePath: string): Promise<void> {
+  try {
+    await revealFileInFolder(filePath)
+  } catch (error) {
+    console.error('Failed to open file location.', error)
+  }
+}
+
 async function toggleLogs(jobId: string): Promise<void> {
   if (diagnosticsJobId.value === jobId) {
     diagnosticsJobId.value = null
@@ -243,7 +259,15 @@ watch(
             </div>
 
             <div class="min-w-0">
-              <p class="mapping-help break-all">{{ displayFileName(job.file_path) }}</p>
+              <button
+                v-if="isDesktopRuntime()"
+                class="mapping-help dashboard-file-link break-all text-left"
+                type="button"
+                @click="void openFileLocation(job.file_path)"
+              >
+                {{ displayFileName(job.file_path) }}
+              </button>
+              <p v-else class="mapping-help break-all">{{ displayFileName(job.file_path) }}</p>
             </div>
 
             <div class="flex flex-wrap items-end justify-between gap-3">
@@ -463,6 +487,21 @@ watch(
 .dashboard-item-button-danger:hover:not(:disabled) {
   border-color: rgb(248 113 113 / 0.42);
   background: rgb(127 29 29 / 0.28);
+}
+
+.dashboard-file-link {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-color: rgb(148 163 184 / 0.45);
+  text-underline-offset: 0.18em;
+}
+
+.dashboard-file-link:hover {
+  color: rgb(226 232 240 / 0.98);
+  text-decoration-color: rgb(186 230 253 / 0.9);
 }
 
 .dashboard-item-button-logs {
