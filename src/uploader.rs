@@ -178,6 +178,11 @@ async fn upload_with_retry(
                 }
                 return Ok(());
             }
+            Err(error) if error.is_conflict() => {
+                // Observations already exist on the server — treat as success
+                // so the cursor advances and we don't re-attempt indefinitely.
+                return Ok(());
+            }
             Err(error) if error.is_retryable() && attempt < MAX_RETRIES => {
                 let jitter = jitter_duration(backoff);
                 let delay = backoff + jitter;

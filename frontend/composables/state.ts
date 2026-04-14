@@ -67,7 +67,6 @@ type UiState = {
   config: AppConfig | null;
   connectionSummary: ConnectionTestResponse | null;
   loading: boolean;
-  bootstrapError: string | null;
   welcomeFeedback: Feedback;
   settingsFeedback: Feedback;
   lastConnectionState: ConnectionState | null;
@@ -131,7 +130,6 @@ export const state = reactive<UiState>({
   config: null,
   connectionSummary: null,
   loading: true,
-  bootstrapError: null,
   welcomeFeedback: null,
   settingsFeedback: null,
   lastConnectionState: null,

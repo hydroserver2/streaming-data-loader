@@ -48,6 +48,9 @@ struct PipelineInner {
     event_task: StdMutex<Option<JoinHandle<()>>>,
     uploader_task: StdMutex<Option<JoinHandle<()>>>,
     schedule_task: StdMutex<Option<JoinHandle<()>>>,
+    // Held until the first initialize() call, then consumed by start_background_tasks.
+    pending_event_rx: StdMutex<Option<mpsc::UnboundedReceiver<PathBuf>>>,
+    pending_observation_rx: StdMutex<Option<ObservationReceiver>>,
 }
 
 #[derive(Clone, Default)]
@@ -88,7 +91,7 @@ impl PipelineService {
         let (observation_tx, observation_rx) = bounded(queue_capacity);
         let (event_tx, event_rx) = mpsc::unbounded_channel();
 
-        let service = Self {
+        Self {
             inner: Arc::new(PipelineInner {
                 config_store: config_store.clone(),
                 observation_tx: Mutex::new(Some(observation_tx)),
@@ -102,14 +105,14 @@ impl PipelineService {
                 event_task: StdMutex::new(None),
                 uploader_task: StdMutex::new(None),
                 schedule_task: StdMutex::new(None),
+                pending_event_rx: StdMutex::new(Some(event_rx)),
+                pending_observation_rx: StdMutex::new(Some(observation_rx)),
             }),
-        };
-
-        service.start_background_tasks(event_rx, observation_rx);
-        service
+        }
     }
 
     pub async fn initialize(&self) -> Result<(), String> {
+        self.start_background_tasks();
         self.reload().await
     }
 
@@ -203,11 +206,15 @@ impl PipelineService {
         result
     }
 
-    fn start_background_tasks(
-        &self,
-        mut event_rx: mpsc::UnboundedReceiver<PathBuf>,
-        observation_rx: ObservationReceiver,
-    ) {
+    fn start_background_tasks(&self) {
+        let (mut event_rx, observation_rx) = match (
+            self.inner.pending_event_rx.lock().ok().and_then(|mut g| g.take()),
+            self.inner.pending_observation_rx.lock().ok().and_then(|mut g| g.take()),
+        ) {
+            (Some(e), Some(o)) => (e, o),
+            _ => return, // already started
+        };
+
         let service = self.clone();
         let event_task = tokio::spawn(async move {
             while let Some(path) = event_rx.recv().await {

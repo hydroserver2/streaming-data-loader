@@ -61,7 +61,7 @@ export function resolveAuthenticatedRoute(params: {
 function syncRouteState(): void {
   let route = getRouteFromHash()
 
-  if (!state.loading && !state.bootstrapError) {
+  if (!state.loading) {
     if (!isConnected.value) {
       if (route !== "welcome") {
         navigate("welcome")
@@ -97,7 +97,6 @@ export const useWelcomeSurface = computed(
   () =>
     Boolean(
       state.loading ||
-        state.bootstrapError ||
         state.route === "welcome" ||
         state.route === "dashboard" ||
         state.route === "jobs-new" ||
@@ -142,7 +141,6 @@ async function loadInitialState() {
 
 export async function bootstrap(): Promise<void> {
   state.loading = true
-  state.bootstrapError = null
   state.welcomeFeedback = null
   state.settingsFeedback = null
   syncRouteState()
@@ -157,9 +155,8 @@ export async function bootstrap(): Promise<void> {
     if (serverConfigured(config.server)) {
       await syncAuthenticationStatus(config.server)
     }
-  } catch (error) {
-    state.bootstrapError =
-      error instanceof Error ? error.message : `Failed to load ${APP_NAME}.`
+  } catch {
+    // bootstrap failed; routing will fall back to the welcome/connection screen
   } finally {
     state.loading = false
     syncRouteState()

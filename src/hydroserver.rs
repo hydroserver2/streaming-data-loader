@@ -328,14 +328,13 @@ impl HydroServerService {
         });
 
         session
-            .request_json(
+            .request_void(
                 Method::POST,
                 &format!("{BASE_ROUTE}/datastreams/{datastream_id}/observations/bulk-create"),
                 &[("mode", "insert".to_string())],
                 Some(body),
             )
             .await
-            .map(|_| ())
     }
 
     async fn list_datastreams_from_bootstrap(
@@ -628,6 +627,18 @@ impl HydroServerSession {
             .map_err(|err| RequestError::Other(err.to_string()))
     }
 
+    async fn request_void(
+        &mut self,
+        method: Method,
+        path: &str,
+        params: &[(&str, String)],
+        body: Option<Value>,
+    ) -> Result<(), RequestError> {
+        self.request_response(method, path, params, body)
+            .await
+            .map(|_| ())
+    }
+
     async fn request_response(
         &mut self,
         method: Method,
@@ -798,6 +809,16 @@ impl RequestError {
             } => status.is_server_error(),
             Self::Http { .. } | Self::Other(_) => false,
         }
+    }
+
+    pub(crate) fn is_conflict(&self) -> bool {
+        matches!(
+            self,
+            Self::Http {
+                status: Some(status),
+                ..
+            } if *status == StatusCode::CONFLICT
+        )
     }
 }
 

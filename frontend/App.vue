@@ -24,19 +24,6 @@ onMounted(() => {
       <div class="loading-spinner" />
     </section>
 
-    <section v-else-if="model.state.bootstrapError" class="welcome-shell">
-      <div class="welcome-card">
-        <p class="eyebrow">Sidecar error</p>
-        <h1 class="page-title">The background process is unavailable</h1>
-        <p class="page-copy">
-          {{ model.state.bootstrapError }}
-        </p>
-        <button class="btn-primary" type="button" @click="model.bootstrap()">
-          Retry
-        </button>
-      </div>
-    </section>
-
     <WelcomeView v-else-if="model.state.route === 'welcome'" />
     <DashboardView v-else-if="model.state.route === 'dashboard'" />
     <PipelineMappingView v-else-if="model.state.route === 'jobs-new-mapping'" />
