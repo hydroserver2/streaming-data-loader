@@ -103,13 +103,21 @@ function goToSetupStep(): void {
             <span class="wizard-nav-glyph" aria-hidden="true">→</span>
           </button>
           <button
+            v-if="editorStep === 2 && isEditing"
+            class="btn-ghost wizard-nav-button"
+            type="button"
+            @click="model.abandonPipelineCreation()"
+          >
+            Cancel
+          </button>
+          <button
             v-if="editorStep === 2"
             class="btn-ghost wizard-nav-button"
             type="button"
             @click="goToSourceStep()"
           >
             <span class="wizard-nav-glyph" aria-hidden="true">←</span>
-            <span>Back</span>
+            <span>Source File</span>
           </button>
           <button
             v-if="editorStep === 2"

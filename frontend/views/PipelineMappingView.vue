@@ -518,6 +518,14 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
           <h1 class="wizard-page-title">{{ wizardTitle }}</h1>
         </div>
         <div class="button-row wizard-actions">
+          <button
+            v-if="isEditing"
+            class="btn-ghost"
+            type="button"
+            @click="model.abandonPipelineCreation()"
+          >
+            Cancel
+          </button>
           <button class="btn-ghost" type="button" @click="navigate('jobs-new')">
             <span aria-hidden="true">&larr;</span>
             <span>Back to CSV Setup</span>
