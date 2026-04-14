@@ -3,6 +3,7 @@ use std::{
     fs,
     path::{Path, PathBuf},
     sync::{Arc, Mutex as StdMutex},
+    time::Instant,
 };
 
 use chrono::{DateTime, Utc};
@@ -11,6 +12,7 @@ use serde_json::Value;
 use tokio::{
     sync::{mpsc, Mutex, RwLock},
     task::JoinHandle,
+    time::{interval, MissedTickBehavior},
 };
 use tracing::{debug, error, info};
 
@@ -42,8 +44,10 @@ struct PipelineInner {
     watcher: Mutex<Option<FilesystemWatcher>>,
     row_counts: Mutex<HashMap<PathBuf, usize>>,
     in_flight_paths: Mutex<HashSet<PathBuf>>,
+    last_scan_times: Mutex<HashMap<PathBuf, Instant>>,
     event_task: StdMutex<Option<JoinHandle<()>>>,
     uploader_task: StdMutex<Option<JoinHandle<()>>>,
+    schedule_task: StdMutex<Option<JoinHandle<()>>>,
 }
 
 #[derive(Clone, Default)]
@@ -94,8 +98,10 @@ impl PipelineService {
                 watcher: Mutex::new(None),
                 row_counts: Mutex::new(HashMap::new()),
                 in_flight_paths: Mutex::new(HashSet::new()),
+                last_scan_times: Mutex::new(HashMap::new()),
                 event_task: StdMutex::new(None),
                 uploader_task: StdMutex::new(None),
+                schedule_task: StdMutex::new(None),
             }),
         };
 
@@ -123,9 +129,15 @@ impl PipelineService {
         let watcher = FilesystemWatcher::start(watched_paths.clone(), self.inner.event_tx.clone())?;
         *self.inner.watcher.lock().await = watcher;
 
+        // Seed row_counts from persisted cursors for paths not yet tracked in memory.
+        // This prevents re-uploading the entire file history after a process restart.
+        let seeds = self.load_cursor_row_seeds(&snapshot).await;
         {
             let mut row_counts = self.inner.row_counts.lock().await;
             row_counts.retain(|path, _| snapshot.jobs_by_path.contains_key(path));
+            for (path, seed) in seeds {
+                row_counts.entry(path).or_insert(seed);
+            }
         }
 
         for path in &watched_paths {
@@ -142,9 +154,11 @@ impl PipelineService {
         info!("pipeline shutting down; draining pending uploads");
         *self.inner.watcher.lock().await = None;
 
-        if let Ok(mut slot) = self.inner.event_task.lock() {
-            if let Some(task) = slot.take() {
-                task.abort();
+        for slot in [&self.inner.event_task, &self.inner.schedule_task] {
+            if let Ok(mut guard) = slot.lock() {
+                if let Some(task) = guard.take() {
+                    task.abort();
+                }
             }
         }
 
@@ -192,11 +206,59 @@ impl PipelineService {
             self.inner.config_store.clone(),
         );
 
+        // Scheduler: every 60 s, re-queue any path whose jobs are overdue per
+        // their schedule_minutes setting.  This catches files on network drives
+        // or other filesystems that don't reliably fire OS change events.
+        let service = self.clone();
+        let schedule_task = tokio::spawn(async move {
+            const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
+            let mut ticker = interval(POLL_INTERVAL);
+            ticker.set_missed_tick_behavior(MissedTickBehavior::Delay);
+            loop {
+                ticker.tick().await;
+
+                let overdue_paths = {
+                    let watch_plan = service.inner.watch_plan.read().await;
+                    let last_scan_times = service.inner.last_scan_times.lock().await;
+                    let now = Instant::now();
+
+                    watch_plan
+                        .jobs_by_path
+                        .iter()
+                        .filter_map(|(path, jobs)| {
+                            let min_interval_secs = jobs
+                                .iter()
+                                .map(|j| j.schedule_minutes as u64 * 60)
+                                .min()
+                                .unwrap_or(u64::MAX);
+                            let overdue = match last_scan_times.get(path) {
+                                Some(last) => {
+                                    now.duration_since(*last).as_secs() >= min_interval_secs
+                                }
+                                // Not yet recorded — initial scan (queued by reload) handles
+                                // the first run; skip until that completes.
+                                None => false,
+                            };
+                            if overdue { Some(path.clone()) } else { None }
+                        })
+                        .collect::<Vec<_>>()
+                };
+
+                for path in overdue_paths {
+                    debug!(file = %path.display(), "scheduled poll triggered scan");
+                    let _ = service.inner.event_tx.send(path);
+                }
+            }
+        });
+
         if let Ok(mut slot) = self.inner.event_task.lock() {
             *slot = Some(event_task);
         }
         if let Ok(mut slot) = self.inner.uploader_task.lock() {
             *slot = Some(uploader_task);
+        }
+        if let Ok(mut slot) = self.inner.schedule_task.lock() {
+            *slot = Some(schedule_task);
         }
     }
 
@@ -226,6 +288,37 @@ impl PipelineService {
         })
         .await
         .map_err(|err| err.to_string())?
+    }
+
+    /// Returns the minimum confirmed `last_pushed_row_index` across all jobs for
+    /// each watched path.  Used to seed `row_counts` on startup so incremental
+    /// scans resume from where they left off instead of re-uploading everything.
+    async fn load_cursor_row_seeds(&self, snapshot: &WatchPlan) -> HashMap<PathBuf, usize> {
+        let config_store = self.inner.config_store.clone();
+        let pairs: Vec<(PathBuf, Vec<String>)> = snapshot
+            .jobs_by_path
+            .iter()
+            .map(|(path, jobs)| (path.clone(), jobs.iter().map(|j| j.id.clone()).collect()))
+            .collect();
+
+        tokio::task::spawn_blocking(move || {
+            let mut seeds: HashMap<PathBuf, usize> = HashMap::new();
+            for (path, job_ids) in pairs {
+                for job_id in &job_ids {
+                    if let Ok(cursor) = config_store.cursor_for(job_id) {
+                        if let Some(row_index) = cursor.last_pushed_row_index {
+                            let entry = seeds.entry(path.clone()).or_insert(row_index as usize);
+                            // Use the minimum across all jobs sharing this path so the
+                            // slowest job drives where the scan resumes.
+                            *entry = (*entry).min(row_index as usize);
+                        }
+                    }
+                }
+            }
+            seeds
+        })
+        .await
+        .unwrap_or_default()
     }
 
     async fn load_manual_job(
@@ -258,6 +351,12 @@ impl PipelineService {
             debug!(file = %path.display(), "skipping scan; already in flight");
             return Ok(());
         }
+        // Record scan start time so the scheduler can determine when to retry.
+        self.inner
+            .last_scan_times
+            .lock()
+            .await
+            .insert(path.clone(), Instant::now());
         debug!(file = %path.display(), "scanning watched file for new rows");
 
         let outcome = async {
@@ -464,7 +563,8 @@ fn scan_job_file(
     cursor: JobCursor,
     mode: ScanMode,
 ) -> Result<JobScanResult, String> {
-    let csv_text = fs::read_to_string(&job.file_path).map_err(|err| err.to_string())?;
+    let bytes = fs::read(&job.file_path).map_err(|err| err.to_string())?;
+    let (csv_text, _encoding) = crate::csv_preview::decode_text(&bytes)?;
     let delimiter = job
         .file_config
         .delimiter
@@ -500,8 +600,18 @@ fn scan_job_file(
 
     let reset_detected =
         matches!(mode, ScanMode::Incremental) && file_row_count < previous_row_count;
+    // When the previous upload failed, backtrack to the last confirmed push so
+    // those rows are retried.  Otherwise use the in-memory row count as usual.
+    let incremental_start = if cursor.last_error.is_some() {
+        cursor
+            .last_pushed_row_index
+            .map(|i| i as usize)
+            .unwrap_or(0)
+    } else {
+        previous_row_count
+    };
     let start_index = match mode {
-        ScanMode::Incremental if !reset_detected => data_start_index.max(previous_row_count),
+        ScanMode::Incremental if !reset_detected => data_start_index.max(incremental_start),
         ScanMode::Incremental | ScanMode::FullResync => data_start_index,
     };
 
@@ -1654,6 +1764,39 @@ Timestamp,Stage_ft,WaterTemp_C
         let _ = std::fs::remove_file(path);
     }
 
+    /// The scheduler decides whether to re-queue a path based on whether
+    /// `Instant::now() - last_scan_time >= schedule_minutes * 60s`.
+    /// This test verifies that logic in isolation by simulating an overdue
+    /// scan time using a backdate via `checked_sub`.
+    #[test]
+    fn scheduler_overdue_detection_logic() {
+        use std::time::{Duration, Instant};
+
+        fn is_overdue(last_scan: Instant, schedule_minutes: u32) -> bool {
+            let min_interval_secs = schedule_minutes as u64 * 60;
+            Instant::now()
+                .duration_since(last_scan)
+                .as_secs()
+                >= min_interval_secs
+        }
+
+        // A scan that happened just now is not overdue for a 15-minute schedule
+        let just_now = Instant::now();
+        assert!(!is_overdue(just_now, 15));
+
+        // A scan that happened 20 minutes ago IS overdue for a 15-minute schedule
+        let twenty_minutes_ago = Instant::now() - Duration::from_secs(20 * 60);
+        assert!(is_overdue(twenty_minutes_ago, 15));
+
+        // A scan that happened 14 minutes ago is NOT overdue for a 15-minute schedule
+        let fourteen_minutes_ago = Instant::now() - Duration::from_secs(14 * 60);
+        assert!(!is_overdue(fourteen_minutes_ago, 15));
+
+        // Works for 1-minute schedules too
+        let two_minutes_ago = Instant::now() - Duration::from_secs(120);
+        assert!(is_overdue(two_minutes_ago, 1));
+    }
+
     #[test]
     fn large_csv_scan_produces_bounded_observations() {
         let path = std::env::temp_dir().join(format!(
@@ -1696,6 +1839,118 @@ Timestamp,Stage_ft,WaterTemp_C
         )
         .expect("incremental scan of unchanged file");
         assert_eq!(result2.observations.len(), 0);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// Fix #1: On restart row_counts is empty (0).  load_cursor_row_seeds seeds it
+    /// from the persisted cursor so we don't re-scan already-uploaded rows.
+    /// This test verifies that scanning with previous_row_count seeded from the
+    /// cursor's last_pushed_row_index correctly skips already-pushed rows.
+    #[test]
+    fn scan_seeded_from_cursor_skips_already_pushed_rows() {
+        let path = std::env::temp_dir().join(format!(
+            "sdl-seed-{}-{}.csv",
+            std::process::id(),
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+
+        // 3 header rows + 4 data rows (rows 4-7 in 1-indexed terms)
+        let csv = "\
+Station,Example Creek
+Generated At,2026-04-03
+Timestamp,Stage_ft,WaterTemp_C
+2026-04-03 08:00:00,2.41,7.8
+2026-04-03 08:05:00,2.45,7.9
+2026-04-03 08:10:00,2.50,8.0
+2026-04-03 08:15:00,2.55,8.1
+";
+        std::fs::write(&path, csv).expect("write csv");
+
+        // Simulate: cursor says rows 4-6 were already pushed (max_row_index = 6).
+        // Seed previous_row_count = 6 (as load_cursor_row_seeds would produce).
+        // The scan should only return row 7.
+        let cursor = JobCursor {
+            last_pushed_timestamp: Some(
+                chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
+                    .unwrap()
+                    .and_hms_opt(8, 10, 0)
+                    .unwrap()
+                    .and_utc(),
+            ),
+            last_pushed_row_index: Some(6),
+            last_run_at: None,
+            last_error: None,
+        };
+
+        let result = scan_job_file(
+            sample_job(path.to_str().unwrap()),
+            6, // seeded from cursor.last_pushed_row_index
+            cursor,
+            ScanMode::Incremental,
+        )
+        .expect("seeded scan");
+
+        assert_eq!(result.observations.len(), 1, "only the new row should be returned");
+        assert_eq!(result.observations[0].row_index, 7);
+
+        let _ = std::fs::remove_file(path);
+    }
+
+    /// Fix #2: When the previous upload failed (cursor.last_error is set), the
+    /// scan must backtrack to cursor.last_pushed_row_index and retry the failed
+    /// rows, even if previous_row_count (in-memory) is already past them.
+    #[test]
+    fn scan_retries_failed_rows_when_cursor_has_error() {
+        let path = std::env::temp_dir().join(format!(
+            "sdl-retry-{}-{}.csv",
+            std::process::id(),
+            Utc::now().timestamp_nanos_opt().unwrap_or_default()
+        ));
+
+        // 3 header rows + 5 data rows (rows 4-8 in 1-indexed terms)
+        let csv = "\
+Station,Example Creek
+Generated At,2026-04-03
+Timestamp,Stage_ft,WaterTemp_C
+2026-04-03 08:00:00,2.41,7.8
+2026-04-03 08:05:00,2.45,7.9
+2026-04-03 08:10:00,2.50,8.0
+2026-04-03 08:15:00,2.55,8.1
+2026-04-03 08:20:00,2.60,8.2
+";
+        std::fs::write(&path, csv).expect("write csv");
+
+        // Scenario: rows 4-5 were pushed successfully (last_pushed_row_index=5).
+        // Rows 6-8 were scanned and queued but the upload failed (last_error set).
+        // In-memory previous_row_count = 8 (scan advanced past the failed rows).
+        // Expected: incremental scan should backtrack to row 5 and re-queue rows 6-8.
+        let cursor = JobCursor {
+            last_pushed_timestamp: Some(
+                chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
+                    .unwrap()
+                    .and_hms_opt(8, 5, 0)
+                    .unwrap()
+                    .and_utc(),
+            ),
+            last_pushed_row_index: Some(5),
+            last_run_at: None,
+            last_error: Some("network error".to_string()),
+        };
+
+        let result = scan_job_file(
+            sample_job(path.to_str().unwrap()),
+            8, // in-memory row count is already at 8
+            cursor,
+            ScanMode::Incremental,
+        )
+        .expect("retry scan");
+
+        // With Fix #2: should re-scan rows 6, 7, 8 (backtracked to last_pushed_row_index=5)
+        assert_eq!(result.observations.len(), 3, "failed rows should be retried");
+        assert_eq!(result.observations[0].row_index, 6);
+        assert_eq!(result.observations[1].row_index, 7);
+        assert_eq!(result.observations[2].row_index, 8);
 
         let _ = std::fs::remove_file(path);
     }

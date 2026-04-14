@@ -27,7 +27,7 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 csv = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time", "signal"] }
 notify = "6"
 notify-debouncer-mini = "0.4.1"
 governor = { version = "0.7", default-features = false, features = ["std"] }

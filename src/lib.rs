@@ -34,6 +34,33 @@ pub fn run() {
             state.initialize()?;
             app.manage(state);
             setup_tray(app)?;
+
+            // Graceful shutdown on SIGTERM / SIGINT so the uploader can drain
+            // any queued observations before the process exits.
+            let app_handle = app.handle().clone();
+            tauri::async_runtime::spawn(async move {
+                #[cfg(unix)]
+                {
+                    use tokio::signal::unix::{signal, SignalKind};
+                    let mut sigterm =
+                        signal(SignalKind::terminate()).expect("SIGTERM handler failed");
+                    let mut sigint =
+                        signal(SignalKind::interrupt()).expect("SIGINT handler failed");
+                    tokio::select! {
+                        _ = sigterm.recv() => {},
+                        _ = sigint.recv() => {},
+                    }
+                }
+                #[cfg(not(unix))]
+                {
+                    tokio::signal::ctrl_c()
+                        .await
+                        .expect("Ctrl-C handler failed");
+                }
+                app_handle.state::<AppState>().shutdown();
+                app_handle.exit(0);
+            });
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
