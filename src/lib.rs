@@ -37,15 +37,23 @@ pub fn run() {
 
             // Graceful shutdown on SIGTERM / SIGINT so the uploader can drain
             // any queued observations before the process exits.
+            // NOTE: must call shutdown_async() — not shutdown() — because block_on
+            // panics when called from inside an async task.
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 #[cfg(unix)]
                 {
                     use tokio::signal::unix::{signal, SignalKind};
-                    let mut sigterm =
-                        signal(SignalKind::terminate()).expect("SIGTERM handler failed");
-                    let mut sigint =
-                        signal(SignalKind::interrupt()).expect("SIGINT handler failed");
+                    let (mut sigterm, mut sigint) = match (
+                        signal(SignalKind::terminate()),
+                        signal(SignalKind::interrupt()),
+                    ) {
+                        (Ok(t), Ok(i)) => (t, i),
+                        (Err(e), _) | (_, Err(e)) => {
+                            tracing::error!(error = %e, "failed to install OS signal handlers");
+                            return;
+                        }
+                    };
                     tokio::select! {
                         _ = sigterm.recv() => {},
                         _ = sigint.recv() => {},
@@ -53,11 +61,12 @@ pub fn run() {
                 }
                 #[cfg(not(unix))]
                 {
-                    tokio::signal::ctrl_c()
-                        .await
-                        .expect("Ctrl-C handler failed");
+                    if let Err(e) = tokio::signal::ctrl_c().await {
+                        tracing::error!(error = %e, "failed to install Ctrl-C handler");
+                        return;
+                    }
                 }
-                app_handle.state::<AppState>().shutdown();
+                app_handle.state::<AppState>().shutdown_async().await;
                 app_handle.exit(0);
             });
 

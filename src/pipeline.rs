@@ -181,9 +181,26 @@ impl PipelineService {
     pub async fn run_job_now(&self, job_id: &str) -> Result<(), String> {
         let (server, job) = self.load_manual_job(job_id).await?;
         let path = normalize_watched_path(&job.file_path);
-        self.scan_job(path, server, job, ScanMode::FullResync)
+
+        // Acquire the in-flight lock to prevent a manual run from racing with a
+        // filesystem-triggered incremental scan for the same path.
+        if !self.begin_path_scan(&path).await {
+            return Err(
+                "A scan is already in progress for that file. Try again in a moment.".to_string(),
+            );
+        }
+        self.inner
+            .last_scan_times
+            .lock()
             .await
-            .map(|_| ())
+            .insert(path.clone(), Instant::now());
+
+        let result = self
+            .scan_job(path.clone(), server, job, ScanMode::FullResync)
+            .await
+            .map(|_| ());
+        self.end_path_scan(&path).await;
+        result
     }
 
     fn start_background_tasks(

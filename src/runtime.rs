@@ -68,6 +68,10 @@ impl AppState {
         tauri::async_runtime::block_on(self.inner.pipeline.shutdown());
     }
 
+    pub async fn shutdown_async(&self) {
+        self.inner.pipeline.shutdown().await;
+    }
+
     pub async fn reload_pipeline(&self) -> Result<(), String> {
         self.inner.pipeline.reload().await
     }
