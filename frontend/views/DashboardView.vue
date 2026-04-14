@@ -585,24 +585,20 @@ watch(
 
 .dashboard-filter-shell {
   display: flex;
-  flex-direction: column;
-  gap: 0.9rem;
-  border: 1px solid rgb(255 255 255 / 0.08);
-  border-radius: 1rem;
-  background: rgb(17 19 21 / 0.9);
-  padding: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.85rem 1rem;
 }
 
 .dashboard-filter-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 1rem;
+  flex: 1 1 20rem;
+  min-width: min(100%, 20rem);
 }
 
 .dashboard-filter-field {
   display: flex;
-  flex-direction: column;
-  gap: 0.45rem;
+  min-width: 0;
 }
 
 .dashboard-filter-input {
@@ -612,6 +608,7 @@ watch(
 .dashboard-status-filter-row {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.65rem;
 }
 
@@ -710,6 +707,16 @@ watch(
 .dashboard-item-button-logs:hover:not(:disabled) {
   border-color: rgb(56 189 248 / 0.5);
   background: rgb(12 74 110 / 0.42);
+}
+
+@media (max-width: 640px) {
+  .dashboard-filter-shell {
+    align-items: stretch;
+  }
+
+  .dashboard-filter-grid {
+    flex-basis: 100%;
+  }
 }
 
 </style>
