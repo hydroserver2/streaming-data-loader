@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 
 import {
   getJobs,
@@ -9,6 +9,7 @@ import {
   deleteJob,
   revealFileInFolder,
   runJobNow,
+  updateJob,
   type JobConfig,
   type JobDetail,
   type JobLogEntry,
@@ -16,7 +17,6 @@ import {
   type JobStatusSummary,
 } from '../api'
 import AccountMenuButton from '../components/AccountMenuButton.vue'
-import FeedbackBanner from '../components/FeedbackBanner.vue'
 import { useAppModel } from '../composables/useAppModel'
 import { navigate } from '../router'
 
@@ -62,6 +62,10 @@ const jobStatusById = ref<Record<string, JobStatusSummary>>({})
 const pendingDeleteJobId = ref<string | null>(null)
 const deletingJobId = ref<string | null>(null)
 const runningJobId = ref<string | null>(null)
+const editingNameJobId = ref<string | null>(null)
+const editingNameValue = ref('')
+const savingNameJobId = ref<string | null>(null)
+const editingNameInput = ref<HTMLInputElement | null>(null)
 const textFilter = ref('')
 const statusFilter = ref<'all' | DashboardStatusLabel>('all')
 
@@ -109,26 +113,76 @@ async function handleRunNow(jobId: string): Promise<void> {
   if (runningJobId.value === jobId) return
 
   runningJobId.value = jobId
-  model.state.pipelineCreateFeedback = null
 
   try {
-    const response = await runJobNow(jobId)
-    model.state.pipelineCreateFeedback = {
-      tone: 'success',
-      message: response.message,
-    }
+    await runJobNow(jobId)
     await loadJobStatuses()
   } catch (error) {
-    model.state.pipelineCreateFeedback = {
-      tone: 'error',
-      message:
-        error instanceof Error
-          ? error.message
-          : "Couldn't start this data source right now.",
-    }
+    console.error("Couldn't start this data source right now.", error)
   } finally {
     runningJobId.value = null
   }
+}
+
+async function beginEditingName(job: JobConfig): Promise<void> {
+  if (savingNameJobId.value) return
+
+  editingNameJobId.value = job.id
+  editingNameValue.value = job.name
+
+  await nextTick()
+  editingNameInput.value?.focus()
+  editingNameInput.value?.select()
+}
+
+function cancelEditingName(): void {
+  if (savingNameJobId.value) return
+  editingNameJobId.value = null
+  editingNameValue.value = ''
+}
+
+async function saveEditingName(job: JobConfig): Promise<void> {
+  if (savingNameJobId.value === job.id) return
+
+  const name = editingNameValue.value.trim()
+  if (!name) {
+    await nextTick()
+    editingNameInput.value?.focus()
+    return
+  }
+
+  if (name === job.name) {
+    cancelEditingName()
+    return
+  }
+
+  savingNameJobId.value = job.id
+
+  try {
+    await updateJob(job.id, {
+      name,
+      enabled: job.enabled,
+      file_path: job.file_path,
+      schedule_minutes: job.schedule_minutes,
+      file_config: job.file_config,
+      column_mappings: job.column_mappings,
+    })
+    model.state.config = await getConfig()
+    editingNameJobId.value = null
+    editingNameValue.value = ''
+  } catch (error) {
+    console.error("Couldn't update the data source name right now.", error)
+  } finally {
+    savingNameJobId.value = null
+  }
+}
+
+function isEditingName(jobId: string): boolean {
+  return editingNameJobId.value === jobId
+}
+
+function isSavingName(jobId: string): boolean {
+  return savingNameJobId.value === jobId
 }
 const displayedDiagnosticsLogs = computed(() => [...diagnosticsLogs.value].reverse())
 const diagnosticsJobId = ref<string | null>(null)
@@ -322,10 +376,6 @@ watch(
     </header>
 
     <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div class="mx-auto flex w-full max-w-7xl flex-col gap-4 px-8 pt-4">
-        <FeedbackBanner :feedback="model.state.pipelineCreateFeedback" />
-      </div>
-
       <section class="dashboard-toolbar">
         <label class="dashboard-filter-field">
           <input
@@ -369,7 +419,54 @@ watch(
           >
             <div class="data-source-row-head">
               <div class="data-source-row-title-block">
-                <p class="data-source-row-title">{{ job.name }}</p>
+                <div v-if="isEditingName(job.id)" class="data-source-row-title-edit">
+                  <input
+                    ref="editingNameInput"
+                    v-model="editingNameValue"
+                    class="input data-source-name-input"
+                    type="text"
+                    :disabled="isSavingName(job.id)"
+                    @keydown.enter.prevent="void saveEditingName(job)"
+                    @keydown.esc.prevent="cancelEditingName()"
+                  />
+                  <div class="data-source-row-title-edit-actions">
+                    <button
+                      class="data-source-action"
+                      type="button"
+                      :disabled="isSavingName(job.id)"
+                      @click="cancelEditingName()"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      class="data-source-action data-source-action-save"
+                      type="button"
+                      :disabled="isSavingName(job.id)"
+                      @click="void saveEditingName(job)"
+                    >
+                      {{ isSavingName(job.id) ? 'Saving…' : 'Save' }}
+                    </button>
+                  </div>
+                </div>
+                <div v-else class="data-source-row-title-line">
+                  <p class="data-source-row-title">{{ job.name }}</p>
+                  <button
+                    class="data-source-name-edit-trigger"
+                    type="button"
+                    aria-label="Edit data source name"
+                    @click="void beginEditingName(job)"
+                  >
+                    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+                      <path
+                        d="M13.75 3.75a1.768 1.768 0 0 1 2.5 2.5l-8.5 8.5-3 0.5 0.5-3 8.5-8.5Z"
+                        stroke="currentColor"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1.5"
+                      />
+                    </svg>
+                  </button>
+                </div>
                 <button
                   v-if="isDesktopRuntime()"
                   class="data-source-row-file data-source-row-file-link"

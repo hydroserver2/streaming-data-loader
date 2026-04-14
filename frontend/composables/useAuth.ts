@@ -1,6 +1,5 @@
 import {
   applyConnectionValidationResult,
-  fieldFormFeedbackTarget,
   resetAuthFieldStates,
   runAuthSubmission,
   validateAuthFieldsForSubmit,
@@ -44,10 +43,6 @@ function resetFieldStates(authType: AuthType): void {
   resetAuthFieldStates(state.authFieldStates, authType)
 }
 
-function clearFormFeedback(formId: "welcome-form" | "settings-form"): void {
-  state[fieldFormFeedbackTarget(formId)] = null
-}
-
 function normalizeServerDraft(): ServerConfig {
   const server = state.authDraft
   return {
@@ -61,21 +56,19 @@ function normalizeServerDraft(): ServerConfig {
 }
 
 export function updateAuthDraftField(
-  formId: "welcome-form" | "settings-form",
+  _formId: "welcome-form" | "settings-form",
   field: AuthFieldName,
   value: string
 ): void {
   state.authDraft[field] = value
-  clearFormFeedback(formId)
   markField(field, "idle")
 }
 
-export function toggleAuthMode(formId: "welcome-form" | "settings-form"): void {
+export function toggleAuthMode(_formId: "welcome-form" | "settings-form"): void {
   const nextType: AuthType =
     state.authDraft.auth_type === "apikey" ? "userpass" : "apikey"
   state.authDraft = { ...state.authDraft, auth_type: nextType }
   resetFieldStates(nextType)
-  clearFormFeedback(formId)
 }
 
 export async function syncAuthenticationStatus(
@@ -101,8 +94,6 @@ export async function submitAuthConfig(
   const payload = normalizeServerDraft()
   state.authDraft = { ...payload }
 
-  const feedbackKey = fieldFormFeedbackTarget(formId)
-  state[feedbackKey] = null
   resetFieldStates(payload.auth_type)
 
   if (!validateAuthFieldsForSubmit(payload, markField)) return
@@ -117,7 +108,6 @@ export async function submitAuthConfig(
         const urlValidation = await validateServerUrl(payload.url)
         if (!urlValidation.ok) {
           markField("url", "invalid", urlValidation.message)
-          state[feedbackKey] = { tone: "error", message: urlValidation.message }
           return
         }
 
@@ -126,27 +116,19 @@ export async function submitAuthConfig(
         const result = await syncAuthenticationStatus(payload)
         applyConnectionValidationResult(payload, result, markField)
         if (!result.ok) {
-          state[feedbackKey] = { tone: "error", message: result.message }
           return
         }
 
         state.config = await updateServerConfig(payload)
         state.authDraft = { ...emptyServerConfig(), ...state.config.server }
         await syncAuthenticationStatus(state.config.server)
-        state[feedbackKey] = { tone: "success", message: result.message }
         if (formId === "welcome-form") {
           navigate(state.config.jobs.length > 0 ? "dashboard" : "jobs-new")
         }
       },
     })
   } catch (error) {
-    state[feedbackKey] = {
-      tone: "error",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Couldn't verify the HydroServer connection.",
-    }
+    console.error("Couldn't verify the HydroServer connection.", error)
     state.lastConnectionState = "error"
   }
 }
@@ -157,8 +139,6 @@ export async function disconnectHydroServer(): Promise<void> {
     state.authDraft = emptyServerConfig()
     state.connectionSummary = null
     state.lastConnectionState = "not_configured"
-    state.welcomeFeedback = null
-    state.settingsFeedback = null
     state.pipelineForm = createEmptyPipelineForm()
     state.pipelinePreview = null
     state.pipelineSelectionTarget = null
@@ -172,17 +152,10 @@ export async function disconnectHydroServer(): Promise<void> {
     state.pipelineMappingDrafts = []
     state.validatedColumnMappings = []
     state.pipelineEditTarget = null
-    state.pipelineCreateFeedback = null
     state.pipelineCreateSubmitting = false
     resetFieldStates("apikey")
     navigate("welcome")
   } catch (error) {
-    state.welcomeFeedback = {
-      tone: "error",
-      message:
-        error instanceof Error
-          ? error.message
-          : "Couldn't disconnect from HydroServer right now.",
-    }
+    console.error("Couldn't disconnect from HydroServer right now.", error)
   }
 }

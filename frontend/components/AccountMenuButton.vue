@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 
-import FeedbackBanner from "./FeedbackBanner.vue"
 import { useAppModel } from "../composables/useAppModel"
 
 const model = useAppModel()
@@ -116,8 +115,6 @@ onBeforeUnmount(() => {
       </dl>
 
       <form class="account-menu-form" autocomplete="off" @submit.prevent="model.submitAuthConfig('settings-form')">
-        <FeedbackBanner :feedback="model.state.settingsFeedback" />
-
         <template v-if="model.state.authDraft.auth_type === 'apikey'">
           <button
             v-if="!showApiKeyEditor"

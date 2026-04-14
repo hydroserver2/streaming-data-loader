@@ -308,10 +308,6 @@ function invalidateValidatedPipeline(): void {
   state.validatedColumnMappings = []
 }
 
-function clearPipelineCreateFeedback(): void {
-  state.pipelineCreateFeedback = null
-}
-
 function validatePipelineForm(): boolean {
   resetPipelineFieldStates(state.pipelineFieldStates)
 
@@ -363,7 +359,6 @@ export function canShowMorePreviewLines(): boolean {
 }
 
 export function updateHeaderRowFromPreview(lineNumber: number): void {
-  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
   state.pipelineForm.hasHeaderRow = true
   state.pipelineForm.headerRow = lineNumber
@@ -375,7 +370,6 @@ export function updateHeaderRowFromPreview(lineNumber: number): void {
 }
 
 export function updateDataStartRowFromPreview(lineNumber: number): void {
-  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
   state.pipelineForm.dataStartRow = Math.max(
     state.pipelineForm.hasHeaderRow ? 2 : 1,
@@ -409,7 +403,6 @@ export function applyPreviewColumnSelection(columnName: string): void {
     return
   }
 
-  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
   state.pipelineForm.timestamp.key =
     state.pipelineForm.identifierType === "index"
@@ -420,7 +413,6 @@ export function applyPreviewColumnSelection(columnName: string): void {
 }
 
 export function setPipelineHasHeaderRow(enabled: boolean): void {
-  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
   const headersBeforeToggle = previewHeaders.value
   const currentVisibleTimestampColumn = resolveTimestampColumnName(
@@ -458,7 +450,6 @@ export function setPipelineHasHeaderRow(enabled: boolean): void {
 }
 
 export function setPipelineIdentifierType(identifierType: PipelineIdentifierType): void {
-  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
 
   if (!state.pipelineForm.hasHeaderRow && identifierType === "name") {
@@ -535,7 +526,6 @@ function applyDetectedTimestampPattern(pattern: DetectedTimestampPattern | null)
 }
 
 export function updatePipelineField(name: string, value: string): void {
-  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
 
   switch (name) {
@@ -606,7 +596,6 @@ export async function loadPipelinePreview(
   path: string,
   rows = PREVIEW_PAGE_SIZE
 ): Promise<void> {
-  clearPipelineCreateFeedback()
   invalidateValidatedPipeline()
 
   if (!path.trim()) {
@@ -688,7 +677,6 @@ export async function browseForCsvPath(): Promise<void> {
 }
 
 export function submitPipelineConfig(): void {
-  clearPipelineCreateFeedback()
   state.pipelineValidationAttempted = true
 
   const valid = validatePipelineForm()
@@ -866,9 +854,7 @@ function canCreatePipelineDatasource(): { ok: true } | { ok: false; message: str
   return { ok: true }
 }
 
-export function resetPipelineCreationFlow(options?: {
-  feedback?: { tone: "success" | "error" | "info"; message: string } | null
-}): void {
+export function resetPipelineCreationFlow(): void {
   state.pipelineForm = createEmptyPipelineForm()
   state.pipelinePreview = null
   state.pipelineSelectionTarget = null
@@ -882,7 +868,6 @@ export function resetPipelineCreationFlow(options?: {
   state.validatedColumnMappings = []
   state.pipelineEditTarget = null
   state.pipelineCreateSubmitting = false
-  state.pipelineCreateFeedback = options?.feedback ?? null
 }
 
 export function abandonPipelineCreation(): void {
@@ -893,10 +878,6 @@ export function abandonPipelineCreation(): void {
 export async function editPipelineSourceFile(jobId: string): Promise<void> {
   const job = state.config?.jobs.find((item) => item.id === jobId)
   if (!job) {
-    state.pipelineCreateFeedback = {
-      tone: "error",
-      message: "That data source could not be found.",
-    }
     return
   }
 
@@ -912,10 +893,6 @@ export async function editPipelineSourceFile(jobId: string): Promise<void> {
     state.pipelineEditorStartStep = 1
     state.pipelineForm = pipelineFormFromJob(job)
     state.pipelineFieldStates = createPipelineFieldStates()
-    state.pipelineCreateFeedback = {
-      tone: "error",
-      message: "Couldn't load the current CSV file. Update the file path to continue.",
-    }
     navigate("jobs-new")
   }
 }
@@ -934,10 +911,6 @@ async function editPipelineSection(
 ): Promise<void> {
   const job = state.config?.jobs.find((item) => item.id === jobId)
   if (!job) {
-    state.pipelineCreateFeedback = {
-      tone: "error",
-      message: "That data source could not be found.",
-    }
     return
   }
 
@@ -953,10 +926,6 @@ async function editPipelineSection(
     state.pipelineEditorStartStep = 1
     state.pipelineForm = pipelineFormFromJob(job)
     state.pipelineFieldStates = createPipelineFieldStates()
-    state.pipelineCreateFeedback = {
-      tone: "error",
-      message: "Couldn't load the current CSV file. Update the file path to continue.",
-    }
     navigate("jobs-new")
   }
 }
@@ -966,7 +935,6 @@ export async function createPipelineDatasource(): Promise<void> {
 
   const readiness = canCreatePipelineDatasource()
   if (!readiness.ok) {
-    state.pipelineCreateFeedback = { tone: "error", message: readiness.message }
     return
   }
 
@@ -984,7 +952,6 @@ export async function createPipelineDatasource(): Promise<void> {
   }
 
   state.pipelineCreateSubmitting = true
-  state.pipelineCreateFeedback = null
 
   try {
     if (editingTarget) {
@@ -996,15 +963,12 @@ export async function createPipelineDatasource(): Promise<void> {
     resetPipelineCreationFlow()
     navigate("dashboard")
   } catch (error) {
-    state.pipelineCreateFeedback = {
-      tone: "error",
-      message:
-        error instanceof Error
-          ? error.message
-          : editingTarget
-          ? "Couldn't update the data source right now."
-          : "Couldn't create the data source right now.",
-    }
+    console.error(
+      editingTarget
+        ? "Couldn't update the data source right now."
+        : "Couldn't create the data source right now.",
+      error
+    )
   } finally {
     state.pipelineCreateSubmitting = false
   }

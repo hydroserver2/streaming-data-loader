@@ -4,11 +4,6 @@ import type {
   ServerConfig,
 } from "./api";
 
-export type Feedback = {
-  tone: "success" | "error" | "info";
-  message: string;
-} | null;
-
 export type AuthFieldName = "url" | "api_key" | "username" | "password";
 
 export type FieldValidationState = {
@@ -50,12 +45,6 @@ export function resetAuthFieldStates(
 
 export function credentialFields(authType: AuthType): AuthFieldName[] {
   return authType === "userpass" ? ["username", "password"] : ["api_key"];
-}
-
-export function fieldFormFeedbackTarget(
-  formId: string
-): "welcomeFeedback" | "settingsFeedback" {
-  return formId === "welcome-form" ? "welcomeFeedback" : "settingsFeedback";
 }
 
 export function isValidHttpUrl(value: string): boolean {

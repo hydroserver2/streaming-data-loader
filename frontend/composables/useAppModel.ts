@@ -141,8 +141,6 @@ async function loadInitialState() {
 
 export async function bootstrap(): Promise<void> {
   state.loading = true
-  state.welcomeFeedback = null
-  state.settingsFeedback = null
   syncRouteState()
 
   try {
@@ -165,7 +163,6 @@ export async function bootstrap(): Promise<void> {
 
 export function init(): void {
   window.addEventListener("hashchange", () => {
-    state.settingsFeedback = null
     syncRouteState()
   })
 

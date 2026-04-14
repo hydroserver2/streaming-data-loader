@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
 
-import FeedbackBanner from "./FeedbackBanner.vue"
 import { useAppModel, API_KEY_DOCS_URL } from "../composables/useAppModel"
 
 const props = defineProps<{
@@ -14,11 +13,6 @@ const model = useAppModel()
 const usingUserPass = computed(() => model.state.authDraft.auth_type === "userpass")
 const submitLabelText = computed(() =>
   model.state.authSubmitting ? "Connecting..." : props.submitLabel
-)
-const feedback = computed(() =>
-  props.formId === "welcome-form"
-    ? model.state.welcomeFeedback
-    : model.state.settingsFeedback
 )
 
 function fieldError(name: "url" | "api_key" | "username" | "password"): string | null {
@@ -39,8 +33,6 @@ function fieldError(name: "url" | "api_key" | "username" | "password"): string |
         <slot name="icon" />
         <h1 class="page-title">Connect to HydroServer</h1>
       </div>
-
-      <FeedbackBanner :feedback="feedback" />
 
       <label class="field">
         <span class="field-label-row">

@@ -11,7 +11,6 @@ import {
 import type { DatastreamSummary } from '../api'
 import AccountMenuButton from '../components/AccountMenuButton.vue'
 import AnimatedLoadingIcon from '../components/AnimatedLoadingIcon.vue'
-import FeedbackBanner from '../components/FeedbackBanner.vue'
 import type {
   MappingDatastreamBrowserEntry,
   PipelineMappingRow,
@@ -544,8 +543,6 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
     </header>
 
     <article class="pipeline-subcard mapping-subcard pipeline-mapping-workspace">
-      <FeedbackBanner :feedback="model.state.pipelineCreateFeedback" />
-
       <div v-if="model.state.pipelineDatastreamsLoading" class="empty-panel">
         <AnimatedLoadingIcon :size="96" />
         <p class="section-copy">Loading datastreams.</p>

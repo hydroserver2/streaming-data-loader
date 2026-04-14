@@ -74,7 +74,6 @@ function resetPipelineState(): void {
   state.connectionSummary = null
   state.lastConnectionState = null
   state.config = null
-  state.pipelineCreateFeedback = null
   state.pipelineCreateSubmitting = false
 }
 
@@ -550,7 +549,6 @@ test("createPipelineDatasource sends the expected payload and resets the wizard 
   assert.deepEqual(state.validatedColumnMappings, [])
   assert.deepEqual(state.pipelineMappingDrafts, [])
   assert.equal(state.pipelineCreateSubmitting, false)
-  assert.equal(state.pipelineCreateFeedback, null)
   assert.equal(globalThis.window.location.hash, "#dashboard")
   assert.equal(state.config?.jobs.length, 1)
 })
@@ -982,7 +980,6 @@ test("createPipelineDatasource updates an existing datasource when editing", asy
     ],
   })
   assert.equal(state.pipelineEditTarget, null)
-  assert.equal(state.pipelineCreateFeedback, null)
   assert.equal(globalThis.window.location.hash, "#dashboard")
   assert.equal(state.config?.jobs[0]?.file_path, "/tmp/data/updated.csv")
 })
@@ -1036,10 +1033,6 @@ test("createPipelineDatasource blocks submission when no columns are mapped", as
   await createPipelineDatasource()
 
   assert.equal(fetchCalled, false)
-  assert.deepEqual(state.pipelineCreateFeedback, {
-    tone: "error",
-    message: "Map at least one CSV column to a datastream before creating a data source.",
-  })
   assert.equal(state.pipelineCreateSubmitting, false)
 })
 
@@ -1101,10 +1094,6 @@ test("createPipelineDatasource clears submitting state and keeps step-3 state on
   assert.equal(state.pipelineForm.filePath, "/tmp/data/river.stage.csv")
   assert.notEqual(state.pipelinePreview, null)
   assert.equal(state.pipelineCreateSubmitting, false)
-  assert.deepEqual(state.pipelineCreateFeedback, {
-    tone: "error",
-    message: "Create failed",
-  })
 })
 
 test("abandonPipelineCreation resets the wizard and returns to the dashboard", () => {
@@ -1145,10 +1134,6 @@ test("abandonPipelineCreation resets the wizard and returns to the dashboard", (
     },
   ]
   state.pipelineCreateSubmitting = true
-  state.pipelineCreateFeedback = {
-    tone: "error",
-    message: "Create failed",
-  }
 
   abandonPipelineCreation()
 
@@ -1161,6 +1146,5 @@ test("abandonPipelineCreation resets the wizard and returns to the dashboard", (
   assert.deepEqual(state.pipelineMappingDrafts, [])
   assert.deepEqual(state.validatedColumnMappings, [])
   assert.equal(state.pipelineCreateSubmitting, false)
-  assert.equal(state.pipelineCreateFeedback, null)
   assert.equal(globalThis.window.location.hash, "#dashboard")
 })

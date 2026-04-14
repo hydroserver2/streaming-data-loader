@@ -8,10 +8,6 @@ import {
 import { state, type PipelineMappingDraft } from "./state"
 import { previewHeaders } from "./usePipeline"
 
-function clearPipelineCreateFeedback(): void {
-  state.pipelineCreateFeedback = null
-}
-
 export type MappingSourceColumn = {
   csvColumn: string
   label: string
@@ -116,7 +112,6 @@ export const pipelineDatastreamBrowserEntries =
   )
 
 export async function loadPipelineDatastreams(force = false): Promise<void> {
-  clearPipelineCreateFeedback()
   if (state.pipelineDatastreamsLoading) return
 
   if (state.pipelineDatastreams.length > 0 && !force) {
@@ -176,7 +171,6 @@ export function updatePipelineMappingThing(
   csvColumn: string,
   thingId: string
 ): void {
-  clearPipelineCreateFeedback()
   syncPipelineMappingDrafts()
 
   const draft = mappingDraftByColumn(csvColumn)
@@ -196,7 +190,6 @@ export function updatePipelineMappingDatastream(
   csvColumn: string,
   datastreamId: string
 ): void {
-  clearPipelineCreateFeedback()
   syncPipelineMappingDrafts()
 
   const draft = mappingDraftByColumn(csvColumn)
@@ -234,7 +227,6 @@ export function updatePipelineMappingDatastream(
 }
 
 export function clearPipelineMapping(csvColumn: string): void {
-  clearPipelineCreateFeedback()
   syncPipelineMappingDrafts()
 
   const draft = mappingDraftByColumn(csvColumn)
