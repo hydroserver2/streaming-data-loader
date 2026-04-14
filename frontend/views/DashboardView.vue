@@ -22,6 +22,7 @@ const model = useAppModel()
 
 const jobs = computed(() => model.state.config?.jobs ?? [])
 type DashboardStatusLabel =
+  | 'Running'
   | 'Pending'
   | 'Up to Date'
   | 'Behind Schedule'
@@ -35,6 +36,7 @@ type DashboardStatusMeta = {
 }
 
 const DASHBOARD_STATUS_ORDER: DashboardStatusLabel[] = [
+  'Running',
   'Pending',
   'Up to Date',
   'Behind Schedule',
@@ -59,7 +61,8 @@ const datasourceCount = computed(() => jobs.value.length)
 const jobStatusById = ref<Record<string, JobStatusSummary>>({})
 const pendingDeleteJobId = ref<string | null>(null)
 const deletingJobId = ref<string | null>(null)
-const runningJobId = ref<string | null>(null)
+type RunButtonState = 'idle' | 'requested'
+const runButtonStateById = ref<Record<string, RunButtonState>>({})
 const editingNameJobId = ref<string | null>(null)
 const editingNameValue = ref('')
 const savingNameJobId = ref<string | null>(null)
@@ -69,6 +72,14 @@ const statusFilter = ref<'all' | DashboardStatusLabel>('all')
 
 type NavSection = 'file' | 'setup' | 'mappings'
 const pendingNavigation = ref<{ jobId: string; section: NavSection } | null>(null)
+const RUN_BUTTON_MIN_LOCK_MS = 1000
+const RUN_REFRESH_OFFSETS_MS = [0, 800, 2000, 4000] as const
+
+function wait(milliseconds: number): Promise<void> {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds)
+  })
+}
 
 async function navigateTo(jobId: string, section: NavSection): Promise<void> {
   if (pendingNavigation.value) return
@@ -108,17 +119,27 @@ async function confirmDeleteJob(jobId: string): Promise<void> {
 }
 
 async function handleRunNow(jobId: string): Promise<void> {
-  if (runningJobId.value === jobId) return
-
-  runningJobId.value = jobId
+  if (isRunButtonDisabled(jobId)) return
+  const requestedAt = Date.now()
+  setRunButtonState(jobId, 'requested')
+  setJobStatusOverride(jobId, {
+    status: 'running',
+    status_message: 'Run requested.',
+    last_error: null,
+  })
 
   try {
     await runJobNow(jobId)
-    await loadJobStatuses()
+    void refreshJobAfterRun(jobId)
   } catch (error) {
     console.error("Couldn't start this data source right now.", error)
+    await loadJobStatuses()
   } finally {
-    runningJobId.value = null
+    const elapsed = Date.now() - requestedAt
+    if (elapsed < RUN_BUTTON_MIN_LOCK_MS) {
+      await wait(RUN_BUTTON_MIN_LOCK_MS - elapsed)
+    }
+    clearRunButtonState(jobId)
   }
 }
 
@@ -202,7 +223,11 @@ function mappingCount(job: JobConfig): number {
 }
 
 function dashboardStatusFor(status: JobStatus | undefined): DashboardStatusMeta {
-  if (status === 'healthy' || status === 'running') {
+  if (status === 'running') {
+    return { label: 'Running', tone: 'info' }
+  }
+
+  if (status === 'healthy') {
     return { label: 'Up to Date', tone: 'healthy' }
   }
 
@@ -227,6 +252,68 @@ function statusClass(meta: DashboardStatusMeta): string {
 
 function isLogsOpen(jobId: string): boolean {
   return diagnosticsJobId.value === jobId
+}
+
+function runButtonState(jobId: string): RunButtonState {
+  return runButtonStateById.value[jobId] ?? 'idle'
+}
+
+function setRunButtonState(jobId: string, state: RunButtonState): void {
+  runButtonStateById.value[jobId] = state
+}
+
+function clearRunButtonState(jobId: string): void {
+  delete runButtonStateById.value[jobId]
+}
+
+function isJobRunning(jobId: string): boolean {
+  return jobStatusById.value[jobId]?.status === 'running'
+}
+
+function isRunButtonDisabled(jobId: string): boolean {
+  return runButtonState(jobId) !== 'idle' || isJobRunning(jobId)
+}
+
+function isRunButtonActive(jobId: string): boolean {
+  return isRunButtonDisabled(jobId)
+}
+
+function runButtonLabel(jobId: string): string {
+  const state = runButtonState(jobId)
+  if (state === 'requested') return 'Run requested…'
+  if (isJobRunning(jobId)) return 'Running…'
+  return 'Run Now'
+}
+
+function setJobStatusOverride(
+  jobId: string,
+  overrides: Partial<JobStatusSummary>
+): void {
+  const existing = jobStatusById.value[jobId]
+  const job = jobs.value.find((entry) => entry.id === jobId)
+  if (!existing && !job) return
+
+  const fileConfig = existing?.file_config ?? job?.file_config
+  if (!fileConfig) return
+
+  jobStatusById.value = {
+    ...jobStatusById.value,
+    [jobId]: {
+      id: existing?.id ?? jobId,
+      name: existing?.name ?? job?.name ?? '',
+      enabled: existing?.enabled ?? job?.enabled ?? true,
+      file_path: existing?.file_path ?? job?.file_path ?? '',
+      schedule_minutes: existing?.schedule_minutes ?? job?.schedule_minutes ?? 0,
+      file_config: fileConfig,
+      column_mappings: existing?.column_mappings ?? job?.column_mappings ?? [],
+      status: existing?.status ?? 'pending',
+      status_message: existing?.status_message ?? '',
+      last_pushed_timestamp: existing?.last_pushed_timestamp ?? null,
+      last_run_at: existing?.last_run_at ?? null,
+      last_error: existing?.last_error ?? null,
+      ...overrides,
+    },
+  }
 }
 
 function formatTimestamp(value: string | null): string {
@@ -320,6 +407,38 @@ async function toggleLogs(jobId: string): Promise<void> {
     if (diagnosticsJobId.value === jobId) {
       diagnosticsLoading.value = false
     }
+  }
+}
+
+async function refreshOpenLogs(jobId: string): Promise<void> {
+  if (diagnosticsJobId.value !== jobId) return
+
+  try {
+    const logs = await getJobLogs(jobId)
+    if (diagnosticsJobId.value !== jobId) return
+    diagnosticsLogs.value = logs
+    diagnosticsError.value = null
+  } catch (error) {
+    if (diagnosticsJobId.value !== jobId) return
+    diagnosticsError.value =
+      error instanceof Error
+        ? error.message
+        : "Couldn't load logs for this data source."
+  }
+}
+
+async function refreshJobAfterRun(jobId: string): Promise<void> {
+  let elapsed = 0
+
+  for (const offset of RUN_REFRESH_OFFSETS_MS) {
+    const delay = offset - elapsed
+    if (delay > 0) {
+      await wait(delay)
+    }
+    elapsed = offset
+
+    await loadJobStatuses()
+    await refreshOpenLogs(jobId)
   }
 }
 
@@ -479,11 +598,12 @@ watch(
               <div class="data-source-row-head-actions">
                 <button
                   class="data-source-action data-source-action-run"
+                  :class="{ 'data-source-action-run-active': isRunButtonActive(job.id) }"
                   type="button"
-                  :disabled="runningJobId === job.id"
+                  :disabled="isRunButtonDisabled(job.id)"
                   @click="void handleRunNow(job.id)"
                 >
-                  {{ runningJobId === job.id ? 'Running…' : 'Run Now' }}
+                  {{ runButtonLabel(job.id) }}
                 </button>
                 <span
                   class="data-source-status"
