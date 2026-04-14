@@ -8,6 +8,7 @@ import {
   getConfig,
   deleteJob,
   revealFileInFolder,
+  runJobNow,
   type JobConfig,
   type JobDetail,
   type JobLogEntry,
@@ -60,6 +61,7 @@ const datasourceCount = computed(() => jobs.value.length)
 const jobStatusById = ref<Record<string, JobStatusSummary>>({})
 const pendingDeleteJobId = ref<string | null>(null)
 const deletingJobId = ref<string | null>(null)
+const runningJobId = ref<string | null>(null)
 const textFilter = ref('')
 const statusFilter = ref<'all' | DashboardStatusLabel>('all')
 
@@ -100,6 +102,32 @@ async function confirmDeleteJob(jobId: string): Promise<void> {
     model.state.config = await getConfig()
   } finally {
     deletingJobId.value = null
+  }
+}
+
+async function handleRunNow(jobId: string): Promise<void> {
+  if (runningJobId.value === jobId) return
+
+  runningJobId.value = jobId
+  model.state.pipelineCreateFeedback = null
+
+  try {
+    const response = await runJobNow(jobId)
+    model.state.pipelineCreateFeedback = {
+      tone: 'success',
+      message: response.message,
+    }
+    await loadJobStatuses()
+  } catch (error) {
+    model.state.pipelineCreateFeedback = {
+      tone: 'error',
+      message:
+        error instanceof Error
+          ? error.message
+          : "Couldn't start this data source right now.",
+    }
+  } finally {
+    runningJobId.value = null
   }
 }
 const displayedDiagnosticsLogs = computed(() => [...diagnosticsLogs.value].reverse())
@@ -354,12 +382,22 @@ watch(
                   {{ displayFileName(job.file_path) }}
                 </p>
               </div>
-              <span
-                class="data-source-status"
-                :class="statusClass(dashboardStatus(job))"
-              >
-                {{ dashboardStatus(job).label }}
-              </span>
+              <div class="data-source-row-head-actions">
+                <button
+                  class="data-source-action data-source-action-run"
+                  type="button"
+                  :disabled="runningJobId === job.id"
+                  @click="void handleRunNow(job.id)"
+                >
+                  {{ runningJobId === job.id ? 'Running…' : 'Run Now' }}
+                </button>
+                <span
+                  class="data-source-status"
+                  :class="statusClass(dashboardStatus(job))"
+                >
+                  {{ dashboardStatus(job).label }}
+                </span>
+              </div>
             </div>
 
             <div class="data-source-row-meta">
