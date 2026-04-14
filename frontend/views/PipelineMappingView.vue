@@ -652,13 +652,13 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
             <p class="mapping-connector-title">Datastreams</p>
             <div class="mapping-filter-grid">
               <label class="mapping-filter-field">
-                <span class="mapping-filter-label">Thing filter</span>
+                <span class="mapping-filter-label">Site filter</span>
                 <input
                   v-model="datastreamThingFilter"
                   class="input mapping-filter-input"
                   list="mapping-thing-filter-options"
                   type="text"
-                  placeholder="Type or select a thing"
+                  placeholder="Type or select a site"
                   autocomplete="off"
                 />
               </label>
