@@ -129,6 +129,11 @@ function formatTimestamp(value: string | null): string {
   }).format(timestamp)
 }
 
+function displayFileName(filePath: string): string {
+  const segments = filePath.split(/[\\/]/)
+  return segments[segments.length - 1] || filePath
+}
+
 async function toggleLogs(jobId: string): Promise<void> {
   if (diagnosticsJobId.value === jobId) {
     diagnosticsJobId.value = null
@@ -191,7 +196,7 @@ watch(
 
 <template>
   <section
-    class="page-shell animate-fade-in onboarding-shell pipeline-editor-shell"
+    class="page-shell animate-fade-in onboarding-shell pipeline-editor-shell dashboard-shell"
   >
     <header class="page-header wizard-header">
       <div class="wizard-header-bar">
@@ -212,17 +217,19 @@ watch(
       </div>
     </header>
 
-    <div class="flex flex-col gap-4">
-      <FeedbackBanner :feedback="model.state.pipelineCreateFeedback" />
+    <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div class="mx-auto w-full max-w-7xl px-8">
+        <FeedbackBanner :feedback="model.state.pipelineCreateFeedback" />
+      </div>
 
-      <div class="-mx-8 flex flex-col">
+      <div class="flex min-h-0 flex-col overflow-y-auto">
         <article
           v-for="(job, index) in jobs"
           :key="job.id"
-          class="border-b border-white/6 px-8 py-4"
-          :class="index % 2 === 1 ? 'bg-black/10' : 'bg-transparent'"
+          class="border-b border-white/6"
+          :class="index % 2 === 0 ? 'bg-black/10' : 'bg-transparent'"
         >
-          <div class="flex flex-col gap-3">
+          <div class="mx-auto flex max-w-7xl flex-col gap-3 px-8 py-4">
             <div class="flex items-start justify-between gap-3">
               <div class="mapping-source-stack min-w-0 flex-1">
                 <p class="mapping-summary-title">{{ job.name }}</p>
@@ -236,7 +243,7 @@ watch(
             </div>
 
             <div class="min-w-0">
-              <p class="mapping-help break-all">{{ job.file_path }}</p>
+              <p class="mapping-help break-all">{{ displayFileName(job.file_path) }}</p>
             </div>
 
             <div class="flex flex-wrap items-end justify-between gap-3">
@@ -409,7 +416,7 @@ watch(
 
         <article
           v-if="jobs.length === 0"
-          class="rounded-2xl bg-[#111315] px-5 py-6"
+          class="mx-auto w-full max-w-7xl rounded-2xl bg-[#111315] px-5 py-6"
         >
           <p class="mapping-help">No data sources yet.</p>
         </article>
@@ -417,3 +424,18 @@ watch(
     </div>
   </section>
 </template>
+
+<style scoped>
+.dashboard-shell {
+  width: 100%;
+  max-width: none;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  gap: 0;
+  padding-top: calc(4.75rem - 2px);
+  padding-bottom: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+</style>
