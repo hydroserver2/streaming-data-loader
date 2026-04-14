@@ -285,7 +285,7 @@ watch(
                   }}
                 </button>
                 <button
-                  class="btn-ghost dashboard-item-button px-3 py-1.5 text-xs"
+                  class="btn-ghost dashboard-item-button dashboard-item-button-logs px-3 py-1.5 text-xs"
                   type="button"
                   @click="void toggleLogs(job.id)"
                 >
@@ -463,5 +463,16 @@ watch(
 .dashboard-item-button-danger:hover:not(:disabled) {
   border-color: rgb(248 113 113 / 0.42);
   background: rgb(127 29 29 / 0.28);
+}
+
+.dashboard-item-button-logs {
+  border-color: rgb(56 189 248 / 0.32);
+  background: rgb(8 47 73 / 0.32);
+  color: rgb(186 230 253 / 0.98);
+}
+
+.dashboard-item-button-logs:hover:not(:disabled) {
+  border-color: rgb(56 189 248 / 0.5);
+  background: rgb(12 74 110 / 0.42);
 }
 </style>
