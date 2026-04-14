@@ -35,6 +35,21 @@ const jobStatusById = ref<Record<string, JobStatusSummary>>({})
 const pendingDeleteJobId = ref<string | null>(null)
 const deletingJobId = ref<string | null>(null)
 
+type NavSection = 'file' | 'setup' | 'mappings'
+const pendingNavigation = ref<{ jobId: string; section: NavSection } | null>(null)
+
+async function navigateTo(jobId: string, section: NavSection): Promise<void> {
+  if (pendingNavigation.value) return
+  pendingNavigation.value = { jobId, section }
+  try {
+    if (section === 'file') await model.editPipelineSourceFile(jobId)
+    else if (section === 'setup') await model.editPipelineCsvSetup(jobId)
+    else await model.editPipelineMappings(jobId)
+  } finally {
+    pendingNavigation.value = null
+  }
+}
+
 function requestDeleteJob(jobId: string): void {
   if (pendingDeleteJobId.value === jobId) {
     return
@@ -224,23 +239,38 @@ watch(
                 <button
                   class="btn-ghost px-3 py-1.5 text-xs"
                   type="button"
-                  @click="void model.editPipelineSourceFile(job.id)"
+                  :disabled="pendingNavigation !== null"
+                  @click="void navigateTo(job.id, 'file')"
                 >
-                  Source File
+                  {{
+                    pendingNavigation?.jobId === job.id && pendingNavigation?.section === 'file'
+                      ? 'Loading…'
+                      : 'Source File'
+                  }}
                 </button>
                 <button
                   class="btn-ghost px-3 py-1.5 text-xs"
                   type="button"
-                  @click="void model.editPipelineCsvSetup(job.id)"
+                  :disabled="pendingNavigation !== null"
+                  @click="void navigateTo(job.id, 'setup')"
                 >
-                  CSV Setup
+                  {{
+                    pendingNavigation?.jobId === job.id && pendingNavigation?.section === 'setup'
+                      ? 'Loading…'
+                      : 'CSV Setup'
+                  }}
                 </button>
                 <button
                   class="btn-ghost px-3 py-1.5 text-xs"
                   type="button"
-                  @click="void model.editPipelineMappings(job.id)"
+                  :disabled="pendingNavigation !== null"
+                  @click="void navigateTo(job.id, 'mappings')"
                 >
-                  Mappings
+                  {{
+                    pendingNavigation?.jobId === job.id && pendingNavigation?.section === 'mappings'
+                      ? 'Loading…'
+                      : 'Mappings'
+                  }}
                 </button>
                 <button
                   class="btn-ghost px-3 py-1.5 text-xs"
