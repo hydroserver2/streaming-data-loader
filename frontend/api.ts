@@ -87,6 +87,89 @@ export interface DatastreamSummary {
   result_type: string
 }
 
+export interface DatastreamThingLocationDetail {
+  latitude: string
+  longitude: string
+  elevation_m: string
+  elevation_datum: string
+  admin_area_1: string
+  admin_area_2: string
+  country: string
+}
+
+export interface DatastreamThingDetail {
+  id: string
+  name: string
+  description: string
+  sampling_feature_code: string
+  site_type: string
+  sampling_feature_type: string
+  is_private: boolean
+  location: DatastreamThingLocationDetail
+}
+
+export interface DatastreamObservedPropertyDetail {
+  id: string
+  name: string
+  definition: string
+  description: string
+  property_type: string
+  code: string
+}
+
+export interface DatastreamUnitDetail {
+  id: string
+  name: string
+  symbol: string
+  definition: string
+  unit_type: string
+}
+
+export interface DatastreamSensorDetail {
+  id: string
+  name: string
+  description: string
+  manufacturer: string
+  model: string
+  method_type: string
+  method_code: string
+  method_link: string
+  encoding_type: string
+  model_link: string
+}
+
+export interface DatastreamProcessingLevelDetail {
+  id: string
+  code: string
+  definition: string
+  explanation: string
+}
+
+export interface DatastreamDetail {
+  id: string
+  name: string
+  description: string
+  sampled_medium: string
+  result_type: string
+  observation_type: string
+  no_data_value: string
+  aggregation_statistic: string
+  intended_time_spacing: string
+  intended_time_spacing_unit: string
+  time_aggregation_interval: string
+  time_aggregation_interval_unit: string
+  phenomenon_begin_time: string
+  phenomenon_end_time: string
+  value_count: string
+  is_private: boolean
+  is_visible: boolean
+  thing: DatastreamThingDetail
+  observed_property: DatastreamObservedPropertyDetail
+  unit: DatastreamUnitDetail
+  sensor: DatastreamSensorDetail
+  processing_level: DatastreamProcessingLevelDetail
+}
+
 export interface ColumnMapping {
   csv_column: string
   datastream_id: string
@@ -328,6 +411,18 @@ export function getDatastreams(): Promise<DatastreamSummary[]> {
     return invokeCommand<DatastreamSummary[]>("get_datastreams")
   }
   return request<DatastreamSummary[]>("/datastreams")
+}
+
+export function getDatastreamDetail(datastreamId: string): Promise<DatastreamDetail> {
+  if (isTauriRuntime()) {
+    return invokeCommand<DatastreamDetail>("get_datastream_detail", {
+      datastreamId,
+    })
+  }
+
+  return Promise.reject(
+    new Error("Expanded datastream metadata is only available in the desktop app.")
+  )
 }
 
 export function createJob(payload: JobUpsertRequest): Promise<JobDetail> {

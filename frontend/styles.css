@@ -736,7 +736,7 @@
   .onboarding-shell .mapping-connector-header-meta,
   .onboarding-shell .mapping-connector-footer,
   .onboarding-shell .mapping-connector-section,
-  .onboarding-shell .mapping-datastream-item-thing {
+  .onboarding-shell .mapping-datastream-item-detail {
     color: #aba69e;
   }
 
@@ -814,8 +814,79 @@
     .mapping-datastream-item-name,
   .onboarding-shell
     .mapping-connector-item-mapped
-    .mapping-datastream-item-thing {
+    .mapping-datastream-item-detail {
     color: var(--mapping-text);
+  }
+
+  .onboarding-shell .mapping-datastream-meta-button {
+    border-color: rgb(255 255 255 / 0.12);
+    background: rgb(255 255 255 / 0.04);
+    color: #d5d1cb;
+  }
+
+  .onboarding-shell .mapping-datastream-meta-button:hover {
+    border-color: rgb(255 255 255 / 0.18);
+    background: rgb(255 255 255 / 0.08);
+  }
+
+  .onboarding-shell .mapping-datastream-modal {
+    border-color: rgb(255 255 255 / 0.12);
+    background: #232628;
+    color: #e8e3db;
+  }
+
+  .onboarding-shell .mapping-datastream-modal-header,
+  .onboarding-shell .mapping-datastream-modal-footer {
+    border-color: rgb(255 255 255 / 0.1);
+  }
+
+  .onboarding-shell .mapping-datastream-modal-kicker,
+  .onboarding-shell .mapping-datastream-modal-subtitle,
+  .onboarding-shell .mapping-datastream-metadata-item dt {
+    color: #aba69e;
+  }
+
+  .onboarding-shell .mapping-datastream-modal-title,
+  .onboarding-shell .mapping-datastream-metadata-section-title,
+  .onboarding-shell .mapping-datastream-metadata-item dd {
+    color: #f3efe9;
+  }
+
+  .onboarding-shell .mapping-datastream-modal-close {
+    border-color: rgb(255 255 255 / 0.12);
+    background: rgb(255 255 255 / 0.04);
+    color: #d5d1cb;
+  }
+
+  .onboarding-shell .mapping-datastream-modal-close:hover {
+    border-color: rgb(255 255 255 / 0.18);
+    background: rgb(255 255 255 / 0.08);
+    color: #f3efe9;
+  }
+
+  .onboarding-shell .mapping-datastream-metadata-section {
+    border-color: rgb(255 255 255 / 0.08);
+    background: rgb(255 255 255 / 0.04);
+  }
+
+  .onboarding-shell .mapping-datastream-metadata-section-title {
+    border-color: rgb(255 255 255 / 0.08);
+  }
+
+  .onboarding-shell .mapping-datastream-metadata-list {
+    background: rgb(255 255 255 / 0.08);
+  }
+
+  .onboarding-shell .mapping-datastream-metadata-item {
+    background: #232628;
+  }
+
+  .onboarding-shell .mapping-datastream-modal-state {
+    color: #aba69e;
+  }
+
+  .onboarding-shell .mapping-datastream-modal-state-error {
+    color: #f0a2a2;
   }
 
   .onboarding-shell .mapping-connector-item-mapped .mapping-column-item-target {
@@ -1397,8 +1468,12 @@
   .mapping-connector-item-mapped .mapping-column-item-name,
   .mapping-connector-item-mapped .mapping-column-item-target,
   .mapping-connector-item-mapped .mapping-datastream-item-name,
-  .mapping-connector-item-mapped .mapping-datastream-item-thing {
+  .mapping-connector-item-mapped .mapping-datastream-item-detail {
     color: var(--mapping-text);
+  }
+
+  .mapping-datastream-item-shell {
+    @apply flex items-stretch gap-2;
   }
 
   .mapping-datastream-item-disabled {
@@ -1410,11 +1485,93 @@
   }
 
   .mapping-datastream-item-copy {
-    @apply min-w-0 flex-1;
+    @apply flex min-w-0 flex-1 flex-col gap-0.5;
   }
 
-  .mapping-datastream-item-thing {
-    @apply shrink-0 text-[0.75rem] font-normal text-slate-500;
+  .mapping-datastream-item-detail {
+    @apply truncate text-[0.75rem] font-normal text-slate-500;
+  }
+
+  .mapping-datastream-meta-button {
+    @apply inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-md border border-slate-200 bg-white px-2.5 text-[0.625rem] font-semibold uppercase tracking-[0.08em] text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700;
+  }
+
+  .mapping-datastream-modal-backdrop {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 p-4;
+    backdrop-filter: blur(2px);
+  }
+
+  .mapping-datastream-modal {
+    @apply flex w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl;
+    max-height: min(42rem, calc(100vh - 2rem));
+  }
+
+  .mapping-datastream-modal-header {
+    @apply flex items-start justify-between gap-4 border-b border-slate-200 px-5 py-4;
+  }
+
+  .mapping-datastream-modal-copy {
+    @apply min-w-0;
+  }
+
+  .mapping-datastream-modal-kicker {
+    @apply text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-slate-500;
+  }
+
+  .mapping-datastream-modal-title {
+    @apply mt-1 text-lg font-semibold leading-tight text-slate-900;
+  }
+
+  .mapping-datastream-modal-subtitle {
+    @apply mt-1 truncate text-sm text-slate-500;
+  }
+
+  .mapping-datastream-modal-close {
+    @apply inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white text-xl leading-none text-slate-500 transition-colors hover:border-slate-300 hover:bg-slate-50 hover:text-slate-700;
+  }
+
+  .mapping-datastream-modal-body {
+    @apply min-h-0 overflow-auto px-5 py-4;
+  }
+
+  .mapping-datastream-modal-state {
+    @apply flex min-h-[14rem] flex-col items-center justify-center gap-3 text-center text-sm text-slate-500;
+  }
+
+  .mapping-datastream-modal-state-error {
+    @apply text-rose-600;
+  }
+
+  .mapping-datastream-metadata-sections {
+    @apply grid gap-3;
+  }
+
+  .mapping-datastream-metadata-section {
+    @apply rounded-xl border border-slate-200 bg-slate-50/70;
+  }
+
+  .mapping-datastream-metadata-section-title {
+    @apply border-b border-slate-200 px-4 py-3 text-sm font-semibold text-slate-900;
+  }
+
+  .mapping-datastream-metadata-list {
+    @apply grid gap-px bg-slate-200;
+  }
+
+  .mapping-datastream-metadata-item {
+    @apply grid gap-1 bg-white px-4 py-3 md:grid-cols-[12rem_minmax(0,1fr)] md:items-start md:gap-4;
+  }
+
+  .mapping-datastream-metadata-item dt {
+    @apply text-[0.6875rem] font-medium uppercase tracking-[0.08em] text-slate-500;
+  }
+
+  .mapping-datastream-metadata-item dd {
+    @apply text-sm font-medium break-words text-slate-800;
+  }
+
+  .mapping-datastream-modal-footer {
+    @apply flex justify-end border-t border-slate-200 px-5 py-4;
   }
 
   .mapping-connector-section {

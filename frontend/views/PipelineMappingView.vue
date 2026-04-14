@@ -8,7 +8,11 @@ import {
   type CSSProperties,
 } from 'vue'
 
-import type { DatastreamSummary } from '../api'
+import {
+  getDatastreamDetail,
+  type DatastreamDetail,
+  type DatastreamSummary,
+} from '../api'
 import AccountMenuButton from '../components/AccountMenuButton.vue'
 import AnimatedLoadingIcon from '../components/AnimatedLoadingIcon.vue'
 import type {
@@ -21,7 +25,7 @@ import { navigate } from '../router'
 const SECTION_HEADER_HEIGHT = 28
 const DIVIDER_HEIGHT = 12
 const THING_HEADER_HEIGHT = 34
-const DATASTREAM_CARD_HEIGHT = 48
+const DATASTREAM_CARD_HEIGHT = 56
 const VIRTUAL_OVERSCAN = 360
 
 const MAPPING_PALETTE = [
@@ -118,6 +122,13 @@ const datastreamNameFilter = ref('')
 const datastreamViewportRef = ref<HTMLElement | null>(null)
 const datastreamScrollTop = ref(0)
 const datastreamViewportHeight = ref(640)
+const metadataDatastream = ref<DatastreamSummary | null>(null)
+const metadataDetail = ref<DatastreamDetail | null>(null)
+const metadataMappedCsvColumn = ref<string | null>(null)
+const metadataLoading = ref(false)
+const metadataError = ref('')
+
+let metadataRequestId = 0
 
 let datastreamResizeObserver: ResizeObserver | null = null
 
@@ -159,6 +170,9 @@ const mappingRecord = computed<Record<string, string>>(() =>
 
 const sourceOrderByColumn = computed(
   () => new Map(mappingRows.value.map((row, index) => [row.csvColumn, index]))
+)
+const sourceLabelByColumn = computed(
+  () => new Map(mappingRows.value.map((row) => [row.csvColumn, row.label]))
 )
 
 const columnFilterOptions = computed(() =>
@@ -242,6 +256,114 @@ const visibleEntries = computed(() => {
   )
 })
 
+const metadataMappedColumnLabel = computed(() =>
+  metadataMappedCsvColumn.value
+    ? sourceLabelByColumn.value.get(metadataMappedCsvColumn.value) ??
+      metadataMappedCsvColumn.value
+    : null
+)
+
+const metadataSections = computed(() => {
+  const detail = metadataDetail.value
+  if (!detail) return []
+
+  return [
+    {
+      title: 'General',
+      items: [
+        ['Mapped CSV column', metadataMappedColumnLabel.value ?? 'Not currently mapped'],
+        ['Datastream ID', detail.id],
+        ['Datastream name', detail.name],
+        ['Description', detail.description],
+        ['Sample medium', detail.sampled_medium],
+        ['Observation type', detail.observation_type],
+        ['Result type', detail.result_type],
+        ['No data value', detail.no_data_value],
+        ['Observation count', detail.value_count],
+        ['Begin date', detail.phenomenon_begin_time],
+        ['End date', detail.phenomenon_end_time],
+        ['Aggregation statistic', detail.aggregation_statistic],
+        ['Intended time spacing', detail.intended_time_spacing],
+        ['Intended time spacing unit', detail.intended_time_spacing_unit],
+        ['Time aggregation interval', detail.time_aggregation_interval],
+        ['Time aggregation interval unit', detail.time_aggregation_interval_unit],
+        ['Is private', metadataFlag(detail.is_private)],
+        ['Is visible', metadataFlag(detail.is_visible)],
+      ],
+    },
+    {
+      title: 'Site & location',
+      items: [
+        ['Site name', detail.thing.name],
+        ['Thing ID', detail.thing.id],
+        ['Site code', detail.thing.sampling_feature_code],
+        ['Description', detail.thing.description],
+        ['Site type', detail.thing.site_type],
+        ['Sampling feature type', detail.thing.sampling_feature_type],
+        ['Thing is private', metadataFlag(detail.thing.is_private)],
+        ['Latitude', detail.thing.location.latitude],
+        ['Longitude', detail.thing.location.longitude],
+        ['Elevation (m)', detail.thing.location.elevation_m],
+        ['Elevation datum', detail.thing.location.elevation_datum],
+        ['State / province / region', detail.thing.location.admin_area_1],
+        ['County / district', detail.thing.location.admin_area_2],
+        ['Country', detail.thing.location.country],
+      ],
+    },
+    {
+      title: 'Observed property',
+      items: [
+        ['Name', detail.observed_property.name],
+        ['ID', detail.observed_property.id],
+        ['Definition', detail.observed_property.definition],
+        ['Description', detail.observed_property.description],
+        ['Type', detail.observed_property.property_type],
+        ['Code', detail.observed_property.code],
+      ],
+    },
+    {
+      title: 'Unit',
+      items: [
+        ['Name', detail.unit.name],
+        ['ID', detail.unit.id],
+        ['Symbol', detail.unit.symbol],
+        ['Definition', detail.unit.definition],
+        ['Type', detail.unit.unit_type],
+      ],
+    },
+    {
+      title: 'Sensor',
+      items: [
+        ['Name', detail.sensor.name],
+        ['ID', detail.sensor.id],
+        ['Description', detail.sensor.description],
+        ['Manufacturer', detail.sensor.manufacturer],
+        ['Model', detail.sensor.model],
+        ['Method type', detail.sensor.method_type],
+        ['Method code', detail.sensor.method_code],
+        ['Method link', detail.sensor.method_link],
+        ['Encoding type', detail.sensor.encoding_type],
+        ['Model link', detail.sensor.model_link],
+      ],
+    },
+    {
+      title: 'Processing level',
+      items: [
+        ['ID', detail.processing_level.id],
+        ['Code', detail.processing_level.code],
+        ['Definition', detail.processing_level.definition],
+        ['Explanation', detail.processing_level.explanation],
+      ],
+    },
+  ].map((section) => ({
+    title: section.title,
+    items: section.items.map(([label, value]) => ({
+      label,
+      value: metadataValue(value),
+    })),
+  }))
+})
+
 watch(
   validatedSettings,
   () => {
@@ -298,6 +420,18 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   datastreamResizeObserver?.disconnect()
+  window.removeEventListener('keydown', onMetadataKeydown)
+})
+
+watch(metadataDatastream, (datastream) => {
+  if (typeof window === 'undefined') return
+
+  if (datastream) {
+    window.addEventListener('keydown', onMetadataKeydown)
+    return
+  }
+
+  window.removeEventListener('keydown', onMetadataKeydown)
 })
 
 function buildConnectorEntries(
@@ -449,6 +583,58 @@ function datastreamTitle(datastream: DatastreamSummary): string {
 
 function datastreamThing(datastream: DatastreamSummary): string {
   return datastream.name
+}
+
+function metadataValue(value: string | null | undefined): string {
+  const trimmed = value?.trim() ?? ''
+  return trimmed || 'Not provided'
+}
+
+function metadataFlag(value: boolean): string {
+  return value ? 'Yes' : 'No'
+}
+
+async function openDatastreamMetadata(
+  datastream: DatastreamSummary,
+  mappedCsvColumn: string | null
+): Promise<void> {
+  const requestId = ++metadataRequestId
+  metadataDatastream.value = datastream
+  metadataMappedCsvColumn.value = mappedCsvColumn
+  metadataDetail.value = null
+  metadataError.value = ''
+  metadataLoading.value = true
+
+  try {
+    const detail = await getDatastreamDetail(datastream.id)
+    if (requestId !== metadataRequestId) return
+    metadataDetail.value = detail
+  } catch (error) {
+    if (requestId !== metadataRequestId) return
+    metadataError.value =
+      error instanceof Error && error.message.trim()
+        ? error.message
+        : "Couldn't load datastream metadata."
+  } finally {
+    if (requestId === metadataRequestId) {
+      metadataLoading.value = false
+    }
+  }
+}
+
+function closeDatastreamMetadata(): void {
+  metadataRequestId += 1
+  metadataDatastream.value = null
+  metadataDetail.value = null
+  metadataMappedCsvColumn.value = null
+  metadataLoading.value = false
+  metadataError.value = ''
+}
+
+function onMetadataKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') {
+    closeDatastreamMetadata()
+  }
 }
 
 function isMapped(csvColumn: string | null): boolean {
@@ -703,24 +889,38 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
               >
                 {{ currentMappedDatastream.thing_name }}
               </div>
-              <button
-                class="mapping-datastream-item mapping-connector-item-mapped mapping-datastream-item-current"
-                :style="mappingToneStyle(activeMappingRow?.csvColumn ?? null)"
-                type="button"
-                @click="connectDatastream(currentMappedDatastream.id)"
-              >
-                <span class="mapping-item-badge mapping-item-badge-filled">
-                  {{ mappingNumber(activeMappingRow?.csvColumn ?? null) }}
-                </span>
-                <span class="mapping-datastream-item-copy">
-                  <span class="mapping-datastream-item-name">
-                    {{ datastreamTitle(currentMappedDatastream) }}
+              <div class="mapping-datastream-item-shell">
+                <button
+                  class="mapping-datastream-item mapping-connector-item-mapped mapping-datastream-item-current"
+                  :style="mappingToneStyle(activeMappingRow?.csvColumn ?? null)"
+                  type="button"
+                  @click="connectDatastream(currentMappedDatastream.id)"
+                >
+                  <span class="mapping-item-badge mapping-item-badge-filled">
+                    {{ mappingNumber(activeMappingRow?.csvColumn ?? null) }}
                   </span>
-                </span>
-                <span class="mapping-datastream-item-thing">
-                  {{ datastreamThing(currentMappedDatastream) }}
-                </span>
-              </button>
+                  <span class="mapping-datastream-item-copy">
+                    <span class="mapping-datastream-item-name">
+                      {{ datastreamTitle(currentMappedDatastream) }}
+                    </span>
+                    <span class="mapping-datastream-item-detail">
+                      {{ datastreamThing(currentMappedDatastream) }}
+                    </span>
+                  </span>
+                </button>
+                <button
+                  class="mapping-datastream-meta-button"
+                  type="button"
+                  @click="
+                    openDatastreamMetadata(
+                      currentMappedDatastream,
+                      activeMappingRow?.csvColumn ?? null
+                    )
+                  "
+                >
+                  View all metadata
+                </button>
+              </div>
             </div>
 
             <div
@@ -766,47 +966,141 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
                   {{ entry.thingName }}
                 </div>
 
-                <button
+                <div
                   v-else
-                  class="mapping-datastream-item"
-                  :class="{
-                    'mapping-connector-item-mapped': isDatastreamMapped(entry),
-                    'mapping-datastream-item-current': entry.current,
-                    'mapping-datastream-item-disabled': entry.disabled,
-                  }"
-                  :style="
-                    isDatastreamMapped(entry)
-                      ? mappingToneStyle(entry.mappedCsvColumn)
-                      : undefined
-                  "
-                  :disabled="entry.disabled"
-                  type="button"
-                  @click="connectDatastream(entry.datastream.id)"
+                  class="mapping-datastream-item-shell"
                 >
-                  <span
-                    v-if="isMapped(entry.mappedCsvColumn)"
-                    class="mapping-item-badge"
+                  <button
+                    class="mapping-datastream-item"
                     :class="{
-                      'mapping-item-badge-filled': isDatastreamMapped(entry),
+                      'mapping-connector-item-mapped': isDatastreamMapped(entry),
+                      'mapping-datastream-item-current': entry.current,
+                      'mapping-datastream-item-disabled': entry.disabled,
                     }"
+                    :style="
+                      isDatastreamMapped(entry)
+                        ? mappingToneStyle(entry.mappedCsvColumn)
+                        : undefined
+                    "
+                    :disabled="entry.disabled"
+                    type="button"
+                    @click="connectDatastream(entry.datastream.id)"
                   >
-                    {{ mappingNumber(entry.mappedCsvColumn) }}
-                  </span>
-                  <span v-else class="mapping-item-dot" aria-hidden="true" />
-                  <span class="mapping-datastream-item-copy">
-                    <span class="mapping-datastream-item-name">
-                      {{ datastreamTitle(entry.datastream) }}
+                    <span
+                      v-if="isMapped(entry.mappedCsvColumn)"
+                      class="mapping-item-badge"
+                      :class="{
+                        'mapping-item-badge-filled': isDatastreamMapped(entry),
+                      }"
+                    >
+                      {{ mappingNumber(entry.mappedCsvColumn) }}
                     </span>
-                  </span>
-                  <span class="mapping-datastream-item-thing">
-                    {{ datastreamThing(entry.datastream) }}
-                  </span>
-                </button>
+                    <span v-else class="mapping-item-dot" aria-hidden="true" />
+                    <span class="mapping-datastream-item-copy">
+                      <span class="mapping-datastream-item-name">
+                        {{ datastreamTitle(entry.datastream) }}
+                      </span>
+                      <span class="mapping-datastream-item-detail">
+                        {{ datastreamThing(entry.datastream) }}
+                      </span>
+                    </span>
+                  </button>
+                  <button
+                    class="mapping-datastream-meta-button"
+                    type="button"
+                    @click="
+                      openDatastreamMetadata(
+                        entry.datastream,
+                        entry.mappedCsvColumn
+                      )
+                    "
+                  >
+                    View all metadata
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         </section>
       </div>
     </article>
+
+    <div
+      v-if="metadataDatastream"
+      class="mapping-datastream-modal-backdrop"
+      @click.self="closeDatastreamMetadata()"
+    >
+      <section
+        class="mapping-datastream-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="mapping-datastream-modal-title"
+      >
+        <header class="mapping-datastream-modal-header">
+          <div class="mapping-datastream-modal-copy">
+            <p class="mapping-datastream-modal-kicker">Datastream metadata</p>
+            <h2
+              id="mapping-datastream-modal-title"
+              class="mapping-datastream-modal-title"
+            >
+              {{ datastreamTitle(metadataDatastream) }}
+            </h2>
+            <p class="mapping-datastream-modal-subtitle">
+              {{ metadataValue(metadataDatastream.name) }}
+            </p>
+          </div>
+          <button
+            class="mapping-datastream-modal-close"
+            type="button"
+            aria-label="Close datastream metadata"
+            @click="closeDatastreamMetadata()"
+          >
+            ×
+          </button>
+        </header>
+
+        <div class="mapping-datastream-modal-body">
+          <div v-if="metadataLoading" class="mapping-datastream-modal-state">
+            <AnimatedLoadingIcon :size="52" />
+            <p>Loading expanded datastream metadata.</p>
+          </div>
+
+          <div
+            v-else-if="metadataError"
+            class="mapping-datastream-modal-state mapping-datastream-modal-state-error"
+          >
+            <p>{{ metadataError }}</p>
+          </div>
+
+          <div v-else class="mapping-datastream-metadata-sections">
+            <section
+              v-for="section in metadataSections"
+              :key="section.title"
+              class="mapping-datastream-metadata-section"
+            >
+              <h3 class="mapping-datastream-metadata-section-title">
+                {{ section.title }}
+              </h3>
+              <dl class="mapping-datastream-metadata-list">
+                <div
+                  v-for="detail in section.items"
+                  :key="`${section.title}-${detail.label}`"
+                  class="mapping-datastream-metadata-item"
+                >
+                  <dt>{{ detail.label }}</dt>
+                  <dd>{{ detail.value }}</dd>
+                </div>
+              </dl>
+            </section>
+          </div>
+        </div>
+
+        <footer class="mapping-datastream-modal-footer">
+          <button class="btn-ghost" type="button" @click="closeDatastreamMetadata()">
+            Close
+          </button>
+        </footer>
+      </section>
+    </div>
   </section>
 </template>

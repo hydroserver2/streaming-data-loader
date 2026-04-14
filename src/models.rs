@@ -661,6 +661,157 @@ pub struct DatastreamSummary {
     pub result_type: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct DatastreamThingLocationDetail {
+    #[serde(default)]
+    pub latitude: String,
+    #[serde(default)]
+    pub longitude: String,
+    #[serde(default)]
+    pub elevation_m: String,
+    #[serde(default)]
+    pub elevation_datum: String,
+    #[serde(default)]
+    pub admin_area_1: String,
+    #[serde(default)]
+    pub admin_area_2: String,
+    #[serde(default)]
+    pub country: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct DatastreamThingDetail {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub sampling_feature_code: String,
+    #[serde(default)]
+    pub site_type: String,
+    #[serde(default)]
+    pub sampling_feature_type: String,
+    #[serde(default)]
+    pub is_private: bool,
+    #[serde(default)]
+    pub location: DatastreamThingLocationDetail,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct DatastreamObservedPropertyDetail {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub definition: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub property_type: String,
+    #[serde(default)]
+    pub code: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct DatastreamUnitDetail {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub symbol: String,
+    #[serde(default)]
+    pub definition: String,
+    #[serde(default)]
+    pub unit_type: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct DatastreamSensorDetail {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub manufacturer: String,
+    #[serde(default)]
+    pub model: String,
+    #[serde(default)]
+    pub method_type: String,
+    #[serde(default)]
+    pub method_code: String,
+    #[serde(default)]
+    pub method_link: String,
+    #[serde(default)]
+    pub encoding_type: String,
+    #[serde(default)]
+    pub model_link: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct DatastreamProcessingLevelDetail {
+    #[serde(default)]
+    pub id: String,
+    #[serde(default)]
+    pub code: String,
+    #[serde(default)]
+    pub definition: String,
+    #[serde(default)]
+    pub explanation: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct DatastreamDetail {
+    pub id: String,
+    #[serde(default)]
+    pub name: String,
+    #[serde(default)]
+    pub description: String,
+    #[serde(default)]
+    pub sampled_medium: String,
+    #[serde(default)]
+    pub result_type: String,
+    #[serde(default)]
+    pub observation_type: String,
+    #[serde(default)]
+    pub no_data_value: String,
+    #[serde(default)]
+    pub aggregation_statistic: String,
+    #[serde(default)]
+    pub intended_time_spacing: String,
+    #[serde(default)]
+    pub intended_time_spacing_unit: String,
+    #[serde(default)]
+    pub time_aggregation_interval: String,
+    #[serde(default)]
+    pub time_aggregation_interval_unit: String,
+    #[serde(default)]
+    pub phenomenon_begin_time: String,
+    #[serde(default)]
+    pub phenomenon_end_time: String,
+    #[serde(default)]
+    pub value_count: String,
+    #[serde(default)]
+    pub is_private: bool,
+    #[serde(default)]
+    pub is_visible: bool,
+    #[serde(default)]
+    pub thing: DatastreamThingDetail,
+    #[serde(default)]
+    pub observed_property: DatastreamObservedPropertyDetail,
+    #[serde(default)]
+    pub unit: DatastreamUnitDetail,
+    #[serde(default)]
+    pub sensor: DatastreamSensorDetail,
+    #[serde(default)]
+    pub processing_level: DatastreamProcessingLevelDetail,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct JobStatusSummary {
     pub id: String,

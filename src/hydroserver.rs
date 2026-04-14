@@ -8,7 +8,9 @@ use reqwest::{
 use serde_json::{json, Value};
 
 use crate::models::{
-    normalize_url, AuthType, ConnectionState, ConnectionTestResponse, DatastreamSummary,
+    normalize_url, AuthType, ConnectionState, ConnectionTestResponse, DatastreamDetail,
+    DatastreamObservedPropertyDetail, DatastreamProcessingLevelDetail, DatastreamSensorDetail,
+    DatastreamSummary, DatastreamThingDetail, DatastreamThingLocationDetail, DatastreamUnitDetail,
     ServerConfig, ServerUrlValidationResponse,
 };
 
@@ -304,6 +306,44 @@ impl HydroServerService {
 
         self.set_cached_datastreams(&cache_key, summaries.clone());
         Ok(summaries)
+    }
+
+    pub async fn get_datastream_detail(
+        &self,
+        server: &ServerConfig,
+        datastream_id: &str,
+    ) -> Result<DatastreamDetail, String> {
+        if !server.is_configured() {
+            return Err("Connect to HydroServer before loading datastream metadata.".to_string());
+        }
+
+        let normalized = server.clone().normalized();
+        let mut session = HydroServerSession::new(self.http.clone(), normalized.clone());
+        let workspace_id = if normalized.workspace_id.is_empty() {
+            session
+                .associated_workspace()
+                .await
+                .map_err(|err| err.to_string())?
+                .0
+                .unwrap_or_default()
+        } else {
+            normalized.workspace_id.clone()
+        };
+
+        let payload = session
+            .request_json(
+                Method::GET,
+                &format!("{BASE_ROUTE}/datastreams/{datastream_id}"),
+                &[
+                    ("workspace_id", workspace_id),
+                    ("expand_related", "true".to_string()),
+                ],
+                None,
+            )
+            .await
+            .map_err(|err| err.to_string())?;
+
+        Ok(expanded_datastream_to_detail(&payload))
     }
 
     pub(crate) async fn post_observations_batch(
@@ -995,6 +1035,204 @@ fn expanded_datastream_to_summary(item: &Value) -> DatastreamSummary {
     }
 }
 
+fn expanded_datastream_to_detail(item: &Value) -> DatastreamDetail {
+    let thing = item.get("thing");
+    let location = thing
+        .and_then(|value| value.get("location"))
+        .or_else(|| thing.and_then(|value| value.get("Location")));
+    let observed_property = item
+        .get("observed_property")
+        .or_else(|| item.get("observedProperty"));
+    let processing_level = item
+        .get("processing_level")
+        .or_else(|| item.get("processingLevel"));
+    let unit = item.get("unit");
+    let sensor = item.get("sensor");
+
+    DatastreamDetail {
+        id: string_value(item, &["id", "uid"]).unwrap_or_default(),
+        name: string_value(item, &["name"]).unwrap_or_else(|| "Unnamed datastream".to_string()),
+        description: string_value(item, &["description"]).unwrap_or_default(),
+        sampled_medium: string_value(item, &["sampled_medium", "sampledMedium"])
+            .unwrap_or_default(),
+        result_type: string_value(item, &["result_type", "resultType"]).unwrap_or_default(),
+        observation_type: string_value(item, &["observation_type", "observationType"])
+            .unwrap_or_default(),
+        no_data_value: scalar_string_value(item, &["no_data_value", "noDataValue"]),
+        aggregation_statistic: string_value(
+            item,
+            &["aggregation_statistic", "aggregationStatistic"],
+        )
+        .unwrap_or_default(),
+        intended_time_spacing: scalar_string_value(
+            item,
+            &["intended_time_spacing", "intendedTimeSpacing"],
+        ),
+        intended_time_spacing_unit: string_value(
+            item,
+            &["intended_time_spacing_unit", "intendedTimeSpacingUnit"],
+        )
+        .unwrap_or_default(),
+        time_aggregation_interval: scalar_string_value(
+            item,
+            &["time_aggregation_interval", "timeAggregationInterval"],
+        ),
+        time_aggregation_interval_unit: string_value(
+            item,
+            &[
+                "time_aggregation_interval_unit",
+                "timeAggregationIntervalUnit",
+            ],
+        )
+        .unwrap_or_default(),
+        phenomenon_begin_time: scalar_string_value(
+            item,
+            &["phenomenon_begin_time", "phenomenonBeginTime"],
+        ),
+        phenomenon_end_time: scalar_string_value(
+            item,
+            &["phenomenon_end_time", "phenomenonEndTime"],
+        ),
+        value_count: scalar_string_value(item, &["value_count", "valueCount"]),
+        is_private: bool_value(item, &["is_private", "isPrivate"]),
+        is_visible: bool_value(item, &["is_visible", "isVisible"]),
+        thing: DatastreamThingDetail {
+            id: string_value(item, &["thing_id", "thingId"])
+                .or_else(|| thing.and_then(|value| string_value(value, &["id", "uid"])))
+                .unwrap_or_default(),
+            name: thing
+                .and_then(|value| string_value(value, &["name"]))
+                .unwrap_or_default(),
+            description: thing
+                .and_then(|value| string_value(value, &["description"]))
+                .unwrap_or_default(),
+            sampling_feature_code: thing
+                .and_then(|value| {
+                    string_value(value, &["sampling_feature_code", "samplingFeatureCode"])
+                })
+                .unwrap_or_default(),
+            site_type: thing
+                .and_then(|value| string_value(value, &["site_type", "siteType"]))
+                .unwrap_or_default(),
+            sampling_feature_type: thing
+                .and_then(|value| {
+                    string_value(value, &["sampling_feature_type", "samplingFeatureType"])
+                })
+                .unwrap_or_default(),
+            is_private: thing
+                .map(|value| bool_value(value, &["is_private", "isPrivate"]))
+                .unwrap_or(false),
+            location: DatastreamThingLocationDetail {
+                latitude: scalar_string_value(location.unwrap_or(item), &["latitude"]),
+                longitude: scalar_string_value(location.unwrap_or(item), &["longitude"]),
+                elevation_m: scalar_string_value(
+                    location.unwrap_or(item),
+                    &["elevation_m", "elevationM"],
+                ),
+                elevation_datum: string_value(
+                    location.unwrap_or(item),
+                    &["elevation_datum", "elevationDatum"],
+                )
+                .unwrap_or_default(),
+                admin_area_1: string_value(
+                    location.unwrap_or(item),
+                    &["admin_area_1", "adminArea1"],
+                )
+                .unwrap_or_default(),
+                admin_area_2: string_value(
+                    location.unwrap_or(item),
+                    &["admin_area_2", "adminArea2"],
+                )
+                .unwrap_or_default(),
+                country: string_value(location.unwrap_or(item), &["country"]).unwrap_or_default(),
+            },
+        },
+        observed_property: DatastreamObservedPropertyDetail {
+            id: string_value(item, &["observed_property_id", "observedPropertyId"])
+                .or_else(|| observed_property.and_then(|value| string_value(value, &["id", "uid"])))
+                .unwrap_or_default(),
+            name: observed_property
+                .and_then(|value| string_value(value, &["name"]))
+                .unwrap_or_default(),
+            definition: observed_property
+                .and_then(|value| string_value(value, &["definition"]))
+                .unwrap_or_default(),
+            description: observed_property
+                .and_then(|value| string_value(value, &["description"]))
+                .unwrap_or_default(),
+            property_type: observed_property
+                .and_then(|value| string_value(value, &["type"]))
+                .unwrap_or_default(),
+            code: observed_property
+                .and_then(|value| string_value(value, &["code"]))
+                .unwrap_or_default(),
+        },
+        unit: DatastreamUnitDetail {
+            id: string_value(item, &["unit_id", "unitId"])
+                .or_else(|| unit.and_then(|value| string_value(value, &["id", "uid"])))
+                .unwrap_or_default(),
+            name: unit
+                .and_then(|value| string_value(value, &["name"]))
+                .unwrap_or_default(),
+            symbol: unit
+                .and_then(|value| string_value(value, &["symbol"]))
+                .unwrap_or_default(),
+            definition: unit
+                .and_then(|value| string_value(value, &["definition"]))
+                .unwrap_or_default(),
+            unit_type: unit
+                .and_then(|value| string_value(value, &["type"]))
+                .unwrap_or_default(),
+        },
+        sensor: DatastreamSensorDetail {
+            id: string_value(item, &["sensor_id", "sensorId"])
+                .or_else(|| sensor.and_then(|value| string_value(value, &["id", "uid"])))
+                .unwrap_or_default(),
+            name: sensor
+                .and_then(|value| string_value(value, &["name"]))
+                .unwrap_or_default(),
+            description: sensor
+                .and_then(|value| string_value(value, &["description"]))
+                .unwrap_or_default(),
+            manufacturer: sensor
+                .and_then(|value| string_value(value, &["manufacturer"]))
+                .unwrap_or_default(),
+            model: sensor
+                .and_then(|value| string_value(value, &["model"]))
+                .unwrap_or_default(),
+            method_type: sensor
+                .and_then(|value| string_value(value, &["method_type", "methodType"]))
+                .unwrap_or_default(),
+            method_code: sensor
+                .and_then(|value| string_value(value, &["method_code", "methodCode"]))
+                .unwrap_or_default(),
+            method_link: sensor
+                .and_then(|value| string_value(value, &["method_link", "methodLink"]))
+                .unwrap_or_default(),
+            encoding_type: sensor
+                .and_then(|value| string_value(value, &["encoding_type", "encodingType"]))
+                .unwrap_or_default(),
+            model_link: sensor
+                .and_then(|value| string_value(value, &["model_link", "modelLink"]))
+                .unwrap_or_default(),
+        },
+        processing_level: DatastreamProcessingLevelDetail {
+            id: string_value(item, &["processing_level_id", "processingLevelId"])
+                .or_else(|| processing_level.and_then(|value| string_value(value, &["id", "uid"])))
+                .unwrap_or_default(),
+            code: processing_level
+                .and_then(|value| string_value(value, &["code"]))
+                .unwrap_or_default(),
+            definition: processing_level
+                .and_then(|value| string_value(value, &["definition"]))
+                .unwrap_or_default(),
+            explanation: processing_level
+                .and_then(|value| string_value(value, &["explanation"]))
+                .unwrap_or_default(),
+        },
+    }
+}
+
 fn datastream_to_summary(
     item: &Value,
     things_by_id: &HashMap<String, Value>,
@@ -1048,6 +1286,32 @@ fn string_value(item: &Value, keys: &[&str]) -> Option<String> {
         .and_then(Value::as_str)
         .map(|value| value.trim().to_string())
         .filter(|value| !value.is_empty())
+}
+
+fn scalar_string_value(item: &Value, keys: &[&str]) -> String {
+    keys.iter()
+        .find_map(|key| item.get(*key))
+        .and_then(value_to_string)
+        .unwrap_or_default()
+}
+
+fn value_to_string(value: &Value) -> Option<String> {
+    match value {
+        Value::String(text) => {
+            let trimmed = text.trim();
+            (!trimmed.is_empty()).then(|| trimmed.to_string())
+        }
+        Value::Number(number) => Some(number.to_string()),
+        Value::Bool(value) => Some(value.to_string()),
+        _ => None,
+    }
+}
+
+fn bool_value(item: &Value, keys: &[&str]) -> bool {
+    keys.iter()
+        .find_map(|key| item.get(*key))
+        .and_then(Value::as_bool)
+        .unwrap_or(false)
 }
 
 fn string_value_from_map(

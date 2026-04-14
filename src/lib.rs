@@ -89,6 +89,7 @@ pub fn run() {
             commands::disable_job,
             commands::get_job_logs,
             commands::get_datastreams,
+            commands::get_datastream_detail,
             commands::get_csv_preview,
             commands::reveal_file_in_folder,
         ])

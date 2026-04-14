@@ -5,9 +5,9 @@ use tauri::State;
 use crate::{
     csv_preview::preview_csv,
     models::{
-        ActionResponse, AppConfig, ConnectionTestResponse, CsvPreviewResponse, DatastreamSummary,
-        HealthResponse, JobDetail, JobLogEntry, JobStatusSummary, JobUpsertRequest, ServerConfig,
-        ServerUrlValidationResponse,
+        ActionResponse, AppConfig, ConnectionTestResponse, CsvPreviewResponse, DatastreamDetail,
+        DatastreamSummary, HealthResponse, JobDetail, JobLogEntry, JobStatusSummary,
+        JobUpsertRequest, ServerConfig, ServerUrlValidationResponse,
     },
     runtime::AppState,
 };
@@ -189,6 +189,19 @@ pub async fn get_datastreams(state: State<'_, AppState>) -> Result<Vec<Datastrea
 }
 
 #[tauri::command]
+pub async fn get_datastream_detail(
+    datastream_id: String,
+    state: State<'_, AppState>,
+) -> Result<DatastreamDetail, String> {
+    let config = state.config()?;
+    state
+        .hydroserver()
+        .get_datastream_detail(&config.server, &datastream_id)
+        .await
+        .map_err(|_| "Couldn't load datastream metadata from HydroServer right now.".to_string())
+}
+
+#[tauri::command]
 pub fn get_csv_preview(path: String, rows: Option<usize>) -> Result<CsvPreviewResponse, String> {
     let rows = rows.unwrap_or(100).clamp(1, 500);
     preview_csv(&path, rows)
@@ -212,11 +225,7 @@ pub fn reveal_file_in_folder(path: String) -> Result<ActionResponse, String> {
 fn reveal_path_with_platform_file_manager(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        run_command(
-            Command::new("open")
-                .arg("-R")
-                .arg(path),
-        )
+        run_command(Command::new("open").arg("-R").arg(path))
     }
 
     #[cfg(target_os = "windows")]
