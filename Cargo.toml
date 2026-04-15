@@ -1,9 +1,9 @@
 [package]
 name = "streaming-data-loader"
-version = "2.0.0-beta.1"
+version = "2.0.0-beta.2"
 description = "Desktop app for loading streaming CSV observations into HydroServer"
 authors = ["Daniel Slaugh", "Ken Lippold"]
-edition = "2021"
+edition = "2026"
 readme = "README.md"
 repository = "https://github.com/hydroserver2/streaming-data-loader"
 homepage = "https://github.com/hydroserver2/streaming-data-loader"
