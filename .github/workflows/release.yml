@@ -79,14 +79,17 @@ jobs:
             os: macos-15
             bundle_args: --target universal-apple-darwin --bundles dmg
             rust_targets: x86_64-apple-darwin
+            release_asset_name_pattern: 'Streaming.Data.Loader.MacOS[ext]'
           - label: Windows NSIS
             os: windows-2022
             bundle_args: --bundles nsis
             rust_targets: ''
+            release_asset_name_pattern: 'Streaming.Data.Loader.Windows[ext]'
           - label: Linux AppImage
             os: ubuntu-22.04
             bundle_args: --bundles appimage
             rust_targets: ''
+            release_asset_name_pattern: 'Streaming.Data.Loader.Linux[ext]'
 
     steps:
       - name: Check out repository
@@ -124,6 +127,6 @@ jobs:
         with:
           releaseId: ${{ github.event.release.id }}
           tagName: ${{ github.event.release.tag_name }}
-          releaseAssetNamePattern: '[name]_[version]_[platform]_[arch][setup][ext]'
+          releaseAssetNamePattern: ${{ matrix.release_asset_name_pattern }}
           projectPath: .
           args: ${{ matrix.bundle_args }}

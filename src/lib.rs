@@ -23,6 +23,7 @@ use tauri_plugin_autostart::ManagerExt as _;
 use runtime::{resolve_config_dir, AppState};
 
 const AUTOSTART_ARG: &str = "--autostart";
+const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/tray-icon.png");
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -127,7 +128,7 @@ fn setup_tray(
     let menu = Menu::with_items(app, &[&show, &hide, &quit])?;
 
     TrayIconBuilder::new()
-        .icon(Image::from_path("icons/tray-icon.png")?)
+        .icon(Image::from_bytes(TRAY_ICON_BYTES)?)
         .icon_as_template(true)
         .menu(&menu)
         .show_menu_on_left_click(false)
