@@ -6,7 +6,7 @@ use crate::{
     csv_preview::preview_csv,
     models::{
         ActionResponse, AppConfig, ConnectionTestResponse, CsvPreviewResponse, DatastreamDetail,
-        DatastreamSummary, HealthResponse, JobDetail, JobLogEntry, JobStatusSummary,
+        DatastreamSummary, HealthResponse, JobDetail, JobLogsResponse, JobStatusSummary,
         JobUpsertRequest, ServerConfig, ServerUrlValidationResponse,
     },
     runtime::AppState,
@@ -173,14 +173,18 @@ pub async fn disable_job(
 }
 
 #[tauri::command]
-pub fn get_job_logs(
-    job_id: String,
-    state: State<'_, AppState>,
-) -> Result<Vec<JobLogEntry>, String> {
+pub fn get_job_logs(job_id: String, state: State<'_, AppState>) -> Result<JobLogsResponse, String> {
     if state.config_store().get_job(&job_id)?.is_none() {
         return Err("That job could not be found.".to_string());
     }
-    state.config_store().logs_for(&job_id, 50)
+
+    Ok(JobLogsResponse {
+        entries: state.config_store().logs_for(&job_id, 200)?,
+        log_file_path: state
+            .config_store()
+            .job_log_file_path(&job_id)?
+            .map(|path| path.to_string_lossy().into_owned()),
+    })
 }
 
 #[tauri::command]

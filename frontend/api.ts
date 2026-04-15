@@ -194,6 +194,11 @@ export interface JobLogEntry {
   message: string
 }
 
+export interface JobLogsResponse {
+  entries: JobLogEntry[]
+  log_file_path: string | null
+}
+
 export type JobStatus =
   | "healthy"
   | "warning"
@@ -454,11 +459,11 @@ export function getJob(jobId: string): Promise<JobDetail> {
   return request<JobDetail>(`/jobs/${encodeURIComponent(jobId)}`)
 }
 
-export function getJobLogs(jobId: string): Promise<JobLogEntry[]> {
+export function getJobLogs(jobId: string): Promise<JobLogsResponse> {
   if (isTauriRuntime()) {
-    return invokeCommand<JobLogEntry[]>("get_job_logs", { jobId })
+    return invokeCommand<JobLogsResponse>("get_job_logs", { jobId })
   }
-  return request<JobLogEntry[]>(`/jobs/${encodeURIComponent(jobId)}/logs`)
+  return request<JobLogsResponse>(`/jobs/${encodeURIComponent(jobId)}/logs`)
 }
 
 export function getJobs(): Promise<JobStatusSummary[]> {

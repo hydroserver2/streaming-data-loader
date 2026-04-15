@@ -1,4 +1,7 @@
-use super::{copy_dir_contents, has_runtime_state, move_or_copy_dir_contents, APP_DIRECTORY_NAME};
+use super::{
+    active_app_directory_name, copy_dir_contents, has_runtime_state, move_or_copy_dir_contents,
+    APP_DIRECTORY_NAME, DEV_APP_DIRECTORY_NAME,
+};
 use std::{
     fs,
     path::{Path, PathBuf},
@@ -78,6 +81,17 @@ fn has_runtime_state_detects_config_or_workspace_dir() {
     assert!(!has_runtime_state(&temp_root.join("empty")));
 
     remove_temp_dir(&temp_root);
+}
+
+#[test]
+fn active_app_directory_name_matches_build_mode() {
+    let expected = if cfg!(debug_assertions) {
+        DEV_APP_DIRECTORY_NAME
+    } else {
+        APP_DIRECTORY_NAME
+    };
+
+    assert_eq!(active_app_directory_name(), expected);
 }
 
 fn unique_temp_dir(label: &str) -> PathBuf {

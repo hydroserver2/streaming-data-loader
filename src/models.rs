@@ -497,7 +497,7 @@ pub struct PersistedDatasource {
     pub last_run_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub last_error: Option<String>,
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recent_logs: Vec<JobLogEntry>,
 }
 
@@ -863,6 +863,14 @@ pub struct JobDetail {
     pub last_error: Option<String>,
     #[serde(default)]
     pub recent_logs: Vec<JobLogEntry>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct JobLogsResponse {
+    #[serde(default)]
+    pub entries: Vec<JobLogEntry>,
+    #[serde(default)]
+    pub log_file_path: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

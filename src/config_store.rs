@@ -1,5 +1,6 @@
 use std::{
     fs,
+    io::{BufRead, BufReader, Write},
     path::{Path, PathBuf},
     sync::{
         atomic::{AtomicU64, Ordering},
@@ -16,21 +17,29 @@ use crate::models::{
 };
 
 static JOB_COUNTER: AtomicU64 = AtomicU64::new(1);
+const JOB_LOG_ROTATE_BYTES: u64 = 5 * 1024 * 1024;
+const JOB_LOG_ROTATE_FILES: usize = 7;
 
 pub struct ConfigStore {
     config_dir: PathBuf,
     config_path: PathBuf,
     legacy_state_path: PathBuf,
     workspace_dir: PathBuf,
+    logs_dir: PathBuf,
+    job_logs_dir: PathBuf,
     lock: Mutex<()>,
 }
 
 impl ConfigStore {
     pub fn new(config_dir: PathBuf) -> Self {
+        let logs_dir = config_dir.join("logs");
+        let job_logs_dir = logs_dir.join("jobs");
         Self {
             config_path: config_dir.join("config.json"),
             legacy_state_path: config_dir.join("state.json"),
             workspace_dir: config_dir.join("workspaces"),
+            logs_dir,
+            job_logs_dir,
             config_dir,
             lock: Mutex::new(()),
         }
@@ -155,7 +164,7 @@ impl ConfigStore {
             *datasource = PersistedDatasource::from_job(
                 updated_job.clone(),
                 Some(datasource.to_cursor()),
-                Some(datasource.recent_logs.clone()),
+                None,
             );
             self.write_workspace_locked(&workspace)?;
             return Ok(Some(updated_job));
@@ -219,8 +228,30 @@ impl ConfigStore {
     }
 
     pub fn logs_for(&self, job_id: &str, limit: usize) -> Result<Vec<JobLogEntry>, String> {
-        Ok(self
-            .get_persisted_datasource(job_id)?
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|_| "Config lock poisoned.".to_string())?;
+        self.ensure_locked()?;
+
+        let entries = self.read_job_logs_locked(job_id, limit)?;
+        if !entries.is_empty() {
+            return Ok(entries);
+        }
+
+        let workspace = self.load_active_workspace_locked()?;
+        let migrated_entries = self.read_job_logs_locked(job_id, limit)?;
+        if !migrated_entries.is_empty() {
+            return Ok(migrated_entries);
+        }
+
+        Ok(workspace
+            .and_then(|workspace| {
+                workspace
+                    .datasources
+                    .into_iter()
+                    .find(|item| item.id == job_id)
+            })
             .map(|datasource| {
                 let count = datasource.recent_logs.len();
                 datasource
@@ -261,19 +292,17 @@ impl ConfigStore {
             .lock()
             .map_err(|_| "Config lock poisoned.".to_string())?;
         self.ensure_locked()?;
-        let mut workspace = self.require_active_workspace_locked()?;
-
-        for datasource in &mut workspace.datasources {
-            if datasource.id != job_id {
-                continue;
-            }
-            datasource.recent_logs.push(entry.clone());
-            if datasource.recent_logs.len() > 50 {
-                let keep_from = datasource.recent_logs.len() - 50;
-                datasource.recent_logs = datasource.recent_logs.split_off(keep_from);
-            }
-            self.write_workspace_locked(&workspace)?;
-            return Ok(entry);
+        let has_job = self
+            .load_active_workspace_locked()?
+            .map(|workspace| {
+                workspace
+                    .datasources
+                    .into_iter()
+                    .any(|item| item.id == job_id)
+            })
+            .unwrap_or(false);
+        if has_job {
+            self.append_job_log_locked(job_id, &entry)?;
         }
 
         Ok(entry)
@@ -286,6 +315,7 @@ impl ConfigStore {
             .map_err(|_| "Config lock poisoned.".to_string())?;
         self.ensure_locked()?;
         let Some(mut workspace) = self.load_active_workspace_locked()? else {
+            self.delete_job_logs_locked(job_id)?;
             return Ok(());
         };
 
@@ -301,13 +331,25 @@ impl ConfigStore {
             self.write_workspace_locked(&workspace)?;
             break;
         }
+        self.delete_job_logs_locked(job_id)?;
 
         Ok(())
+    }
+
+    pub fn job_log_file_path(&self, job_id: &str) -> Result<Option<PathBuf>, String> {
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|_| "Config lock poisoned.".to_string())?;
+        self.ensure_locked()?;
+        Ok(self.job_log_paths_oldest_to_newest(job_id).pop())
     }
 
     fn ensure_locked(&self) -> Result<(), String> {
         fs::create_dir_all(&self.config_dir).map_err(|err| err.to_string())?;
         fs::create_dir_all(&self.workspace_dir).map_err(|err| err.to_string())?;
+        fs::create_dir_all(&self.logs_dir).map_err(|err| err.to_string())?;
+        fs::create_dir_all(&self.job_logs_dir).map_err(|err| err.to_string())?;
 
         if !self.config_path.exists() {
             self.write_config_locked(&AppConfig::default())?;
@@ -428,7 +470,58 @@ impl ConfigStore {
 
         let contents = fs::read_to_string(path).map_err(|err| err.to_string())?;
         let value: Value = serde_json::from_str(&contents).map_err(|err| err.to_string())?;
-        parse_workspace_state(value).map(Some)
+        let mut workspace = parse_workspace_state(value)?;
+        let mut changed = false;
+        for datasource in &mut workspace.datasources {
+            if let Some(migrated_file_path) =
+                self.migrate_generated_test_csv_path(&datasource.file_path)
+            {
+                datasource.file_path = migrated_file_path;
+                changed = true;
+            }
+
+            if datasource.recent_logs.is_empty() {
+                continue;
+            }
+
+            if !self.job_logs_exist_locked(&datasource.id) {
+                self.append_job_logs_locked(&datasource.id, &datasource.recent_logs)?;
+            }
+            datasource.recent_logs.clear();
+            changed = true;
+        }
+
+        if changed {
+            self.write_workspace_locked(&workspace)?;
+        }
+
+        Ok(Some(workspace))
+    }
+
+    fn migrate_generated_test_csv_path(&self, file_path: &str) -> Option<String> {
+        let original = Path::new(file_path);
+        if original.exists() {
+            return None;
+        }
+
+        let mut relative = PathBuf::new();
+        let mut found_generated_test_dir = false;
+        for component in original.components() {
+            if found_generated_test_dir {
+                relative.push(component.as_os_str());
+            } else if component.as_os_str() == "generated-test-csv" {
+                found_generated_test_dir = true;
+            }
+        }
+
+        if !found_generated_test_dir || relative.as_os_str().is_empty() {
+            return None;
+        }
+
+        let candidate = self.config_dir.join("generated-test-csv").join(relative);
+        candidate
+            .exists()
+            .then(|| candidate.to_string_lossy().into_owned())
     }
 
     fn load_active_workspace_locked(&self) -> Result<Option<WorkspaceStateFile>, String> {
@@ -446,6 +539,123 @@ impl ConfigStore {
         let path = self.workspace_path(&workspace.workspace_id);
         let payload = serde_json::to_value(workspace).map_err(|err| err.to_string())?;
         write_json_file(&path, &payload)
+    }
+
+    fn job_log_path(&self, job_id: &str) -> PathBuf {
+        self.job_logs_dir.join(format!("{job_id}.log"))
+    }
+
+    fn rotated_job_log_path(&self, job_id: &str, index: usize) -> PathBuf {
+        self.job_logs_dir.join(format!("{job_id}.{index}.log"))
+    }
+
+    fn job_log_paths_oldest_to_newest(&self, job_id: &str) -> Vec<PathBuf> {
+        let mut paths = Vec::new();
+        for index in (1..=JOB_LOG_ROTATE_FILES).rev() {
+            let rotated = self.rotated_job_log_path(job_id, index);
+            if rotated.exists() {
+                paths.push(rotated);
+            }
+        }
+
+        let current = self.job_log_path(job_id);
+        if current.exists() {
+            paths.push(current);
+        }
+
+        paths
+    }
+
+    fn job_logs_exist_locked(&self, job_id: &str) -> bool {
+        self.job_log_path(job_id).exists()
+            || (1..=JOB_LOG_ROTATE_FILES)
+                .any(|index| self.rotated_job_log_path(job_id, index).exists())
+    }
+
+    fn append_job_logs_locked(&self, job_id: &str, entries: &[JobLogEntry]) -> Result<(), String> {
+        for entry in entries {
+            self.append_job_log_locked(job_id, entry)?;
+        }
+        Ok(())
+    }
+
+    fn append_job_log_locked(&self, job_id: &str, entry: &JobLogEntry) -> Result<(), String> {
+        let payload = serde_json::to_string(entry).map_err(|err| err.to_string())?;
+        let line = format!("{payload}\n");
+        self.rotate_job_logs_locked(job_id, line.len() as u64)?;
+
+        let mut file = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(self.job_log_path(job_id))
+            .map_err(|err| err.to_string())?;
+        file.write_all(line.as_bytes())
+            .map_err(|err| err.to_string())
+    }
+
+    fn rotate_job_logs_locked(&self, job_id: &str, incoming_bytes: u64) -> Result<(), String> {
+        let current = self.job_log_path(job_id);
+        let current_len = current
+            .metadata()
+            .map(|metadata| metadata.len())
+            .unwrap_or_default();
+        if current_len + incoming_bytes <= JOB_LOG_ROTATE_BYTES {
+            return Ok(());
+        }
+
+        let oldest = self.rotated_job_log_path(job_id, JOB_LOG_ROTATE_FILES);
+        if oldest.exists() {
+            fs::remove_file(&oldest).map_err(|err| err.to_string())?;
+        }
+
+        for index in (1..JOB_LOG_ROTATE_FILES).rev() {
+            let source = self.rotated_job_log_path(job_id, index);
+            if source.exists() {
+                fs::rename(&source, self.rotated_job_log_path(job_id, index + 1))
+                    .map_err(|err| err.to_string())?;
+            }
+        }
+
+        if current.exists() {
+            fs::rename(&current, self.rotated_job_log_path(job_id, 1))
+                .map_err(|err| err.to_string())?;
+        }
+
+        Ok(())
+    }
+
+    fn read_job_logs_locked(&self, job_id: &str, limit: usize) -> Result<Vec<JobLogEntry>, String> {
+        let mut entries = Vec::new();
+        for path in self.job_log_paths_oldest_to_newest(job_id) {
+            let file = fs::File::open(path).map_err(|err| err.to_string())?;
+            for line in BufReader::new(file).lines() {
+                let line = line.map_err(|err| err.to_string())?;
+                let trimmed = line.trim();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                if let Ok(entry) = serde_json::from_str::<JobLogEntry>(trimmed) {
+                    entries.push(entry);
+                }
+            }
+        }
+
+        if entries.len() > limit {
+            let keep_from = entries.len() - limit;
+            entries = entries.split_off(keep_from);
+        }
+
+        Ok(entries)
+    }
+
+    fn delete_job_logs_locked(&self, job_id: &str) -> Result<(), String> {
+        for path in self.job_log_paths_oldest_to_newest(job_id) {
+            if path.exists() {
+                fs::remove_file(path).map_err(|err| err.to_string())?;
+            }
+        }
+
+        Ok(())
     }
 
     fn active_jobs_locked(&self, server: &ServerConfig) -> Result<Vec<JobConfig>, String> {
@@ -743,3 +953,7 @@ fn generate_job_id() -> String {
         &hex[20..32]
     )
 }
+
+#[cfg(test)]
+#[path = "tests/config_store.rs"]
+mod tests;

@@ -20,6 +20,7 @@ use crate::{
 
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
 const APP_DIRECTORY_NAME: &str = "Streaming Data Loader";
+const DEV_APP_DIRECTORY_NAME: &str = "Streaming Data Loader Dev";
 const BUNDLE_IDENTIFIER: &str = "com.streaming-data-loader";
 const LEGACY_BUNDLE_IDENTIFIER: &str = "com.streaming-data-loader.app";
 
@@ -144,7 +145,7 @@ impl AppState {
             last_pushed_timestamp: summary.last_pushed_timestamp,
             last_run_at: summary.last_run_at,
             last_error: summary.last_error,
-            recent_logs: self.inner.config_store.logs_for(&job.id, 50)?,
+            recent_logs: self.inner.config_store.logs_for(&job.id, 200)?,
         })
     }
 
@@ -248,7 +249,7 @@ pub fn resolve_config_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     }
 
     if let Ok(home_dir) = app_handle.path().home_dir() {
-        let fallback_dir = home_dir.join(APP_DIRECTORY_NAME);
+        let fallback_dir = home_dir.join(active_app_directory_name());
         migrate_legacy_config_dir(app_handle, &fallback_dir)?;
         fs::create_dir_all(&fallback_dir).map_err(|err| err.to_string())?;
         return Ok(fallback_dir);
@@ -259,11 +260,11 @@ pub fn resolve_config_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
 
 fn preferred_user_data_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     if let Ok(document_dir) = app_handle.path().document_dir() {
-        return Ok(document_dir.join(APP_DIRECTORY_NAME));
+        return Ok(document_dir.join(active_app_directory_name()));
     }
 
     if let Ok(home_dir) = app_handle.path().home_dir() {
-        return Ok(home_dir.join(APP_DIRECTORY_NAME));
+        return Ok(home_dir.join(active_app_directory_name()));
     }
 
     Err("Couldn't resolve a user-visible data directory.".to_string())
@@ -288,6 +289,14 @@ fn migrate_legacy_config_dir(app_handle: &AppHandle, target_dir: &Path) -> Resul
     move_or_copy_dir_contents(&source_dir, target_dir)
 }
 
+fn active_app_directory_name() -> &'static str {
+    if cfg!(debug_assertions) {
+        DEV_APP_DIRECTORY_NAME
+    } else {
+        APP_DIRECTORY_NAME
+    }
+}
+
 fn legacy_config_candidates(app_handle: &AppHandle) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
 
@@ -296,12 +305,23 @@ fn legacy_config_candidates(app_handle: &AppHandle) -> Vec<PathBuf> {
         candidates.push(data_dir.join(BUNDLE_IDENTIFIER));
     }
 
+    if let Ok(document_dir) = app_handle.path().document_dir() {
+        candidates.push(document_dir.join(APP_DIRECTORY_NAME));
+        if cfg!(debug_assertions) {
+            candidates.push(document_dir.join(DEV_APP_DIRECTORY_NAME));
+        }
+    }
+
     if let Ok(current_dir) = std::env::current_dir() {
         candidates.push(current_dir.join("Streaming Data Loader Data"));
     }
 
     if let Ok(home_dir) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
-        candidates.push(PathBuf::from(home_dir).join(APP_DIRECTORY_NAME));
+        let home_dir = PathBuf::from(home_dir);
+        candidates.push(home_dir.join(APP_DIRECTORY_NAME));
+        if cfg!(debug_assertions) {
+            candidates.push(home_dir.join(DEV_APP_DIRECTORY_NAME));
+        }
     }
 
     candidates

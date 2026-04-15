@@ -207,6 +207,7 @@ const diagnosticsJobId = ref<string | null>(null)
 const diagnosticsLoading = ref(false)
 const diagnosticsError = ref<string | null>(null)
 const diagnosticsLogs = ref<JobLogEntry[]>([])
+const diagnosticsLogFilePath = ref<string | null>(null)
 const showAllDiagnosticsLogs = ref(false)
 const displayedDiagnosticsLogs = computed(() => [...diagnosticsLogs.value].reverse())
 const visibleDiagnosticsLogs = computed(() =>
@@ -381,6 +382,7 @@ async function toggleLogs(jobId: string): Promise<void> {
   if (diagnosticsJobId.value === jobId) {
     diagnosticsJobId.value = null
     diagnosticsLogs.value = []
+    diagnosticsLogFilePath.value = null
     diagnosticsError.value = null
     diagnosticsLoading.value = false
     showAllDiagnosticsLogs.value = false
@@ -391,12 +393,14 @@ async function toggleLogs(jobId: string): Promise<void> {
   diagnosticsLoading.value = true
   diagnosticsError.value = null
   diagnosticsLogs.value = []
+  diagnosticsLogFilePath.value = null
   showAllDiagnosticsLogs.value = false
 
   try {
-    const logs = await getJobLogs(jobId)
+    const response = await getJobLogs(jobId)
     if (diagnosticsJobId.value !== jobId) return
-    diagnosticsLogs.value = logs
+    diagnosticsLogs.value = response.entries
+    diagnosticsLogFilePath.value = response.log_file_path
   } catch (error) {
     if (diagnosticsJobId.value !== jobId) return
     diagnosticsError.value =
@@ -414,9 +418,10 @@ async function refreshOpenLogs(jobId: string): Promise<void> {
   if (diagnosticsJobId.value !== jobId) return
 
   try {
-    const logs = await getJobLogs(jobId)
+    const response = await getJobLogs(jobId)
     if (diagnosticsJobId.value !== jobId) return
-    diagnosticsLogs.value = logs
+    diagnosticsLogs.value = response.entries
+    diagnosticsLogFilePath.value = response.log_file_path
     diagnosticsError.value = null
   } catch (error) {
     if (diagnosticsJobId.value !== jobId) return
@@ -702,6 +707,22 @@ watch(
               </div>
 
               <div v-else class="flex flex-col gap-2">
+                <div
+                  v-if="isDesktopRuntime() && diagnosticsLogFilePath"
+                  class="data-source-row-actions"
+                >
+                  <button
+                    class="data-source-action"
+                    type="button"
+                    @click="void openFileLocation(diagnosticsLogFilePath)"
+                  >
+                    Open Log File
+                  </button>
+                  <span class="mapping-help wrap-break-word">
+                    {{ displayFileName(diagnosticsLogFilePath) }}
+                  </span>
+                </div>
+
                 <div>
                   <div
                     v-if="displayedDiagnosticsLogs.length === 0"
