@@ -99,6 +99,23 @@ impl ConfigStore {
         Ok(config)
     }
 
+    pub fn mark_launch_at_login_initialized(&self) -> Result<bool, String> {
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|_| "Config lock poisoned.".to_string())?;
+        self.ensure_locked()?;
+
+        let mut config = self.read_config_locked()?;
+        if config.launch_at_login_initialized {
+            return Ok(false);
+        }
+
+        config.launch_at_login_initialized = true;
+        self.write_config_locked(&config)?;
+        Ok(true)
+    }
+
     pub fn list_jobs(&self) -> Result<Vec<JobConfig>, String> {
         Ok(self.load()?.jobs)
     }
@@ -389,6 +406,10 @@ impl ConfigStore {
         Ok(AppConfig {
             version,
             server,
+            launch_at_login_initialized: value
+                .get("launch_at_login_initialized")
+                .and_then(Value::as_bool)
+                .unwrap_or(false),
             jobs,
         })
     }
@@ -397,6 +418,7 @@ impl ConfigStore {
         let payload = json!({
             "version": config.version,
             "server": config.server.clone().normalized(),
+            "launch_at_login_initialized": config.launch_at_login_initialized,
         });
         write_json_file(&self.config_path, &payload)
     }
@@ -689,6 +711,7 @@ impl ConfigStore {
                 let stripped_config = AppConfig {
                     version: config.version,
                     server: config.server,
+                    launch_at_login_initialized: config.launch_at_login_initialized,
                     jobs: Vec::new(),
                 };
                 self.write_config_locked(&stripped_config)?;
@@ -720,6 +743,7 @@ impl ConfigStore {
         let stripped_config = AppConfig {
             version: config.version,
             server: config.server,
+            launch_at_login_initialized: config.launch_at_login_initialized,
             jobs: Vec::new(),
         };
         self.write_config_locked(&stripped_config)

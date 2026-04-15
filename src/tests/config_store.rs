@@ -251,6 +251,34 @@ fn loading_workspace_rewrites_generated_test_csv_paths_into_current_config_dir()
     remove_temp_dir(&temp_dir);
 }
 
+#[test]
+fn mark_launch_at_login_initialized_only_returns_true_once() {
+    let temp_dir = unique_temp_dir("config-store-launch-at-login");
+    let store = ConfigStore::new(temp_dir.clone());
+    store.ensure().expect("ensure store");
+
+    assert!(
+        store
+            .mark_launch_at_login_initialized()
+            .expect("mark first launch-at-login init"),
+        "first launch should initialize launch-at-login preference"
+    );
+    assert!(
+        !store
+            .mark_launch_at_login_initialized()
+            .expect("mark second launch-at-login init"),
+        "subsequent launches should not force re-initialization"
+    );
+
+    let config_contents = fs::read_to_string(temp_dir.join("config.json")).expect("read config");
+    assert!(
+        config_contents.contains("\"launch_at_login_initialized\": true"),
+        "config.json should persist the first-launch sentinel"
+    );
+
+    remove_temp_dir(&temp_dir);
+}
+
 fn unique_temp_dir(label: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

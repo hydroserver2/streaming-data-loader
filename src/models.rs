@@ -553,6 +553,8 @@ pub struct AppConfig {
     #[serde(default)]
     pub server: ServerConfig,
     #[serde(default)]
+    pub launch_at_login_initialized: bool,
+    #[serde(default)]
     pub jobs: Vec<JobConfig>,
 }
 
@@ -561,6 +563,7 @@ impl Default for AppConfig {
         Self {
             version: default_version(),
             server: ServerConfig::default(),
+            launch_at_login_initialized: false,
             jobs: Vec::new(),
         }
     }

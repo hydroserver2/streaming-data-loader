@@ -47,7 +47,7 @@ pub fn run() {
             let state = AppState::new(resolve_config_dir(&app.handle())?)?;
             state.initialize()?;
             app.manage(state);
-            ensure_autostart_enabled(&app.handle());
+            initialize_launch_at_login(&app.handle());
             setup_tray(app, launched_via_autostart)?;
 
             // Graceful shutdown on SIGTERM / SIGINT so the uploader can drain
@@ -179,18 +179,34 @@ fn setup_tray(
     Ok(())
 }
 
-fn ensure_autostart_enabled<R: Runtime>(app_handle: &tauri::AppHandle<R>) {
+fn initialize_launch_at_login<R: Runtime>(app_handle: &tauri::AppHandle<R>) {
+    let should_initialize = match app_handle
+        .state::<AppState>()
+        .config_store()
+        .mark_launch_at_login_initialized()
+    {
+        Ok(value) => value,
+        Err(error) => {
+            tracing::warn!(error = %error, "failed to persist launch-at-login initialization");
+            false
+        }
+    };
+
+    if !should_initialize {
+        return;
+    }
+
     let autostart_manager = app_handle.autolaunch();
 
     match autostart_manager.is_enabled() {
         Ok(true) => {}
         Ok(false) => {
             if let Err(error) = autostart_manager.enable() {
-                tracing::warn!(error = %error, "failed to enable autostart");
+                tracing::warn!(error = %error, "failed to enable launch at login on first launch");
             }
         }
         Err(error) => {
-            tracing::warn!(error = %error, "failed to read autostart status");
+            tracing::warn!(error = %error, "failed to read launch-at-login status");
         }
     }
 }
