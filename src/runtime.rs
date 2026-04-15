@@ -19,6 +19,9 @@ use crate::{
 };
 
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+const APP_DIRECTORY_NAME: &str = "Streaming Data Loader";
+const BUNDLE_IDENTIFIER: &str = "com.streaming-data-loader";
+const LEGACY_BUNDLE_IDENTIFIER: &str = "com.streaming-data-loader.app";
 
 #[derive(Clone)]
 pub struct AppState {
@@ -236,54 +239,69 @@ pub fn resolve_config_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
         return Ok(candidate);
     }
 
-    let preferred_dir = app_handle
-        .path()
-        .app_data_dir()
-        .map_err(|err| err.to_string())?;
+    let preferred_dir = preferred_user_data_dir(app_handle)?;
+
+    migrate_legacy_config_dir(app_handle, &preferred_dir)?;
 
     if try_create_dir(&preferred_dir) {
-        migrate_legacy_config_dir(&preferred_dir)?;
         return Ok(preferred_dir);
     }
 
     if let Ok(home_dir) = app_handle.path().home_dir() {
-        let fallback_dir = home_dir.join("Streaming Data Loader");
+        let fallback_dir = home_dir.join(APP_DIRECTORY_NAME);
+        migrate_legacy_config_dir(app_handle, &fallback_dir)?;
         fs::create_dir_all(&fallback_dir).map_err(|err| err.to_string())?;
-        migrate_legacy_config_dir(&fallback_dir)?;
         return Ok(fallback_dir);
     }
 
     Err("Couldn't resolve an application data directory.".to_string())
 }
 
+fn preferred_user_data_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
+    if let Ok(document_dir) = app_handle.path().document_dir() {
+        return Ok(document_dir.join(APP_DIRECTORY_NAME));
+    }
+
+    if let Ok(home_dir) = app_handle.path().home_dir() {
+        return Ok(home_dir.join(APP_DIRECTORY_NAME));
+    }
+
+    Err("Couldn't resolve a user-visible data directory.".to_string())
+}
+
 fn try_create_dir(path: &Path) -> bool {
     fs::create_dir_all(path).is_ok()
 }
 
-fn migrate_legacy_config_dir(target_dir: &Path) -> Result<(), String> {
+fn migrate_legacy_config_dir(app_handle: &AppHandle, target_dir: &Path) -> Result<(), String> {
     if has_runtime_state(target_dir) {
         return Ok(());
     }
 
-    let Some(source_dir) = legacy_config_candidates()
+    let Some(source_dir) = legacy_config_candidates(app_handle)
         .into_iter()
         .find(|candidate| candidate != target_dir && has_runtime_state(candidate))
     else {
         return Ok(());
     };
 
-    copy_dir_contents(&source_dir, target_dir)
+    move_or_copy_dir_contents(&source_dir, target_dir)
 }
 
-fn legacy_config_candidates() -> Vec<PathBuf> {
+fn legacy_config_candidates(app_handle: &AppHandle) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
+
+    if let Ok(data_dir) = app_handle.path().data_dir() {
+        candidates.push(data_dir.join(LEGACY_BUNDLE_IDENTIFIER));
+        candidates.push(data_dir.join(BUNDLE_IDENTIFIER));
+    }
 
     if let Ok(current_dir) = std::env::current_dir() {
         candidates.push(current_dir.join("Streaming Data Loader Data"));
     }
 
     if let Ok(home_dir) = std::env::var("HOME").or_else(|_| std::env::var("USERPROFILE")) {
-        candidates.push(PathBuf::from(home_dir).join("Streaming Data Loader"));
+        candidates.push(PathBuf::from(home_dir).join(APP_DIRECTORY_NAME));
     }
 
     candidates
@@ -309,6 +327,18 @@ fn copy_dir_contents(source_dir: &Path, target_dir: &Path) -> Result<(), String>
     }
 
     Ok(())
+}
+
+fn move_or_copy_dir_contents(source_dir: &Path, target_dir: &Path) -> Result<(), String> {
+    if let Some(parent) = target_dir.parent() {
+        fs::create_dir_all(parent).map_err(|err| err.to_string())?;
+    }
+
+    if !target_dir.exists() && fs::rename(source_dir, target_dir).is_ok() {
+        return Ok(());
+    }
+
+    copy_dir_contents(source_dir, target_dir)
 }
 
 fn connection_status(server: &ServerConfig) -> ConnectionStatus {
@@ -339,4 +369,107 @@ fn derive_job_status(job: &JobConfig, cursor: &JobCursor, is_running: bool) -> (
         return (JobStatus::Pending, "Watching for new rows".to_string());
     }
     (JobStatus::Healthy, "Watching for new rows".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        copy_dir_contents, has_runtime_state, move_or_copy_dir_contents, APP_DIRECTORY_NAME,
+    };
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+        time::{SystemTime, UNIX_EPOCH},
+    };
+
+    #[test]
+    fn copy_dir_contents_copies_nested_runtime_state() {
+        let temp_root = unique_temp_dir("runtime-copy");
+        let source = temp_root.join("source");
+        let target = temp_root.join("target");
+
+        fs::create_dir_all(source.join("workspaces")).expect("create source workspaces");
+        fs::write(source.join("config.json"), "{}").expect("write config");
+        fs::write(
+            source.join("workspaces").join("workspace.json"),
+            "{\"datasources\":[]}",
+        )
+        .expect("write workspace");
+
+        copy_dir_contents(&source, &target).expect("copy runtime state");
+
+        assert!(target.join("config.json").exists());
+        assert!(target.join("workspaces").join("workspace.json").exists());
+
+        remove_temp_dir(&temp_root);
+    }
+
+    #[test]
+    fn copy_dir_contents_does_not_overwrite_existing_files() {
+        let temp_root = unique_temp_dir("runtime-preserve");
+        let source = temp_root.join("source");
+        let target = temp_root.join(APP_DIRECTORY_NAME);
+
+        fs::create_dir_all(&source).expect("create source");
+        fs::create_dir_all(&target).expect("create target");
+        fs::write(source.join("config.json"), "{\"url\":\"new\"}").expect("write source");
+        fs::write(target.join("config.json"), "{\"url\":\"existing\"}").expect("write target");
+
+        copy_dir_contents(&source, &target).expect("copy runtime state");
+
+        let persisted = fs::read_to_string(target.join("config.json")).expect("read target");
+        assert_eq!(persisted, "{\"url\":\"existing\"}");
+
+        remove_temp_dir(&temp_root);
+    }
+
+    #[test]
+    fn move_or_copy_dir_contents_moves_source_when_target_is_missing() {
+        let temp_root = unique_temp_dir("runtime-move");
+        let source = temp_root.join("source");
+        let target = temp_root.join("target");
+
+        fs::create_dir_all(&source).expect("create source");
+        fs::write(source.join("config.json"), "{}").expect("write config");
+
+        move_or_copy_dir_contents(&source, &target).expect("move runtime state");
+
+        assert!(!source.exists());
+        assert!(target.join("config.json").exists());
+
+        remove_temp_dir(&temp_root);
+    }
+
+    #[test]
+    fn has_runtime_state_detects_config_or_workspace_dir() {
+        let temp_root = unique_temp_dir("runtime-state");
+        let config_only = temp_root.join("config-only");
+        let workspace_only = temp_root.join("workspace-only");
+
+        fs::create_dir_all(&config_only).expect("create config dir");
+        fs::create_dir_all(workspace_only.join("workspaces")).expect("create workspace dir");
+        fs::write(config_only.join("config.json"), "{}").expect("write config");
+
+        assert!(has_runtime_state(&config_only));
+        assert!(has_runtime_state(&workspace_only));
+        assert!(!has_runtime_state(&temp_root.join("empty")));
+
+        remove_temp_dir(&temp_root);
+    }
+
+    fn unique_temp_dir(label: &str) -> PathBuf {
+        let nanos = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system time should be after epoch")
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!("sdl-{label}-{nanos}"));
+        fs::create_dir_all(&root).expect("create temp root");
+        root
+    }
+
+    fn remove_temp_dir(path: &Path) {
+        if path.exists() {
+            fs::remove_dir_all(path).expect("remove temp dir");
+        }
+    }
 }

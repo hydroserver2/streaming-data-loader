@@ -1,0 +1,112 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate-and-test:
+    name: Validate and Test
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Verify Cargo version is readable
+        shell: bash
+        run: |
+          VERSION=$(sed -nE 's/^version = "([^"]+)"$/\1/p' Cargo.toml | head -n 1)
+          if [ -z "$VERSION" ]; then
+            echo "Could not read [package].version from Cargo.toml."
+            exit 1
+          fi
+          echo "Cargo version: $VERSION"
+
+      - name: Run frontend unit tests
+        run: npm test
+
+      - name: Run Rust unit tests
+        run: cargo test
+
+  build-desktop:
+    name: Build Desktop (${{ matrix.label }})
+    needs: validate-and-test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: macOS universal DMG
+            os: macos-15
+            bundle_args: --target universal-apple-darwin --bundles dmg
+            rust_targets: x86_64-apple-darwin
+          - label: Windows NSIS
+            os: windows-2022
+            bundle_args: --bundles nsis
+            rust_targets: ''
+          - label: Linux AppImage
+            os: ubuntu-22.04
+            bundle_args: --bundles appimage
+            rust_targets: ''
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Rust toolchain
+        if: matrix.rust_targets == ''
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Rust toolchain and targets
+        if: matrix.rust_targets != ''
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_targets }}
+
+      - name: Install Linux system dependencies
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build desktop bundle
+        uses: tauri-apps/tauri-action@v1
+        with:
+          projectPath: .
+          args: ${{ matrix.bundle_args }}
