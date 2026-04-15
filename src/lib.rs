@@ -10,14 +10,19 @@ mod runtime;
 mod timestamp;
 mod uploader;
 
+use std::ffi::OsStr;
+
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager,
+    Manager, Runtime,
 };
+use tauri_plugin_autostart::ManagerExt as _;
 
 use runtime::{resolve_config_dir, AppState};
+
+const AUTOSTART_ARG: &str = "--autostart";
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -26,14 +31,23 @@ pub fn run() {
         .with_max_level(tracing::Level::INFO)
         .try_init();
 
+    let launched_via_autostart = launched_via_autostart();
+
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .arg(AUTOSTART_ARG)
+                .app_name(autostart_app_name())
+                .build(),
+        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .setup(|app| {
+        .setup(move |app| {
             let state = AppState::new(resolve_config_dir(&app.handle())?)?;
             state.initialize()?;
             app.manage(state);
-            setup_tray(app)?;
+            ensure_autostart_enabled(&app.handle());
+            setup_tray(app, launched_via_autostart)?;
 
             // Graceful shutdown on SIGTERM / SIGINT so the uploader can drain
             // any queued observations before the process exits.
@@ -103,7 +117,10 @@ pub fn run() {
         .expect("error while running tauri application");
 }
 
-fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+fn setup_tray(
+    app: &mut tauri::App,
+    launched_via_autostart: bool,
+) -> Result<(), Box<dyn std::error::Error>> {
     let show = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
     let hide = MenuItem::with_id(app, "hide", "Hide Window", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
@@ -152,9 +169,51 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         })
         .build(app)?;
 
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
+    if !launched_via_autostart {
+        if let Some(window) = app.get_webview_window("main") {
+            let _ = window.show();
+        }
     }
 
     Ok(())
 }
+
+fn ensure_autostart_enabled<R: Runtime>(app_handle: &tauri::AppHandle<R>) {
+    let autostart_manager = app_handle.autolaunch();
+
+    match autostart_manager.is_enabled() {
+        Ok(true) => {}
+        Ok(false) => {
+            if let Err(error) = autostart_manager.enable() {
+                tracing::warn!(error = %error, "failed to enable autostart");
+            }
+        }
+        Err(error) => {
+            tracing::warn!(error = %error, "failed to read autostart status");
+        }
+    }
+}
+
+fn launched_via_autostart() -> bool {
+    has_launch_flag(std::env::args_os(), AUTOSTART_ARG)
+}
+
+fn has_launch_flag<I, S>(args: I, flag: &str) -> bool
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<OsStr>,
+{
+    args.into_iter().any(|arg| arg.as_ref() == OsStr::new(flag))
+}
+
+fn autostart_app_name() -> &'static str {
+    if cfg!(debug_assertions) {
+        "Streaming Data Loader Dev"
+    } else {
+        "Streaming Data Loader"
+    }
+}
+
+#[cfg(test)]
+#[path = "tests/lib.rs"]
+mod tests;
