@@ -41,9 +41,10 @@ jobs:
       - name: Verify release tag matches app version
         shell: bash
         run: |
-          VERSION=$(sed -nE 's/^version = "([^"]+)"$/\1/p' Cargo.toml | head -n 1)
+          MANIFEST_PATH="ui/Cargo.toml"
+          VERSION=$(sed -nE 's/^version = "([^"]+)"$/\1/p' "$MANIFEST_PATH" | head -n 1)
           if [ -z "$VERSION" ]; then
-            echo "Could not read [package].version from Cargo.toml."
+            echo "Could not read [package].version from $MANIFEST_PATH."
             exit 1
           fi
 
@@ -52,14 +53,14 @@ jobs:
           NORMALIZED_TAG="${NORMALIZED_TAG#v}"
 
           if [ "$NORMALIZED_TAG" != "$VERSION" ]; then
-            echo "Release tag does not match Cargo.toml version."
+            echo "Release tag does not match app manifest version."
             echo "release tag: $TAG"
             echo "normalized tag: $NORMALIZED_TAG"
-            echo "Cargo.toml version: $VERSION"
+            echo "$MANIFEST_PATH version: $VERSION"
             exit 1
           fi
 
-          echo "Release tag matches Cargo.toml version: $VERSION"
+          echo "Release tag matches $MANIFEST_PATH version: $VERSION"
 
       - name: Run frontend unit tests
         run: npm test
@@ -128,5 +129,5 @@ jobs:
           releaseId: ${{ github.event.release.id }}
           tagName: ${{ github.event.release.tag_name }}
           assetNamePattern: ${{ matrix.release_asset_name_pattern }}
-          projectPath: .
+          projectPath: ui
           args: ${{ matrix.bundle_args }}

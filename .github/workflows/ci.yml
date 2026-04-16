@@ -42,12 +42,13 @@ jobs:
       - name: Verify Cargo version is readable
         shell: bash
         run: |
-          VERSION=$(sed -nE 's/^version = "([^"]+)"$/\1/p' Cargo.toml | head -n 1)
+          MANIFEST_PATH="ui/Cargo.toml"
+          VERSION=$(sed -nE 's/^version = "([^"]+)"$/\1/p' "$MANIFEST_PATH" | head -n 1)
           if [ -z "$VERSION" ]; then
-            echo "Could not read [package].version from Cargo.toml."
+            echo "Could not read [package].version from $MANIFEST_PATH."
             exit 1
           fi
-          echo "Cargo version: $VERSION"
+          echo "Cargo version ($MANIFEST_PATH): $VERSION"
 
       - name: Run frontend unit tests
         run: npm test
@@ -108,5 +109,5 @@ jobs:
       - name: Build desktop bundle
         uses: tauri-apps/tauri-action@v0.6.2
         with:
-          projectPath: .
+          projectPath: ui
           args: ${{ matrix.bundle_args }}
