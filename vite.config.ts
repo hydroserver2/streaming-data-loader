@@ -11,7 +11,7 @@ export default defineConfig(({ mode }) => {
     plugins: [vue()],
     server: {
       host: frontendHost,
-      open: true,
+      open: false,
       port: frontendPort,
       strictPort: true,
       watch: {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import appIconUrl from "../../icons/icon-color-thick.svg"
+import appIconUrl from "../../ui/icons/icon-color-thick.svg"
 
 import AuthForm from "../components/AuthForm.vue"
 </script>

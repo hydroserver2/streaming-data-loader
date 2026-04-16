@@ -1,4 +1,27 @@
 {
   "version": "0.2.0",
-  "configurations": []
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "SDL: Debug App",
+      "cargo": {
+        "args": [
+          "build",
+          "--manifest-path=./ui/Cargo.toml",
+          "--no-default-features"
+        ],
+        "filter": {
+          "name": "streaming-data-loader",
+          "kind": "bin"
+        }
+      },
+      "args": [],
+      "cwd": "${workspaceFolder}",
+      "preLaunchTask": "SDL: Dev Services",
+      "env": {
+        "SDL_CONFIG_DIR": "${workspaceFolder}/.local/sidecar-dev"
+      }
+    }
+  ]
 }

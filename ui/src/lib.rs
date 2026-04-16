@@ -1,18 +1,11 @@
 mod commands;
-mod config_store;
-mod csv_preview;
-mod file_watcher;
-mod hydroserver;
-mod models;
-mod observation_queue;
-mod pipeline;
-mod runtime;
-mod timestamp;
-mod uploader;
+mod compat;
 
 use tauri::Manager;
 
-use runtime::{resolve_config_dir, AppState};
+use sdl_core::runtime::AppState;
+
+use compat::resolve_config_dir;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -26,13 +19,11 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let state = AppState::new(resolve_config_dir(&app.handle())?)?;
-            state.initialize()?;
+            tauri::async_runtime::block_on(state.initialize_async())?;
             app.manage(state);
 
             // Graceful shutdown on SIGTERM / SIGINT so the uploader can drain
             // any queued observations before the process exits.
-            // NOTE: must call shutdown_async() — not shutdown() — because block_on
-            // panics when called from inside an async task.
             let app_handle = app.handle().clone();
             tauri::async_runtime::spawn(async move {
                 #[cfg(unix)]

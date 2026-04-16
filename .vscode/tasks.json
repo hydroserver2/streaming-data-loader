@@ -87,13 +87,19 @@
       "problemMatcher": []
     },
     {
-      "label": "SDL: Dev",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "SDL: Bootstrap Frontend",
-        "SDL: Tailwind",
-        "SDL: Frontend"
-      ],
+      "label": "SDL: Run",
+      "type": "shell",
+      "command": "npm",
+      "args": ["run", "tauri", "dev"],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "isBackground": true,
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated",
+        "group": "sdl-dev"
+      },
       "problemMatcher": []
     }
   ]

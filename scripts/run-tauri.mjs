@@ -49,5 +49,5 @@ if (!commandExists("rustc")) {
   process.exit(1)
 }
 
-const result = run("npx", ["--no-install", "tauri", ...tauriArgs])
+const result = run("npx", ["--no-install", "tauri", ...tauriArgs], { cwd: resolve(rootDir, "ui") })
 process.exit(result.status ?? 1)

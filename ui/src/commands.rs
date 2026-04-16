@@ -2,12 +2,12 @@ use std::{path::Path, process::Command};
 
 use tauri::State;
 
-use crate::{
+use sdl_core::{
     csv_preview::preview_csv,
     models::{
         ActionResponse, AppConfig, ConnectionTestResponse, CsvPreviewResponse, DatastreamDetail,
         DatastreamSummary, HealthResponse, JobDetail, JobLogsResponse, JobStatusSummary,
-        JobUpsertRequest, ServerConfig, ServerUrlValidationResponse,
+        JobUpsertRequest, LogLevel, ServerConfig, ServerUrlValidationResponse,
     },
     runtime::AppState,
 };
@@ -92,7 +92,7 @@ pub async fn create_job(
     state: State<'_, AppState>,
 ) -> Result<JobDetail, String> {
     let job = state.config_store().create_job(payload)?;
-    let _ = state.append_log(&job.id, "Job created", crate::models::LogLevel::Info);
+    let _ = state.append_log(&job.id, "Job created", LogLevel::Info);
     if job.enabled {
         state.start_job_run(&job.id, "Initial run started")?;
     }
@@ -117,7 +117,7 @@ pub async fn update_job(
     let Some(job) = state.config_store().update_job(&job_id, payload)? else {
         return Err("That job could not be found.".to_string());
     };
-    let _ = state.append_log(&job.id, "Job updated", crate::models::LogLevel::Info);
+    let _ = state.append_log(&job.id, "Job updated", LogLevel::Info);
     state.reload_pipeline().await?;
     state.build_job_detail(&job)
 }
@@ -151,7 +151,7 @@ pub async fn enable_job(
     let Some(job) = state.config_store().set_job_enabled(&job_id, true)? else {
         return Err("That job could not be found.".to_string());
     };
-    let _ = state.append_log(&job.id, "Job enabled", crate::models::LogLevel::Info);
+    let _ = state.append_log(&job.id, "Job enabled", LogLevel::Info);
     state.reload_pipeline().await?;
     Ok(ActionResponse {
         ok: true,
@@ -167,7 +167,7 @@ pub async fn disable_job(
     let Some(job) = state.config_store().set_job_enabled(&job_id, false)? else {
         return Err("That job could not be found.".to_string());
     };
-    let _ = state.append_log(&job.id, "Job disabled", crate::models::LogLevel::Warning);
+    let _ = state.append_log(&job.id, "Job disabled", LogLevel::Warning);
     state.reload_pipeline().await?;
     Ok(ActionResponse {
         ok: true,

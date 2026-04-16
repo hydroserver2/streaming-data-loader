@@ -3,10 +3,10 @@
   "productName": "Streaming Data Loader",
   "identifier": "com.streaming-data-loader",
   "build": {
-    "beforeDevCommand": "npm run dev:tauri",
+    "beforeDevCommand": { "script": "npm run dev:tauri", "cwd": ".." },
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "npm run build",
-    "frontendDist": "dist"
+    "beforeBuildCommand": { "script": "npm run build", "cwd": ".." },
+    "frontendDist": "../dist"
   },
   "app": {
     "windows": [
