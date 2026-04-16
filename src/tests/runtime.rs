@@ -1,6 +1,6 @@
 use super::{
     active_app_directory_name, copy_dir_contents, has_runtime_state, move_or_copy_dir_contents,
-    APP_DIRECTORY_NAME, DEV_APP_DIRECTORY_NAME,
+    preferred_user_data_dir, APP_DIRECTORY_NAME, DEV_APP_DIRECTORY_NAME,
 };
 use std::{
     fs,
@@ -92,6 +92,38 @@ fn active_app_directory_name_matches_build_mode() {
     };
 
     assert_eq!(active_app_directory_name(), expected);
+}
+
+#[test]
+fn preferred_user_data_dir_uses_app_data_dir_before_home_dir() {
+    let temp_root = unique_temp_dir("runtime-app-data");
+    let app_data_dir = temp_root.join("app-data").join("com.streaming-data-loader");
+    let home_dir = temp_root.join("home");
+
+    let resolved =
+        preferred_user_data_dir(Some(app_data_dir.clone()), Some(home_dir)).expect("resolve dir");
+
+    let expected = if cfg!(debug_assertions) {
+        app_data_dir.join("dev")
+    } else {
+        app_data_dir
+    };
+
+    assert_eq!(resolved, expected);
+
+    remove_temp_dir(&temp_root);
+}
+
+#[test]
+fn preferred_user_data_dir_falls_back_to_home_dir_without_documents() {
+    let temp_root = unique_temp_dir("runtime-home-fallback");
+    let home_dir = temp_root.join("home");
+
+    let resolved = preferred_user_data_dir(None, Some(home_dir.clone())).expect("resolve dir");
+
+    assert_eq!(resolved, home_dir.join(active_app_directory_name()));
+
+    remove_temp_dir(&temp_root);
 }
 
 fn unique_temp_dir(label: &str) -> PathBuf {

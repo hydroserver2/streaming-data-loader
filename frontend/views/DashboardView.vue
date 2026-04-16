@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import {
   getJobs,
@@ -74,6 +74,12 @@ type NavSection = 'file' | 'setup' | 'mappings'
 const pendingNavigation = ref<{ jobId: string; section: NavSection } | null>(null)
 const RUN_BUTTON_MIN_LOCK_MS = 1000
 const RUN_REFRESH_OFFSETS_MS = [0, 800, 2000, 4000] as const
+const DASHBOARD_REFRESH_INTERVAL_MS = 3000
+let dashboardRefreshTimer: number | null = null
+let jobStatusRequestVersion = 0
+let jobLogsRequestVersion = 0
+let dashboardRefreshInFlight = false
+let dashboardRefreshQueued = false
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => {
@@ -395,14 +401,25 @@ async function toggleLogs(jobId: string): Promise<void> {
   diagnosticsLogs.value = []
   diagnosticsLogFilePath.value = null
   showAllDiagnosticsLogs.value = false
+  const requestVersion = ++jobLogsRequestVersion
 
   try {
     const response = await getJobLogs(jobId)
-    if (diagnosticsJobId.value !== jobId) return
+    if (
+      diagnosticsJobId.value !== jobId ||
+      requestVersion !== jobLogsRequestVersion
+    ) {
+      return
+    }
     diagnosticsLogs.value = response.entries
     diagnosticsLogFilePath.value = response.log_file_path
   } catch (error) {
-    if (diagnosticsJobId.value !== jobId) return
+    if (
+      diagnosticsJobId.value !== jobId ||
+      requestVersion !== jobLogsRequestVersion
+    ) {
+      return
+    }
     diagnosticsError.value =
       error instanceof Error
         ? error.message
@@ -416,15 +433,26 @@ async function toggleLogs(jobId: string): Promise<void> {
 
 async function refreshOpenLogs(jobId: string): Promise<void> {
   if (diagnosticsJobId.value !== jobId) return
+  const requestVersion = ++jobLogsRequestVersion
 
   try {
     const response = await getJobLogs(jobId)
-    if (diagnosticsJobId.value !== jobId) return
+    if (
+      diagnosticsJobId.value !== jobId ||
+      requestVersion !== jobLogsRequestVersion
+    ) {
+      return
+    }
     diagnosticsLogs.value = response.entries
     diagnosticsLogFilePath.value = response.log_file_path
     diagnosticsError.value = null
   } catch (error) {
-    if (diagnosticsJobId.value !== jobId) return
+    if (
+      diagnosticsJobId.value !== jobId ||
+      requestVersion !== jobLogsRequestVersion
+    ) {
+      return
+    }
     diagnosticsError.value =
       error instanceof Error
         ? error.message
@@ -442,8 +470,7 @@ async function refreshJobAfterRun(jobId: string): Promise<void> {
     }
     elapsed = offset
 
-    await loadJobStatuses()
-    await refreshOpenLogs(jobId)
+    await refreshDashboardState()
   }
 }
 
@@ -453,21 +480,70 @@ async function loadJobStatuses(): Promise<void> {
     return
   }
 
+  const requestVersion = ++jobStatusRequestVersion
+
   try {
     const summaries = await getJobs()
+    if (requestVersion !== jobStatusRequestVersion) return
     const nextStatuses = Object.fromEntries(
       summaries.map((summary) => [summary.id, summary])
     ) as Record<string, JobStatusSummary>
     jobStatusById.value = nextStatuses
   } catch {
-    jobStatusById.value = {}
+    if (requestVersion !== jobStatusRequestVersion) return
   }
 }
+
+async function refreshDashboardState(): Promise<void> {
+  if (dashboardRefreshInFlight) {
+    dashboardRefreshQueued = true
+    return
+  }
+
+  dashboardRefreshInFlight = true
+
+  try {
+    await loadJobStatuses()
+    if (diagnosticsJobId.value) {
+      await refreshOpenLogs(diagnosticsJobId.value)
+    }
+  } finally {
+    dashboardRefreshInFlight = false
+    if (dashboardRefreshQueued) {
+      dashboardRefreshQueued = false
+      void refreshDashboardState()
+    }
+  }
+}
+
+function startDashboardRefreshLoop(): void {
+  if (dashboardRefreshTimer !== null) return
+
+  dashboardRefreshTimer = window.setInterval(() => {
+    void refreshDashboardState()
+  }, DASHBOARD_REFRESH_INTERVAL_MS)
+}
+
+function stopDashboardRefreshLoop(): void {
+  if (dashboardRefreshTimer === null) return
+
+  window.clearInterval(dashboardRefreshTimer)
+  dashboardRefreshTimer = null
+}
+
+onMounted(() => {
+  void refreshDashboardState()
+  startDashboardRefreshLoop()
+})
+
+onBeforeUnmount(() => {
+  stopDashboardRefreshLoop()
+})
 
 watch(
   () => jobs.value.map((job) => job.id).join('|'),
   () => {
-    void loadJobStatuses()
+    void refreshDashboardState()
   },
   { immediate: true }
 )

@@ -16,7 +16,7 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager, Runtime,
+    AppHandle, Manager, RunEvent, Runtime,
 };
 use tauri_plugin_autostart::ManagerExt as _;
 
@@ -110,12 +110,21 @@ pub fn run() {
         ])
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                let _ = window.hide();
+                hide_main_window(window.app_handle());
                 api.prevent_close();
             }
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            if let RunEvent::ExitRequested {
+                code: None, api, ..
+            } = event
+            {
+                hide_main_window(app_handle);
+                api.prevent_exit();
+            }
+        });
 }
 
 fn setup_tray(
@@ -124,8 +133,7 @@ fn setup_tray(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let show = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
     let hide = MenuItem::with_id(app, "hide", "Hide Window", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &hide, &quit])?;
+    let menu = Menu::with_items(app, &[&show, &hide])?;
 
     TrayIconBuilder::new()
         .icon(Image::from_bytes(TRAY_ICON_BYTES)?)
@@ -140,13 +148,7 @@ fn setup_tray(
                 }
             }
             "hide" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.hide();
-                }
-            }
-            "quit" => {
-                app.state::<AppState>().shutdown();
-                app.exit(0);
+                hide_main_window(app);
             }
             _ => {}
         })
@@ -177,6 +179,12 @@ fn setup_tray(
     }
 
     Ok(())
+}
+
+fn hide_main_window<R: Runtime>(app_handle: &AppHandle<R>) {
+    if let Some(window) = app_handle.get_webview_window("main") {
+        let _ = window.hide();
+    }
 }
 
 fn initialize_launch_at_login<R: Runtime>(app_handle: &tauri::AppHandle<R>) {

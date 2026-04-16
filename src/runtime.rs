@@ -68,10 +68,6 @@ impl AppState {
         tauri::async_runtime::block_on(self.inner.pipeline.initialize())
     }
 
-    pub fn shutdown(&self) {
-        tauri::async_runtime::block_on(self.inner.pipeline.shutdown());
-    }
-
     pub async fn shutdown_async(&self) {
         self.inner.pipeline.shutdown().await;
     }
@@ -240,7 +236,10 @@ pub fn resolve_config_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
         return Ok(candidate);
     }
 
-    let preferred_dir = preferred_user_data_dir(app_handle)?;
+    let preferred_dir = preferred_user_data_dir(
+        app_handle.path().app_data_dir().ok(),
+        app_handle.path().home_dir().ok(),
+    )?;
 
     migrate_legacy_config_dir(app_handle, &preferred_dir)?;
 
@@ -258,16 +257,23 @@ pub fn resolve_config_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     Err("Couldn't resolve an application data directory.".to_string())
 }
 
-fn preferred_user_data_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
-    if let Ok(document_dir) = app_handle.path().document_dir() {
-        return Ok(document_dir.join(active_app_directory_name()));
+fn preferred_user_data_dir(
+    app_data_dir: Option<PathBuf>,
+    home_dir: Option<PathBuf>,
+) -> Result<PathBuf, String> {
+    if let Some(app_data_dir) = app_data_dir {
+        return Ok(if cfg!(debug_assertions) {
+            app_data_dir.join("dev")
+        } else {
+            app_data_dir
+        });
     }
 
-    if let Ok(home_dir) = app_handle.path().home_dir() {
+    if let Some(home_dir) = home_dir {
         return Ok(home_dir.join(active_app_directory_name()));
     }
 
-    Err("Couldn't resolve a user-visible data directory.".to_string())
+    Err("Couldn't resolve an application data directory.".to_string())
 }
 
 fn try_create_dir(path: &Path) -> bool {
