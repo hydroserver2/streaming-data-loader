@@ -2,14 +2,14 @@ use super::{
     active_app_directory_name, copy_dir_contents, has_runtime_state, move_or_copy_dir_contents,
     preferred_user_data_dir, AppState, APP_DIRECTORY_NAME, DEV_APP_DIRECTORY_NAME,
 };
+use crate::models::{
+    AuthType, ColumnMapping, FileConfig, IdentifierType, JobUpsertRequest, ServerConfig,
+    TimestampConfig,
+};
 use std::{
     fs,
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
-};
-use crate::models::{
-    AuthType, ColumnMapping, FileConfig, IdentifierType, JobUpsertRequest, ServerConfig,
-    TimestampConfig,
 };
 
 #[test]
@@ -190,7 +190,9 @@ Timestamp,Stage_ft
         .config_store()
         .logs_for(&job.id, 10)
         .expect("load logs for job");
-    assert!(logs.iter().any(|entry| entry.message == "Initial run started"));
+    assert!(logs
+        .iter()
+        .any(|entry| entry.message == "Initial run started"));
 
     std::thread::sleep(std::time::Duration::from_millis(50));
     remove_temp_dir(&temp_root);

@@ -202,7 +202,11 @@ impl PipelineService {
             .scan_job(path.clone(), server, job, 0, ScanMode::FullResync)
             .await;
         if let Ok(row_count) = result {
-            self.inner.row_counts.lock().await.insert(path.clone(), row_count);
+            self.inner
+                .row_counts
+                .lock()
+                .await
+                .insert(path.clone(), row_count);
         }
         self.end_path_scan(&path).await;
         result.map(|_| ())

@@ -99,23 +99,6 @@ impl ConfigStore {
         Ok(config)
     }
 
-    pub fn mark_launch_at_login_initialized(&self) -> Result<bool, String> {
-        let _guard = self
-            .lock
-            .lock()
-            .map_err(|_| "Config lock poisoned.".to_string())?;
-        self.ensure_locked()?;
-
-        let mut config = self.read_config_locked()?;
-        if config.launch_at_login_initialized {
-            return Ok(false);
-        }
-
-        config.launch_at_login_initialized = true;
-        self.write_config_locked(&config)?;
-        Ok(true)
-    }
-
     pub fn list_jobs(&self) -> Result<Vec<JobConfig>, String> {
         Ok(self.load()?.jobs)
     }

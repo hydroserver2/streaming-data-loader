@@ -21,7 +21,7 @@
         "theme": "Dark",
         "titleBarStyle": "Transparent",
         "backgroundColor": "#2f3133",
-        "visible": false
+        "visible": true
       }
     ],
     "security": {

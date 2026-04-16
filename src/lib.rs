@@ -10,20 +10,9 @@ mod runtime;
 mod timestamp;
 mod uploader;
 
-use std::ffi::OsStr;
-
-use tauri::{
-    image::Image,
-    menu::{Menu, MenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Manager, RunEvent, Runtime,
-};
-use tauri_plugin_autostart::ManagerExt as _;
+use tauri::Manager;
 
 use runtime::{resolve_config_dir, AppState};
-
-const AUTOSTART_ARG: &str = "--autostart";
-const TRAY_ICON_BYTES: &[u8] = include_bytes!("../icons/tray-icon.png");
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -32,23 +21,13 @@ pub fn run() {
         .with_max_level(tracing::Level::INFO)
         .try_init();
 
-    let launched_via_autostart = launched_via_autostart();
-
     tauri::Builder::default()
-        .plugin(
-            tauri_plugin_autostart::Builder::new()
-                .arg(AUTOSTART_ARG)
-                .app_name(autostart_app_name())
-                .build(),
-        )
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
-        .setup(move |app| {
+        .setup(|app| {
             let state = AppState::new(resolve_config_dir(&app.handle())?)?;
             state.initialize()?;
             app.manage(state);
-            initialize_launch_at_login(&app.handle());
-            setup_tray(app, launched_via_autostart)?;
 
             // Graceful shutdown on SIGTERM / SIGINT so the uploader can drain
             // any queued observations before the process exits.
@@ -108,137 +87,7 @@ pub fn run() {
             commands::get_csv_preview,
             commands::reveal_file_in_folder,
         ])
-        .on_window_event(|window, event| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-                hide_main_window(window.app_handle());
-                api.prevent_close();
-            }
-        })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app_handle, event| {
-            if let RunEvent::ExitRequested {
-                code: None, api, ..
-            } = event
-            {
-                hide_main_window(app_handle);
-                api.prevent_exit();
-            }
-        });
+        .run(|_, _| {});
 }
-
-fn setup_tray(
-    app: &mut tauri::App,
-    launched_via_autostart: bool,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let show = MenuItem::with_id(app, "show", "Show Window", true, None::<&str>)?;
-    let hide = MenuItem::with_id(app, "hide", "Hide Window", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show, &hide])?;
-
-    TrayIconBuilder::new()
-        .icon(Image::from_bytes(TRAY_ICON_BYTES)?)
-        .icon_as_template(true)
-        .menu(&menu)
-        .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "show" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
-                }
-            }
-            "hide" => {
-                hide_main_window(app);
-            }
-            _ => {}
-        })
-        .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } = event
-            {
-                let app = tray.app_handle();
-                if let Some(window) = app.get_webview_window("main") {
-                    if window.is_visible().unwrap_or(false) {
-                        let _ = window.hide();
-                    } else {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
-                }
-            }
-        })
-        .build(app)?;
-
-    if !launched_via_autostart {
-        if let Some(window) = app.get_webview_window("main") {
-            let _ = window.show();
-        }
-    }
-
-    Ok(())
-}
-
-fn hide_main_window<R: Runtime>(app_handle: &AppHandle<R>) {
-    if let Some(window) = app_handle.get_webview_window("main") {
-        let _ = window.hide();
-    }
-}
-
-fn initialize_launch_at_login<R: Runtime>(app_handle: &tauri::AppHandle<R>) {
-    let should_initialize = match app_handle
-        .state::<AppState>()
-        .config_store()
-        .mark_launch_at_login_initialized()
-    {
-        Ok(value) => value,
-        Err(error) => {
-            tracing::warn!(error = %error, "failed to persist launch-at-login initialization");
-            false
-        }
-    };
-
-    if !should_initialize {
-        return;
-    }
-
-    let autostart_manager = app_handle.autolaunch();
-
-    match autostart_manager.is_enabled() {
-        Ok(true) => {}
-        Ok(false) => {
-            if let Err(error) = autostart_manager.enable() {
-                tracing::warn!(error = %error, "failed to enable launch at login on first launch");
-            }
-        }
-        Err(error) => {
-            tracing::warn!(error = %error, "failed to read launch-at-login status");
-        }
-    }
-}
-
-fn launched_via_autostart() -> bool {
-    has_launch_flag(std::env::args_os(), AUTOSTART_ARG)
-}
-
-fn has_launch_flag<I, S>(args: I, flag: &str) -> bool
-where
-    I: IntoIterator<Item = S>,
-    S: AsRef<OsStr>,
-{
-    args.into_iter().any(|arg| arg.as_ref() == OsStr::new(flag))
-}
-
-fn autostart_app_name() -> &'static str {
-    if cfg!(debug_assertions) {
-        "Streaming Data Loader Dev"
-    } else {
-        "Streaming Data Loader"
-    }
-}
-
-#[cfg(test)]
-#[path = "tests/lib.rs"]
-mod tests;
