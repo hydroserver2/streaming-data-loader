@@ -93,6 +93,9 @@ pub async fn create_job(
 ) -> Result<JobDetail, String> {
     let job = state.config_store().create_job(payload)?;
     let _ = state.append_log(&job.id, "Job created", crate::models::LogLevel::Info);
+    if job.enabled {
+        state.start_job_run(&job.id, "Initial run started")?;
+    }
     state.reload_pipeline().await?;
     state.build_job_detail(&job)
 }

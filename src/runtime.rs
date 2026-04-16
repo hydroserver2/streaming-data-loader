@@ -146,11 +146,21 @@ impl AppState {
     }
 
     pub fn run_job_now(&self, job_id: &str) -> Result<ActionResponse, String> {
-        if !self.mark_job_running(job_id) {
+        if !self.start_job_run(job_id, "Manual run started")? {
             return Ok(ActionResponse {
                 ok: true,
                 message: "Job is already running.".to_string(),
             });
+        }
+        Ok(ActionResponse {
+            ok: true,
+            message: "Job started.".to_string(),
+        })
+    }
+
+    pub(crate) fn start_job_run(&self, job_id: &str, start_message: &str) -> Result<bool, String> {
+        if !self.mark_job_running(job_id) {
+            return Ok(false);
         }
 
         let job_id = job_id.to_string();
@@ -164,11 +174,8 @@ impl AppState {
             state.clear_job_running(&task_job_id);
         });
 
-        self.append_log(&job_id, "Manual run started", LogLevel::Info)?;
-        Ok(ActionResponse {
-            ok: true,
-            message: "Job started.".to_string(),
-        })
+        self.append_log(&job_id, start_message, LogLevel::Info)?;
+        Ok(true)
     }
 
     pub fn append_log(
