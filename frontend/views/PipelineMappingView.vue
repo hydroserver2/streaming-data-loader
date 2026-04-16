@@ -387,8 +387,7 @@ watch(
       return
     }
 
-    activeCsvColumn.value =
-      rows.find((row) => row.datastreamId)?.csvColumn ?? ''
+    activeCsvColumn.value = ''
   },
   { immediate: true }
 )
