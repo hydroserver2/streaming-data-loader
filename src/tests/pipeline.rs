@@ -1356,6 +1356,99 @@ Timestamp,Stage_ft,WaterTemp_C
     let _ = std::fs::remove_dir_all(temp_dir);
 }
 
+#[tokio::test]
+async fn shared_file_scans_use_one_baseline_for_all_jobs() {
+    let temp_dir = temp_test_dir("shared-file-jobs");
+    let config_dir = temp_dir.join("config");
+    let csv_path = temp_dir.join("source.csv");
+
+    std::fs::write(
+        &csv_path,
+        "\
+Station,Example Creek
+Generated At,2026-04-03
+Timestamp,Stage_ft,WaterTemp_C
+2026-04-03 08:00:00,2.41,7.8
+2026-04-03 08:05:00,2.45,7.9
+",
+    )
+    .expect("write csv");
+
+    let config_store = Arc::new(ConfigStore::new(config_dir));
+    config_store.ensure().expect("ensure config store");
+    let server = sample_server("http://127.0.0.1:9".to_string());
+    config_store
+        .set_server(server.clone(), "Test Workspace")
+        .expect("set server");
+
+    let first_job = config_store
+        .create_job(sample_job_request(csv_path.to_str().expect("utf-8 path")))
+        .expect("create first job");
+
+    let mut second_request = sample_job_request(csv_path.to_str().expect("utf-8 path"));
+    second_request.name = "Second job".to_string();
+    second_request.column_mappings = vec![ColumnMapping {
+        csv_column: "WaterTemp_C".to_string(),
+        datastream_id: "ds-2".to_string(),
+        datastream_name: "WaterTemp".to_string(),
+    }];
+    let second_job = config_store
+        .create_job(second_request)
+        .expect("create second job");
+
+    let runtime = PipelineService::new(
+        config_store,
+        Arc::new(HydroServerService::new().expect("hydroserver service")),
+    );
+    let normalized_path = normalize_watched_path(&csv_path);
+
+    runtime
+        .inner
+        .row_counts
+        .lock()
+        .await
+        .insert(normalized_path.clone(), 4);
+
+    let first_result = runtime
+        .scan_job(
+            normalized_path.clone(),
+            Arc::new(server.clone()),
+            first_job,
+            4,
+            ScanMode::Incremental,
+        )
+        .await
+        .expect("scan first job");
+    assert_eq!(first_result, 5);
+
+    let second_result = runtime
+        .scan_job(
+            normalized_path.clone(),
+            Arc::new(server),
+            second_job,
+            4,
+            ScanMode::Incremental,
+        )
+        .await
+        .expect("scan second job");
+    assert_eq!(second_result, 5);
+
+    let shared_row_count = runtime
+        .inner
+        .row_counts
+        .lock()
+        .await
+        .get(&normalized_path)
+        .copied();
+    assert_eq!(
+        shared_row_count,
+        Some(4),
+        "per-job scans should not advance the shared file baseline until the whole path scan completes"
+    );
+
+    let _ = std::fs::remove_dir_all(temp_dir);
+}
+
 /// Fix #2: When the previous upload failed (cursor.last_error is set), the
 /// scan must backtrack to cursor.last_pushed_row_index and retry the failed
 /// rows, even if previous_row_count (in-memory) is already past them.

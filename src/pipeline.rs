@@ -199,11 +199,13 @@ impl PipelineService {
             .insert(path.clone(), Instant::now());
 
         let result = self
-            .scan_job(path.clone(), server, job, ScanMode::FullResync)
-            .await
-            .map(|_| ());
+            .scan_job(path.clone(), server, job, 0, ScanMode::FullResync)
+            .await;
+        if let Ok(row_count) = result {
+            self.inner.row_counts.lock().await.insert(path.clone(), row_count);
+        }
         self.end_path_scan(&path).await;
-        result
+        result.map(|_| ())
     }
 
     fn start_background_tasks(&self) {
@@ -398,7 +400,13 @@ impl PipelineService {
             let mut latest_row_count = previous_row_count;
             for job in jobs {
                 match self
-                    .scan_job(path.clone(), server.clone(), job, ScanMode::Incremental)
+                    .scan_job(
+                        path.clone(),
+                        server.clone(),
+                        job,
+                        previous_row_count,
+                        ScanMode::Incremental,
+                    )
                     .await
                 {
                     Ok(row_count) => {
@@ -427,15 +435,12 @@ impl PipelineService {
 
     async fn scan_job(
         &self,
-        path: PathBuf,
+        _path: PathBuf,
         server: Arc<ServerConfig>,
         job: JobConfig,
+        previous_row_count: usize,
         mode: ScanMode,
     ) -> Result<usize, String> {
-        let previous_row_count = {
-            let row_counts = self.inner.row_counts.lock().await;
-            row_counts.get(&path).copied().unwrap_or_default()
-        };
         let cursor = self.load_cursor(&job.id).await?;
         let job_for_scan = job.clone();
 
@@ -464,11 +469,6 @@ impl PipelineService {
                 )
                 .await?;
             }
-            self.inner
-                .row_counts
-                .lock()
-                .await
-                .insert(path, result.file_row_count);
             return Ok(result.file_row_count);
         }
 
@@ -501,12 +501,6 @@ impl PipelineService {
             file = %job.file_path,
             "queued observations from watched CSV file"
         );
-
-        self.inner
-            .row_counts
-            .lock()
-            .await
-            .insert(path, result.file_row_count);
 
         Ok(result.file_row_count)
     }
