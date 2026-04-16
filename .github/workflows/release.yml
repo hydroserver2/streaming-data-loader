@@ -127,6 +127,6 @@ jobs:
         with:
           releaseId: ${{ github.event.release.id }}
           tagName: ${{ github.event.release.tag_name }}
-          releaseAssetNamePattern: ${{ matrix.release_asset_name_pattern }}
+          assetNamePattern: ${{ matrix.release_asset_name_pattern }}
           projectPath: .
           args: ${{ matrix.bundle_args }}
