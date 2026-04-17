@@ -33,19 +33,16 @@ export async function refreshServiceStatus(): Promise<ServiceStatusResponse | nu
 }
 
 async function runServiceAction(
-  action: () => Promise<ServiceStatusResponse>,
-  successMessage: string
+  action: () => Promise<ServiceStatusResponse>
 ): Promise<void> {
   if (state.serviceActionSubmitting) return
 
   state.serviceActionSubmitting = true
   state.serviceActionError = null
-  state.serviceActionNotice = null
 
   try {
     const status = await action()
     state.serviceStatus = status
-    state.serviceActionNotice = successMessage
 
     if (!isServiceReady(status)) {
       navigate("service")
@@ -59,22 +56,13 @@ async function runServiceAction(
 }
 
 export async function installBackgroundService(): Promise<void> {
-  await runServiceAction(
-    () => installOsService(),
-    "The background service is installed and ready."
-  )
+  await runServiceAction(() => installOsService())
 }
 
 export async function restartBackgroundService(): Promise<void> {
-  await runServiceAction(
-    () => restartOsService(),
-    "The background service was restarted."
-  )
+  await runServiceAction(() => restartOsService())
 }
 
 export async function uninstallBackgroundService(): Promise<void> {
-  await runServiceAction(
-    () => uninstallOsService(),
-    "The background service was uninstalled."
-  )
+  await runServiceAction(() => uninstallOsService())
 }

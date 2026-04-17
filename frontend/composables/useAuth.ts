@@ -155,7 +155,6 @@ export async function disconnectHydroServer(): Promise<void> {
     state.authDraft = emptyServerConfig()
     state.connectionSummary = null
     state.serviceStatus = null
-    state.serviceActionNotice = null
     state.serviceActionError = null
     state.lastConnectionState = "not_configured"
     state.pipelineForm = createEmptyPipelineForm()

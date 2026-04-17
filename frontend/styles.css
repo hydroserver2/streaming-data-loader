@@ -286,16 +286,17 @@
     @apply mt-4 max-w-3xl text-sm leading-7 text-slate-300;
   }
 
-  .service-status-grid {
-    @apply mt-6 grid gap-3 md:grid-cols-2;
-  }
-
-  .service-status-copy {
-    @apply mt-4;
-  }
-
   .service-actions {
-    @apply mt-6 flex flex-wrap items-center gap-3;
+    @apply mt-6 flex flex-wrap items-center justify-end gap-3;
+  }
+
+  .service-primary-button {
+    @apply min-w-[16rem];
+  }
+
+  .service-button-spinner {
+    @apply inline-block h-4 w-4 rounded-full border-2 border-white/30 border-t-white;
+    animation: loaderSpin 800ms linear infinite;
   }
 
   .service-shell.page-shell {

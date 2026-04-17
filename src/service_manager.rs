@@ -40,7 +40,7 @@ pub fn get_service_status(app_handle: &AppHandle) -> Result<ServiceStatusRespons
     let running = installed && (launchctl_running || process_running);
 
     let status_message = match (installed, running) {
-        (false, _) => "The background service has not been installed yet.".to_string(),
+        (false, _) => String::new(),
         (true, true) => {
             "The background service is installed and running. It will persist app closure and user logout."
                 .to_string()

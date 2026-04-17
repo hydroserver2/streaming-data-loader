@@ -69,7 +69,6 @@ type UiState = {
   serviceStatus: ServiceStatusResponse | null;
   serviceStatusLoading: boolean;
   serviceActionSubmitting: boolean;
-  serviceActionNotice: string | null;
   serviceActionError: string | null;
   loading: boolean;
   lastConnectionState: ConnectionState | null;
@@ -135,7 +134,6 @@ export const state = reactive<UiState>({
   serviceStatus: null,
   serviceStatusLoading: false,
   serviceActionSubmitting: false,
-  serviceActionNotice: null,
   serviceActionError: null,
   loading: true,
   lastConnectionState: null,
