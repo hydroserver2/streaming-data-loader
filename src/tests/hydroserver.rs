@@ -74,3 +74,78 @@ fn request_error_retryable_classification() {
     .is_retryable());
     assert!(!RequestError::Other("misc".to_string()).is_retryable());
 }
+
+fn server_with_workspace(workspace_id: &str) -> ServerConfig {
+    ServerConfig {
+        auth_type: AuthType::Apikey,
+        url: "https://example.com".to_string(),
+        api_key: "test-key".to_string(),
+        workspace_id: workspace_id.to_string(),
+        workspace_name: String::new(),
+        ..ServerConfig::default()
+    }
+}
+
+/// bug_008: When a persisted API key can no longer access the saved
+/// workspace (e.g., key rotated to a different workspace), we must surface an
+/// error instead of silently picking a different workspace from the list.
+#[test]
+fn resolve_api_key_workspace_errors_when_saved_workspace_is_unreachable() {
+    let server = server_with_workspace("workspace-saved");
+    let accessible = vec![
+        ("workspace-a".to_string(), "Workspace A".to_string()),
+        ("workspace-b".to_string(), "Workspace B".to_string()),
+    ];
+
+    let result = resolve_api_key_workspace(&server, &accessible);
+    let (field, message) = result.expect_err("should error when saved workspace is missing");
+    assert_eq!(field, "api_key");
+    assert!(
+        message.contains("does not have access"),
+        "message should explain the key lost access, got: {message}"
+    );
+}
+
+#[test]
+fn resolve_api_key_workspace_returns_saved_workspace_when_accessible() {
+    let server = server_with_workspace("workspace-saved");
+    let accessible = vec![
+        ("workspace-a".to_string(), "Workspace A".to_string()),
+        ("workspace-saved".to_string(), "Saved Workspace".to_string()),
+    ];
+
+    let (id, name) = resolve_api_key_workspace(&server, &accessible)
+        .expect("should succeed")
+        .expect("should return saved workspace");
+    assert_eq!(id, "workspace-saved");
+    assert_eq!(name, "Saved Workspace");
+}
+
+#[test]
+fn resolve_api_key_workspace_picks_first_when_none_saved() {
+    let server = server_with_workspace("");
+    let accessible = vec![
+        ("workspace-a".to_string(), "Workspace A".to_string()),
+        ("workspace-b".to_string(), "Workspace B".to_string()),
+    ];
+
+    let (id, _) = resolve_api_key_workspace(&server, &accessible)
+        .expect("should succeed")
+        .expect("should return first workspace");
+    assert_eq!(
+        id, "workspace-a",
+        "initial connection defaults to the first accessible workspace"
+    );
+}
+
+#[test]
+fn resolve_api_key_workspace_returns_none_when_no_workspaces_accessible() {
+    let server = server_with_workspace("workspace-saved");
+    let empty: Vec<(String, String)> = Vec::new();
+
+    let result = resolve_api_key_workspace(&server, &empty).expect("empty list is not an error");
+    assert!(
+        result.is_none(),
+        "no accessible workspaces should produce None (test_connection surfaces the key-level error)"
+    );
+}

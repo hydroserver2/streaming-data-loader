@@ -269,31 +269,6 @@ impl ConfigStore {
             .unwrap_or_default())
     }
 
-    pub fn update_cursor(&self, job_id: &str, cursor: JobCursor) -> Result<JobCursor, String> {
-        let _guard = self
-            .lock
-            .lock()
-            .map_err(|_| "Config lock poisoned.".to_string())?;
-        self.ensure_locked()?;
-        let mut workspace = self.require_active_workspace_locked()?;
-
-        for datasource in &mut workspace.datasources {
-            if datasource.id != job_id {
-                continue;
-            }
-            datasource.last_pushed_timestamp = cursor.last_pushed_timestamp;
-            datasource.last_pushed_row_index = cursor.last_pushed_row_index;
-            datasource.last_run_at = cursor.last_run_at;
-            datasource.last_error = cursor.last_error.clone();
-            datasource.is_running = cursor.is_running;
-            datasource.datastream_cursors = cursor.datastream_cursors.clone();
-            self.write_workspace_locked(&workspace)?;
-            return Ok(cursor);
-        }
-
-        Ok(cursor)
-    }
-
     /// Atomically record a successful batch upload for a specific datastream.
     /// Advances the datastream's cursor, clears its error, and recomputes the
     /// job-level aggregates from the surviving datastreams.
@@ -339,6 +314,39 @@ impl ConfigStore {
 
             datasource.last_run_at = Some(last_run_at);
             recompute_job_aggregates(datasource);
+            self.write_workspace_locked(&workspace)?;
+            return Ok(());
+        }
+
+        Ok(())
+    }
+
+    /// Atomically clear the job-level `last_error` and update `last_run_at`.
+    /// Used by the scanner after a successful scan iteration.  Taking the
+    /// config lock for the entire read-modify-write means a concurrent
+    /// `set_job_running` can't be clobbered between a separate read and write
+    /// (bug_004).
+    pub fn clear_last_error(
+        &self,
+        job_id: &str,
+        last_run_at: DateTime<Utc>,
+    ) -> Result<(), String> {
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|_| "Config lock poisoned.".to_string())?;
+        self.ensure_locked()?;
+        let Some(mut workspace) = self.load_active_workspace_locked()? else {
+            return Ok(());
+        };
+
+        for datasource in &mut workspace.datasources {
+            if datasource.id != job_id {
+                continue;
+            }
+
+            datasource.last_error = None;
+            datasource.last_run_at = Some(last_run_at);
             self.write_workspace_locked(&workspace)?;
             return Ok(());
         }

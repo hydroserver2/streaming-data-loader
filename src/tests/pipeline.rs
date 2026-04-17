@@ -1325,27 +1325,8 @@ Timestamp,Stage_ft,WaterTemp_C
         .and_hms_opt(8, 5, 0)
         .unwrap()
         .and_utc();
-    let mut persisted_datastream_cursors = std::collections::HashMap::new();
-    persisted_datastream_cursors.insert(
-        "ds-1".to_string(),
-        crate::models::DatastreamCursor {
-            last_pushed_timestamp: Some(persisted_ts),
-            last_pushed_row_index: Some(5),
-            last_error: None,
-        },
-    );
     config_store
-        .update_cursor(
-            &job.id,
-            JobCursor {
-                last_pushed_timestamp: Some(persisted_ts),
-                last_pushed_row_index: Some(5),
-                last_run_at: Some(Utc::now()),
-                last_error: None,
-                is_running: false,
-                datastream_cursors: persisted_datastream_cursors,
-            },
-        )
+        .record_datastream_success(&job.id, "ds-1", 5, persisted_ts, Utc::now())
         .expect("persist cursor");
 
     std::fs::write(

@@ -488,6 +488,72 @@ fn record_datastream_failure_preserves_sibling_progress() {
     remove_temp_dir(&temp_dir);
 }
 
+/// bug_004: clear_last_error must not clobber is_running. Previously the
+/// pipeline did a separate cursor_for + update_cursor, and a concurrent
+/// set_job_running(true) landing between the two would be overwritten by the
+/// subsequent write of the stale is_running=false value.
+#[test]
+fn clear_last_error_does_not_clobber_concurrently_set_is_running() {
+    let temp_dir = unique_temp_dir("config-store-clear-error-race");
+    let store = ConfigStore::new(temp_dir.clone());
+    store.ensure().expect("ensure store");
+    store
+        .set_server(
+            ServerConfig {
+                url: "https://example.com".to_string(),
+                workspace_id: "workspace-race".to_string(),
+                workspace_name: "Race".to_string(),
+                ..ServerConfig::default()
+            },
+            "Race",
+        )
+        .expect("set server");
+
+    let job = store
+        .create_job(JobUpsertRequest {
+            name: "Race job".to_string(),
+            enabled: true,
+            file_path: "/tmp/race.csv".to_string(),
+            schedule_minutes: 15,
+            file_config: FileConfig::default(),
+            column_mappings: Vec::new(),
+        })
+        .expect("create job");
+
+    // Seed a job-level error and mark the job as running.
+    store
+        .record_datastream_failure(&job.id, "ds-x", "transient error", Utc::now())
+        .expect("record failure");
+    store
+        .set_job_running(&job.id, true)
+        .expect("set job running");
+    assert!(
+        store.cursor_for(&job.id).expect("cursor").is_running,
+        "precondition: job should be running"
+    );
+
+    // Clear the last error. Must leave is_running untouched.
+    store
+        .clear_last_error(&job.id, Utc::now())
+        .expect("clear error");
+
+    let cursor = store.cursor_for(&job.id).expect("cursor after clear");
+    assert!(
+        cursor.is_running,
+        "is_running must survive clear_last_error (bug_004)"
+    );
+    assert!(
+        cursor.last_error.is_none(),
+        "job-level last_error should be cleared"
+    );
+    assert!(
+        cursor.last_run_at.is_some(),
+        "last_run_at should be updated to mark the retry attempt"
+    );
+
+    remove_temp_dir(&temp_dir);
+}
+
 fn unique_temp_dir(label: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

@@ -898,13 +898,27 @@ fn resolve_api_key_workspace(
         return Ok(None);
     }
 
-    if let Some(workspace) = workspaces
-        .iter()
-        .find(|(id, _)| !server.workspace_id.trim().is_empty() && id == server.workspace_id.trim())
-    {
-        return Ok(Some(workspace.clone()));
+    // If the user previously saved a workspace, require that the current API
+    // key still has access to it. Without this check, rotating the key to one
+    // attached to a different workspace would silently redirect uploads to
+    // that other workspace (bug_008).
+    let requested_workspace_id = server.workspace_id.trim();
+    if !requested_workspace_id.is_empty() {
+        return workspaces
+            .iter()
+            .find(|(id, _)| id == requested_workspace_id)
+            .cloned()
+            .map(Some)
+            .ok_or_else(|| {
+                (
+                    "api_key",
+                    "This API key does not have access to the saved workspace. The key may have been rotated or its permissions changed. Re-select a workspace this key can access.".to_string(),
+                )
+            });
     }
 
+    // No saved workspace — this is the initial connection. Pick the first
+    // accessible one so the UI can offer it as the default.
     Ok(workspaces.first().cloned())
 }
 

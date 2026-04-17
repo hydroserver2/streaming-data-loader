@@ -504,23 +504,9 @@ impl PipelineService {
     async fn clear_last_error(&self, job_id: &str) -> Result<(), String> {
         let config_store = self.inner.config_store.clone();
         let job_id = job_id.to_string();
-        tokio::task::spawn_blocking(move || {
-            let existing = config_store.cursor_for(&job_id)?;
-            config_store.update_cursor(
-                &job_id,
-                JobCursor {
-                    last_run_at: Some(Utc::now()),
-                    last_pushed_timestamp: existing.last_pushed_timestamp,
-                    last_pushed_row_index: existing.last_pushed_row_index,
-                    last_error: None,
-                    is_running: existing.is_running,
-                    datastream_cursors: existing.datastream_cursors,
-                },
-            )?;
-            Ok::<(), String>(())
-        })
-        .await
-        .map_err(|err| err.to_string())?
+        tokio::task::spawn_blocking(move || config_store.clear_last_error(&job_id, Utc::now()))
+            .await
+            .map_err(|err| err.to_string())?
     }
 
     async fn set_job_running(&self, job_id: &str, is_running: bool) -> Result<(), String> {
