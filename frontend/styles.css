@@ -250,12 +250,68 @@
     @apply pt-0 md:shrink-0 md:justify-end;
   }
 
+  .header-utility-buttons {
+    @apply flex items-center gap-3;
+  }
+
   .wizard-nav-button {
     @apply whitespace-nowrap;
   }
 
   .wizard-nav-glyph {
     @apply text-[0.75rem] font-semibold tracking-[-0.02em];
+  }
+
+  .service-layout {
+    @apply flex max-w-[44rem] flex-col gap-10 pt-6;
+  }
+
+  .service-card {
+    @apply border-0 bg-transparent p-0 shadow-none;
+  }
+
+  .service-card-muted {
+    @apply bg-transparent;
+  }
+
+  .service-title {
+    @apply mt-3 max-w-3xl;
+  }
+
+  .service-subtitle {
+    @apply mt-3 text-xl font-semibold text-slate-100;
+  }
+
+  .service-copy {
+    @apply mt-4 max-w-3xl text-sm leading-7 text-slate-300;
+  }
+
+  .service-status-grid {
+    @apply mt-6 grid gap-3 md:grid-cols-2;
+  }
+
+  .service-status-copy {
+    @apply mt-4;
+  }
+
+  .service-actions {
+    @apply mt-6 flex flex-wrap items-center gap-3;
+  }
+
+  .service-shell.page-shell {
+    @apply max-w-6xl px-8 pt-28 md:pt-24;
+  }
+
+  .service-shell .notice-info {
+    @apply bg-sky-950/40 text-sky-200;
+  }
+
+  .service-shell .notice-success {
+    @apply bg-emerald-950/40 text-emerald-200;
+  }
+
+  .service-shell .notice-error {
+    @apply bg-red-950/40 text-red-200;
   }
 
   .wizard-step-label {

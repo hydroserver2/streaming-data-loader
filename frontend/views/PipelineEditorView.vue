@@ -3,7 +3,7 @@ import { computed, ref, watch } from "vue";
 
 import type { PipelineFieldName } from "../pipeline-submit";
 
-import AccountMenuButton from "../components/AccountMenuButton.vue";
+import HeaderControls from "../components/HeaderControls.vue";
 import CsvPreview from "../components/CsvPreview.vue";
 import { useAppModel } from "../composables/useAppModel";
 
@@ -127,7 +127,7 @@ function goToSetupStep(): void {
             <span>Validate and Continue</span>
             <span class="wizard-nav-glyph" aria-hidden="true">→</span>
           </button>
-          <AccountMenuButton />
+          <HeaderControls />
         </div>
       </div>
     </header>

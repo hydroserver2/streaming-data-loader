@@ -13,7 +13,7 @@ import {
   type DatastreamDetail,
   type DatastreamSummary,
 } from '../api'
-import AccountMenuButton from '../components/AccountMenuButton.vue'
+import HeaderControls from '../components/HeaderControls.vue'
 import AnimatedLoadingIcon from '../components/AnimatedLoadingIcon.vue'
 import type {
   MappingDatastreamBrowserEntry,
@@ -722,7 +722,7 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
           >
             {{ createButtonLabel }}
           </button>
-          <AccountMenuButton />
+          <HeaderControls />
         </div>
       </div>
     </header>

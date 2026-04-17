@@ -24,6 +24,10 @@ pub fn resolve_shared_service_config_dir() -> Result<PathBuf, String> {
         return Ok(candidate);
     }
 
+    default_shared_service_config_dir()
+}
+
+pub fn default_shared_service_config_dir() -> Result<PathBuf, String> {
     #[cfg(target_os = "macos")]
     {
         let candidate = PathBuf::from("/Users/Shared").join(active_app_directory_name());

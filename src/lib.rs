@@ -7,6 +7,7 @@ mod models;
 mod observation_queue;
 mod pipeline;
 mod runtime;
+mod service_manager;
 mod service_paths;
 mod service_runtime;
 mod timestamp;
@@ -35,6 +36,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_health,
+            commands::get_service_status,
             commands::get_config,
             commands::update_server_config,
             commands::clear_server_config,
@@ -49,6 +51,9 @@ pub fn run() {
             commands::enable_job,
             commands::disable_job,
             commands::get_job_logs,
+            commands::install_os_service,
+            commands::restart_os_service,
+            commands::uninstall_os_service,
             commands::get_datastreams,
             commands::get_datastream_detail,
             commands::get_csv_preview,

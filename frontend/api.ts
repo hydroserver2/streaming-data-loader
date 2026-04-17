@@ -33,6 +33,16 @@ export interface HealthResponse {
   connection: ConnectionStatus
 }
 
+export interface ServiceStatusResponse {
+  supported: boolean
+  installed: boolean
+  running: boolean
+  label: string
+  plist_path: string
+  executable_path: string
+  status_message: string
+}
+
 export interface ConnectionTestResponse {
   ok: boolean
   state: ConnectionState
@@ -346,6 +356,16 @@ export function getHealth(): Promise<HealthResponse> {
   return request<HealthResponse>("/health")
 }
 
+export function getServiceStatus(): Promise<ServiceStatusResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<ServiceStatusResponse>("get_service_status")
+  }
+
+  return Promise.reject(
+    new Error("Background service management is only available in the desktop app.")
+  )
+}
+
 export function getConfig(): Promise<AppConfig> {
   if (isTauriRuntime()) {
     return invokeCommand<AppConfig>("get_config")
@@ -512,4 +532,34 @@ export function disableJob(jobId: string): Promise<ActionResponse> {
   return request<ActionResponse>(`/jobs/${encodeURIComponent(jobId)}/disable`, {
     method: "POST",
   })
+}
+
+export function installOsService(): Promise<ServiceStatusResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<ServiceStatusResponse>("install_os_service")
+  }
+
+  return Promise.reject(
+    new Error("Background service management is only available in the desktop app.")
+  )
+}
+
+export function restartOsService(): Promise<ServiceStatusResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<ServiceStatusResponse>("restart_os_service")
+  }
+
+  return Promise.reject(
+    new Error("Background service management is only available in the desktop app.")
+  )
+}
+
+export function uninstallOsService(): Promise<ServiceStatusResponse> {
+  if (isTauriRuntime()) {
+    return invokeCommand<ServiceStatusResponse>("uninstall_os_service")
+  }
+
+  return Promise.reject(
+    new Error("Background service management is only available in the desktop app.")
+  )
 }

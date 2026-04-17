@@ -1,16 +1,22 @@
 use std::{path::Path, process::Command};
 
-use tauri::State;
+use tauri::{AppHandle, State};
 
 use crate::{
     csv_preview::preview_csv,
     models::{
         ActionResponse, AppConfig, ConnectionTestResponse, CsvPreviewResponse, DatastreamDetail,
         DatastreamSummary, HealthResponse, JobDetail, JobLogsResponse, JobStatusSummary,
-        JobUpsertRequest, ServerConfig, ServerUrlValidationResponse,
+        JobUpsertRequest, ServerConfig, ServerUrlValidationResponse, ServiceStatusResponse,
     },
     runtime::AppState,
+    service_manager,
 };
+
+#[tauri::command]
+pub fn get_service_status(app: AppHandle) -> Result<ServiceStatusResponse, String> {
+    service_manager::get_service_status(&app)
+}
 
 #[tauri::command]
 pub fn get_health(state: State<'_, AppState>) -> Result<HealthResponse, String> {
@@ -176,6 +182,21 @@ pub fn get_job_logs(job_id: String, state: State<'_, AppState>) -> Result<JobLog
             .job_log_file_path(&job_id)?
             .map(|path| path.to_string_lossy().into_owned()),
     })
+}
+
+#[tauri::command]
+pub fn install_os_service(app: AppHandle) -> Result<ServiceStatusResponse, String> {
+    service_manager::install_service(&app)
+}
+
+#[tauri::command]
+pub fn restart_os_service(app: AppHandle) -> Result<ServiceStatusResponse, String> {
+    service_manager::restart_service(&app)
+}
+
+#[tauri::command]
+pub fn uninstall_os_service(app: AppHandle) -> Result<ServiceStatusResponse, String> {
+    service_manager::uninstall_service(&app)
 }
 
 #[tauri::command]

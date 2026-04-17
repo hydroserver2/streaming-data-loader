@@ -14,7 +14,7 @@ import {
   type JobStatus,
   type JobStatusSummary,
 } from '../api'
-import AccountMenuButton from '../components/AccountMenuButton.vue'
+import HeaderControls from '../components/HeaderControls.vue'
 import { useAppModel } from '../composables/useAppModel'
 import { navigate } from '../router'
 
@@ -568,7 +568,7 @@ watch(
           >
             + Add Data Source
           </button>
-          <AccountMenuButton />
+          <HeaderControls />
         </div>
       </div>
     </header>

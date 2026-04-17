@@ -22,6 +22,7 @@ import {
   PREVIEW_PAGE_SIZE,
   state,
 } from "./state"
+import { refreshServiceStatus } from "./useService"
 
 export function serverConfigured(server: ServerConfig | null | undefined): boolean {
   if (!server?.url.trim()) return false
@@ -136,6 +137,7 @@ export async function submitAuthConfig(
         state.config = await updateServerConfig(payload)
         state.authDraft = { ...emptyServerConfig(), ...state.config.server }
         await syncAuthenticationStatus(state.config.server)
+        await refreshServiceStatus()
         if (formId === "welcome-form") {
           navigate(state.config.jobs.length > 0 ? "dashboard" : "jobs-new")
         }
@@ -152,6 +154,9 @@ export async function disconnectHydroServer(): Promise<void> {
     state.config = await clearServerConfig()
     state.authDraft = emptyServerConfig()
     state.connectionSummary = null
+    state.serviceStatus = null
+    state.serviceActionNotice = null
+    state.serviceActionError = null
     state.lastConnectionState = "not_configured"
     state.pipelineForm = createEmptyPipelineForm()
     state.pipelinePreview = null

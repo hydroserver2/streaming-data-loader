@@ -20,6 +20,7 @@ import type {
   CsvTransformerSettings,
   CsvTransformerTimestampSettings,
   HealthResponse,
+  ServiceStatusResponse,
   ServerConfig,
 } from "../api";
 
@@ -65,6 +66,11 @@ type UiState = {
   health: HealthResponse | null;
   config: AppConfig | null;
   connectionSummary: ConnectionTestResponse | null;
+  serviceStatus: ServiceStatusResponse | null;
+  serviceStatusLoading: boolean;
+  serviceActionSubmitting: boolean;
+  serviceActionNotice: string | null;
+  serviceActionError: string | null;
   loading: boolean;
   lastConnectionState: ConnectionState | null;
   pipelineForm: PipelineFormState;
@@ -126,6 +132,11 @@ export const state = reactive<UiState>({
   health: null,
   config: null,
   connectionSummary: null,
+  serviceStatus: null,
+  serviceStatusLoading: false,
+  serviceActionSubmitting: false,
+  serviceActionNotice: null,
+  serviceActionError: null,
   loading: true,
   lastConnectionState: null,
   pipelineForm: createEmptyPipelineForm(),

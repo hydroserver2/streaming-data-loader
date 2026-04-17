@@ -659,6 +659,24 @@ pub struct ActionResponse {
     pub message: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ServiceStatusResponse {
+    #[serde(default = "default_true")]
+    pub supported: bool,
+    #[serde(default)]
+    pub installed: bool,
+    #[serde(default)]
+    pub running: bool,
+    #[serde(default)]
+    pub label: String,
+    #[serde(default)]
+    pub plist_path: String,
+    #[serde(default)]
+    pub executable_path: String,
+    #[serde(default)]
+    pub status_message: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct DatastreamSummary {
     pub id: String,

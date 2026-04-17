@@ -1,6 +1,6 @@
 import { computed, watch } from "vue"
 
-import { getConfig, getHealth } from "../api"
+import { getConfig, getHealth, getServiceStatus } from "../api"
 import { getRouteFromHash, navigate } from "../router"
 import {
   state,
@@ -11,6 +11,13 @@ import {
   PREVIEW_PAGE_SIZE,
 } from "./state"
 import { syncAuthenticationStatus, serverConfigured } from "./useAuth"
+import {
+  installBackgroundService,
+  isServiceReady,
+  refreshServiceStatus,
+  restartBackgroundService,
+  uninstallBackgroundService,
+} from "./useService"
 import type { AppRoute } from "../router"
 
 export { APP_NAME, API_KEY_DOCS_URL, PREVIEW_PAGE_INCREMENT, PREVIEW_PAGE_SIZE }
@@ -18,6 +25,7 @@ export type { PreviewSelectionTarget, PreviewRowSelectionTarget } from "./state"
 
 export * from "./useAuth"
 export * from "./usePipeline"
+export * from "./useService"
 
 const isConnected = computed(
   () => state.connectionSummary?.ok === true && state.lastConnectionState === "connected"
@@ -31,15 +39,20 @@ export function resolveAuthenticatedRoute(params: {
   route: AppRoute
   hasSavedDatasources: boolean
   pipelineReadyForMapping: boolean
+  serviceReady: boolean
 }): AppRoute {
-  const { route, hasSavedDatasources, pipelineReadyForMapping } = params
+  const { route, hasSavedDatasources, pipelineReadyForMapping, serviceReady } = params
   const fallbackRoute: AppRoute = hasSavedDatasources ? "dashboard" : "jobs-new"
+
+  if (!serviceReady) {
+    return "service"
+  }
 
   if (route === "jobs-new-mapping" && !pipelineReadyForMapping) {
     return fallbackRoute
   }
 
-  if (route === "welcome") {
+  if (route === "welcome" || route === "service") {
     return fallbackRoute
   }
 
@@ -72,6 +85,7 @@ function syncRouteState(): void {
         route,
         hasSavedDatasources: hasSavedDatasources.value,
         pipelineReadyForMapping: state.pipelineReadyForMapping,
+        serviceReady: isServiceReady(state.serviceStatus),
       })
       if (nextRoute !== route) {
         navigate(nextRoute)
@@ -89,6 +103,8 @@ watch(
     hasSavedDatasources,
     () => state.loading,
     () => state.pipelineReadyForMapping,
+    () => state.serviceStatus?.installed,
+    () => state.serviceStatus?.running,
   ],
   syncRouteState
 )
@@ -98,6 +114,7 @@ export const useWelcomeSurface = computed(
     Boolean(
       state.loading ||
         state.route === "welcome" ||
+        state.route === "service" ||
         state.route === "dashboard" ||
         state.route === "jobs-new" ||
         state.route === "jobs-new-mapping"
@@ -128,8 +145,12 @@ async function loadInitialState() {
   let lastError: unknown = null
   for (let attempt = 1; attempt <= STARTUP_RETRY_ATTEMPTS; attempt++) {
     try {
-      const [health, config] = await Promise.all([getHealth(), getConfig()])
-      return { health, config }
+      const [health, config, serviceStatus] = await Promise.all([
+        getHealth(),
+        getConfig(),
+        getServiceStatus(),
+      ])
+      return { health, config, serviceStatus }
     } catch (error) {
       lastError = error
       if (attempt === STARTUP_RETRY_ATTEMPTS || !isTransientError(error)) throw error
@@ -144,9 +165,10 @@ export async function bootstrap(): Promise<void> {
   syncRouteState()
 
   try {
-    const { health, config } = await loadInitialState()
+    const { health, config, serviceStatus } = await loadInitialState()
     state.health = health
     state.config = config
+    state.serviceStatus = serviceStatus
     state.authDraft = { ...emptyServerConfig(), ...config.server }
     state.lastConnectionState = health.connection.state
 
@@ -164,6 +186,11 @@ export async function bootstrap(): Promise<void> {
 export function init(): void {
   window.addEventListener("hashchange", () => {
     syncRouteState()
+  })
+  window.addEventListener("focus", () => {
+    if (!state.loading && isConnected.value) {
+      void refreshServiceStatus()
+    }
   })
 
   syncRouteState()
@@ -262,6 +289,10 @@ const model = {
   clearPipelineMapping,
   showMorePreviewLines,
   browseForCsvPath,
+  refreshServiceStatus,
+  installBackgroundService,
+  restartBackgroundService,
+  uninstallBackgroundService,
 } as const
 
 export function useAppModel() {
