@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 
-import { navigate } from "../router"
 import { useAppModel } from "../composables/useAppModel"
 
 const model = useAppModel()
@@ -24,6 +23,13 @@ const uninstallDisabled = computed(
     !model.state.serviceStatus?.installed
 )
 
+const restartDisabled = computed(
+  () =>
+    model.state.serviceActionSubmitting ||
+    !model.state.serviceStatus?.supported ||
+    !model.state.serviceStatus?.installed
+)
+
 function toggleMenu(): void {
   isOpen.value = !isOpen.value
 }
@@ -34,6 +40,11 @@ function closeMenu(): void {
 
 async function handleUninstall(): Promise<void> {
   await model.uninstallBackgroundService()
+  closeMenu()
+}
+
+async function handleRestart(): Promise<void> {
+  await model.restartBackgroundService()
   closeMenu()
 }
 
@@ -98,8 +109,13 @@ onBeforeUnmount(() => {
       </dl>
 
       <div class="account-menu-actions">
-        <button class="btn-ghost account-menu-save" type="button" @click="navigate('service')">
-          Open Service Page
+        <button
+          class="btn-ghost account-menu-save"
+          type="button"
+          :disabled="restartDisabled"
+          @click="handleRestart()"
+        >
+          Restart Service
         </button>
         <button
           class="btn-danger account-menu-disconnect"
