@@ -64,6 +64,11 @@ impl ConfigStore {
         Ok(config)
     }
 
+    pub fn watch_config_signature(&self) -> Result<String, String> {
+        let config = self.load()?;
+        serde_json::to_string(&config).map_err(|err| err.to_string())
+    }
+
     pub fn set_server(
         &self,
         server: ServerConfig,
@@ -279,6 +284,7 @@ impl ConfigStore {
             datasource.last_pushed_row_index = cursor.last_pushed_row_index;
             datasource.last_run_at = cursor.last_run_at;
             datasource.last_error = cursor.last_error.clone();
+            datasource.is_running = cursor.is_running;
             self.write_workspace_locked(&workspace)?;
             return Ok(cursor);
         }
@@ -308,6 +314,56 @@ impl ConfigStore {
         Ok(entry)
     }
 
+    pub fn set_job_running(&self, job_id: &str, is_running: bool) -> Result<bool, String> {
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|_| "Config lock poisoned.".to_string())?;
+        self.ensure_locked()?;
+        let Some(mut workspace) = self.load_active_workspace_locked()? else {
+            return Ok(false);
+        };
+
+        for datasource in &mut workspace.datasources {
+            if datasource.id != job_id {
+                continue;
+            }
+
+            datasource.is_running = is_running;
+            self.write_workspace_locked(&workspace)?;
+            return Ok(true);
+        }
+
+        Ok(false)
+    }
+
+    pub fn clear_all_running_jobs(&self) -> Result<(), String> {
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|_| "Config lock poisoned.".to_string())?;
+        self.ensure_locked()?;
+
+        let config = self.read_config_locked()?;
+        let Some(mut workspace) = self.load_workspace_locked(&config.server.workspace_id)? else {
+            return Ok(());
+        };
+
+        let mut changed = false;
+        for datasource in &mut workspace.datasources {
+            if datasource.is_running {
+                datasource.is_running = false;
+                changed = true;
+            }
+        }
+
+        if changed {
+            self.write_workspace_locked(&workspace)?;
+        }
+
+        Ok(())
+    }
+
     pub fn delete_job_runtime(&self, job_id: &str) -> Result<(), String> {
         let _guard = self
             .lock
@@ -327,6 +383,7 @@ impl ConfigStore {
             datasource.last_pushed_row_index = None;
             datasource.last_run_at = None;
             datasource.last_error = None;
+            datasource.is_running = false;
             datasource.recent_logs.clear();
             self.write_workspace_locked(&workspace)?;
             break;

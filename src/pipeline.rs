@@ -24,6 +24,7 @@ use crate::{
     observation_queue::{
         bounded, ObservationContext, ObservationReceiver, ObservationSender, QueuedObservation,
     },
+    service_paths::manual_run_trigger_path,
     timestamp::parse_timestamp_to_utc,
     uploader::spawn_upload_worker,
 };
@@ -75,6 +76,7 @@ struct JobScanResult {
     reset_detected: bool,
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Clone, Copy)]
 enum ScanMode {
     Incremental,
@@ -125,11 +127,26 @@ impl PipelineService {
         }
 
         let watched_paths = snapshot.jobs_by_path.keys().cloned().collect::<Vec<_>>();
+        let manual_trigger_targets = snapshot
+            .jobs_by_path
+            .values()
+            .flat_map(|jobs| {
+                jobs.iter().filter_map(|job| {
+                    manual_run_trigger_path(&job.id, &job.file_path)
+                        .ok()
+                        .map(|trigger_path| (trigger_path, normalize_watched_path(&job.file_path)))
+                })
+            })
+            .collect::<Vec<_>>();
         info!(
             watched_file_count = watched_paths.len(),
             "reloading pipeline watcher"
         );
-        let watcher = FilesystemWatcher::start(watched_paths.clone(), self.inner.event_tx.clone())?;
+        let watcher = FilesystemWatcher::start(
+            watched_paths.clone(),
+            manual_trigger_targets,
+            self.inner.event_tx.clone(),
+        )?;
         *self.inner.watcher.lock().await = watcher;
 
         // Seed row_counts from persisted cursors for paths not yet tracked in memory.
@@ -179,37 +196,6 @@ impl PipelineService {
         if let Some(task) = uploader_task {
             let _ = tokio::time::timeout(std::time::Duration::from_secs(30), task).await;
         }
-    }
-
-    pub async fn run_job_now(&self, job_id: &str) -> Result<(), String> {
-        let (server, job) = self.load_manual_job(job_id).await?;
-        let path = normalize_watched_path(&job.file_path);
-
-        // Acquire the in-flight lock to prevent a manual run from racing with a
-        // filesystem-triggered incremental scan for the same path.
-        if !self.begin_path_scan(&path).await {
-            return Err(
-                "A scan is already in progress for that file. Try again in a moment.".to_string(),
-            );
-        }
-        self.inner
-            .last_scan_times
-            .lock()
-            .await
-            .insert(path.clone(), Instant::now());
-
-        let result = self
-            .scan_job(path.clone(), server, job, 0, ScanMode::FullResync)
-            .await;
-        if let Ok(row_count) = result {
-            self.inner
-                .row_counts
-                .lock()
-                .await
-                .insert(path.clone(), row_count);
-        }
-        self.end_path_scan(&path).await;
-        result.map(|_| ())
     }
 
     fn start_background_tasks(&self) {
@@ -338,30 +324,6 @@ impl PipelineService {
         .unwrap_or_default()
     }
 
-    async fn load_manual_job(
-        &self,
-        job_id: &str,
-    ) -> Result<(Arc<ServerConfig>, JobConfig), String> {
-        let job_id = job_id.to_string();
-        let config_store = self.inner.config_store.clone();
-        tokio::task::spawn_blocking(move || {
-            let config = config_store.load()?;
-            if !config.server.is_configured() {
-                return Err("HydroServer is not configured.".to_string());
-            }
-
-            let job = config
-                .jobs
-                .into_iter()
-                .find(|job| job.id == job_id)
-                .ok_or_else(|| "That job could not be found.".to_string())?;
-
-            Ok((Arc::new(config.server.normalized()), job))
-        })
-        .await
-        .map_err(|err| err.to_string())?
-    }
-
     async fn scan_path(&self, path: PathBuf) -> Result<(), String> {
         let path = normalize_watched_path(path);
         if !self.begin_path_scan(&path).await {
@@ -445,68 +407,81 @@ impl PipelineService {
         previous_row_count: usize,
         mode: ScanMode,
     ) -> Result<usize, String> {
-        let cursor = self.load_cursor(&job.id).await?;
-        let job_for_scan = job.clone();
+        self.set_job_running(&job.id, true).await?;
 
-        let result = tokio::task::spawn_blocking(move || {
-            scan_job_file(job_for_scan, previous_row_count, cursor, mode)
-        })
-        .await
-        .map_err(|err| err.to_string())??;
+        let outcome = async {
+            let cursor = self.load_cursor(&job.id).await?;
+            let job_for_scan = job.clone();
 
-        if result.reset_detected {
-            self.append_log(
-                &job.id,
-                "Detected that the watched CSV file was replaced or truncated; rescanning from the configured data start row.",
-                LogLevel::Warning,
-            )
-            .await?;
-        }
+            let result = tokio::task::spawn_blocking(move || {
+                scan_job_file(job_for_scan, previous_row_count, cursor, mode)
+            })
+            .await
+            .map_err(|err| err.to_string())??;
 
-        if result.observations.is_empty() {
-            self.clear_last_error(&job.id).await?;
-            if matches!(mode, ScanMode::FullResync) {
+            if result.reset_detected {
                 self.append_log(
                     &job.id,
-                    "No new observations were available to queue.",
-                    LogLevel::Info,
+                    "Detected that the watched CSV file was replaced or truncated; rescanning from the configured data start row.",
+                    LogLevel::Warning,
                 )
                 .await?;
             }
-            return Ok(result.file_row_count);
+
+            if result.observations.is_empty() {
+                self.clear_last_error(&job.id).await?;
+                if matches!(mode, ScanMode::FullResync) {
+                    self.append_log(
+                        &job.id,
+                        "No new observations were available to queue.",
+                        LogLevel::Info,
+                    )
+                    .await?;
+                }
+                return Ok(result.file_row_count);
+            }
+
+            let mut queued = 0usize;
+            for observation in result.observations {
+                let context = Arc::new(ObservationContext {
+                    server: server.clone(),
+                    job_id: job.id.clone(),
+                    datastream_id: observation.datastream_id,
+                    datastream_name: observation.datastream_name,
+                });
+                let tx = self.inner.observation_tx.lock().await;
+                let Some(tx) = tx.as_ref() else {
+                    return Err("Pipeline is shutting down.".to_string());
+                };
+                tx.send(QueuedObservation {
+                    context,
+                    timestamp: observation.timestamp,
+                    row_index: observation.row_index,
+                    value: observation.value,
+                })
+                .await?;
+                queued += 1;
+            }
+
+            self.clear_last_error(&job.id).await?;
+
+            info!(
+                job_id = %job.id,
+                queued_count = queued,
+                file = %job.file_path,
+                "queued observations from watched CSV file"
+            );
+
+            Ok(result.file_row_count)
+        }
+        .await;
+
+        let running_clear = self.set_job_running(&job.id, false).await;
+        if let Err(error) = running_clear {
+            return Err(error);
         }
 
-        let mut queued = 0usize;
-        for observation in result.observations {
-            let context = Arc::new(ObservationContext {
-                server: server.clone(),
-                job_id: job.id.clone(),
-                datastream_id: observation.datastream_id,
-                datastream_name: observation.datastream_name,
-            });
-            let tx = self.inner.observation_tx.lock().await;
-            let Some(tx) = tx.as_ref() else {
-                return Err("Pipeline is shutting down.".to_string());
-            };
-            tx.send(QueuedObservation {
-                context,
-                timestamp: observation.timestamp,
-                row_index: observation.row_index,
-                value: observation.value,
-            })
-            .await?;
-            queued += 1;
-        }
-
-        self.clear_last_error(&job.id).await?;
-        info!(
-            job_id = %job.id,
-            queued_count = queued,
-            file = %job.file_path,
-            "queued observations from watched CSV file"
-        );
-
-        Ok(result.file_row_count)
+        outcome
     }
 
     async fn begin_path_scan(&self, path: &Path) -> bool {
@@ -538,12 +513,22 @@ impl PipelineService {
                     last_pushed_timestamp: existing.last_pushed_timestamp,
                     last_pushed_row_index: existing.last_pushed_row_index,
                     last_error: None,
+                    is_running: existing.is_running,
                 },
             )?;
             Ok::<(), String>(())
         })
         .await
         .map_err(|err| err.to_string())?
+    }
+
+    async fn set_job_running(&self, job_id: &str, is_running: bool) -> Result<(), String> {
+        let config_store = self.inner.config_store.clone();
+        let job_id = job_id.to_string();
+        tokio::task::spawn_blocking(move || config_store.set_job_running(&job_id, is_running))
+            .await
+            .map_err(|err| err.to_string())?
+            .map(|_| ())
     }
 
     async fn append_log(&self, job_id: &str, message: &str, level: LogLevel) -> Result<(), String> {

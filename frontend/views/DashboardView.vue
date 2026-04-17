@@ -278,7 +278,8 @@ function isJobRunning(jobId: string): boolean {
 }
 
 function isRunButtonDisabled(jobId: string): boolean {
-  return runButtonState(jobId) !== 'idle' || isJobRunning(jobId)
+  const job = jobs.value.find((entry) => entry.id === jobId)
+  return runButtonState(jobId) !== 'idle' || isJobRunning(jobId) || job?.enabled === false
 }
 
 function isRunButtonActive(jobId: string): boolean {

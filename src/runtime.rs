@@ -1,8 +1,7 @@
 use std::{
-    collections::HashSet,
     fs,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 use chrono::Utc;
@@ -15,12 +14,13 @@ use crate::{
         ActionResponse, AppConfig, ConnectionState, ConnectionStatus, HealthResponse, JobConfig,
         JobCursor, JobDetail, JobLogEntry, JobStatus, JobStatusSummary, LogLevel, ServerConfig,
     },
-    pipeline::PipelineService,
+    service_paths::{
+        active_app_directory_name, manual_run_trigger_path, resolve_shared_service_config_dir,
+        APP_DIRECTORY_NAME, DEV_APP_DIRECTORY_NAME,
+    },
 };
 
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
-const APP_DIRECTORY_NAME: &str = "Streaming Data Loader";
-const DEV_APP_DIRECTORY_NAME: &str = "Streaming Data Loader Dev";
 const BUNDLE_IDENTIFIER: &str = "com.streaming-data-loader";
 const LEGACY_BUNDLE_IDENTIFIER: &str = "com.streaming-data-loader.app";
 
@@ -33,8 +33,6 @@ struct AppStateInner {
     settings: AppSettings,
     config_store: Arc<ConfigStore>,
     hydroserver: Arc<HydroServerService>,
-    pipeline: PipelineService,
-    running_jobs: Mutex<HashSet<String>>,
 }
 
 #[derive(Debug, Clone)]
@@ -47,7 +45,6 @@ impl AppState {
     pub fn new(config_dir: PathBuf) -> Result<Self, String> {
         let config_store = Arc::new(ConfigStore::new(config_dir.clone()));
         let hydroserver = Arc::new(HydroServerService::new()?);
-        let pipeline = PipelineService::new(config_store.clone(), hydroserver.clone());
 
         Ok(Self {
             inner: Arc::new(AppStateInner {
@@ -57,23 +54,12 @@ impl AppState {
                 },
                 config_store,
                 hydroserver,
-                pipeline,
-                running_jobs: Mutex::new(HashSet::new()),
             }),
         })
     }
 
     pub fn initialize(&self) -> Result<(), String> {
-        self.inner.config_store.ensure()?;
-        tauri::async_runtime::block_on(self.inner.pipeline.initialize())
-    }
-
-    pub async fn shutdown_async(&self) {
-        self.inner.pipeline.shutdown().await;
-    }
-
-    pub async fn reload_pipeline(&self) -> Result<(), String> {
-        self.inner.pipeline.reload().await
+        self.inner.config_store.ensure()
     }
 
     pub fn health(&self) -> Result<HealthResponse, String> {
@@ -99,17 +85,9 @@ impl AppState {
         self.inner.hydroserver.as_ref()
     }
 
-    pub fn is_running(&self, job_id: &str) -> bool {
-        self.inner
-            .running_jobs
-            .lock()
-            .map(|jobs| jobs.contains(job_id))
-            .unwrap_or(false)
-    }
-
     pub fn build_job_summary(&self, job: &JobConfig) -> Result<JobStatusSummary, String> {
         let cursor = self.inner.config_store.cursor_for(&job.id)?;
-        let (status, status_message) = derive_job_status(job, &cursor, self.is_running(&job.id));
+        let (status, status_message) = derive_job_status(job, &cursor);
         Ok(JobStatusSummary {
             id: job.id.clone(),
             name: job.name.clone(),
@@ -145,39 +123,6 @@ impl AppState {
         })
     }
 
-    pub fn run_job_now(&self, job_id: &str) -> Result<ActionResponse, String> {
-        if !self.start_job_run(job_id, "Manual run started")? {
-            return Ok(ActionResponse {
-                ok: true,
-                message: "Job is already running.".to_string(),
-            });
-        }
-        Ok(ActionResponse {
-            ok: true,
-            message: "Job started.".to_string(),
-        })
-    }
-
-    pub(crate) fn start_job_run(&self, job_id: &str, start_message: &str) -> Result<bool, String> {
-        if !self.mark_job_running(job_id) {
-            return Ok(false);
-        }
-
-        let job_id = job_id.to_string();
-        let task_job_id = job_id.clone();
-        let state = self.clone();
-        tauri::async_runtime::spawn(async move {
-            let result = state.inner.pipeline.run_job_now(&task_job_id).await;
-            if let Err(error) = result {
-                let _ = state.record_job_error(&task_job_id, &error).await;
-            }
-            state.clear_job_running(&task_job_id);
-        });
-
-        self.append_log(&job_id, start_message, LogLevel::Info)?;
-        Ok(true)
-    }
-
     pub fn append_log(
         &self,
         job_id: &str,
@@ -192,55 +137,38 @@ impl AppState {
         self.inner.config_store.append_log(job_id, entry)
     }
 
-    async fn record_job_error(&self, job_id: &str, error: &str) -> Result<(), String> {
-        let config_store = self.inner.config_store.clone();
-        let job_id = job_id.to_string();
-        let error = error.to_string();
-        tokio::task::spawn_blocking(move || {
-            let existing_cursor = config_store.cursor_for(&job_id)?;
-            config_store.update_cursor(
-                &job_id,
-                JobCursor {
-                    last_run_at: Some(Utc::now()),
-                    last_pushed_timestamp: existing_cursor.last_pushed_timestamp,
-                    last_pushed_row_index: existing_cursor.last_pushed_row_index,
-                    last_error: Some(error.clone()),
-                },
-            )?;
-            config_store.append_log(
-                &job_id,
-                JobLogEntry {
-                    timestamp: Utc::now(),
-                    level: LogLevel::Error,
-                    message: error,
-                },
-            )?;
-            Ok::<(), String>(())
-        })
-        .await
-        .map_err(|err| err.to_string())?
-    }
+    pub fn request_job_run(&self, job_id: &str, message: &str) -> Result<ActionResponse, String> {
+        let job = self
+            .config_store()
+            .get_job(job_id)?
+            .ok_or_else(|| "That job could not be found.".to_string())?;
 
-    fn mark_job_running(&self, job_id: &str) -> bool {
-        self.inner
-            .running_jobs
-            .lock()
-            .map(|mut jobs| jobs.insert(job_id.to_string()))
-            .unwrap_or(false)
-    }
-
-    fn clear_job_running(&self, job_id: &str) {
-        if let Ok(mut jobs) = self.inner.running_jobs.lock() {
-            jobs.remove(job_id);
+        if !job.enabled {
+            return Err("Enable this data source before requesting a manual run.".to_string());
         }
+
+        let trigger_path = manual_run_trigger_path(&job.id, &job.file_path)?;
+        let payload = format!(
+            "requested_at={}\njob_id={}\n",
+            Utc::now().to_rfc3339(),
+            job.id
+        );
+        fs::write(&trigger_path, payload).map_err(|err| err.to_string())?;
+        fs::remove_file(&trigger_path).map_err(|err| err.to_string())?;
+        self.append_log(&job.id, message, LogLevel::Info)?;
+
+        Ok(ActionResponse {
+            ok: true,
+            message: "Run requested.".to_string(),
+        })
     }
 }
 
 pub fn resolve_config_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
-    if let Ok(config_dir) = std::env::var("SDL_CONFIG_DIR") {
-        let candidate = PathBuf::from(config_dir);
-        fs::create_dir_all(&candidate).map_err(|err| err.to_string())?;
-        return Ok(candidate);
+    if cfg!(target_os = "macos") {
+        let preferred_dir = resolve_shared_service_config_dir()?;
+        migrate_legacy_config_dir(app_handle, &preferred_dir)?;
+        return Ok(preferred_dir);
     }
 
     let preferred_dir = preferred_user_data_dir(
@@ -300,14 +228,6 @@ fn migrate_legacy_config_dir(app_handle: &AppHandle, target_dir: &Path) -> Resul
     };
 
     move_or_copy_dir_contents(&source_dir, target_dir)
-}
-
-fn active_app_directory_name() -> &'static str {
-    if cfg!(debug_assertions) {
-        DEV_APP_DIRECTORY_NAME
-    } else {
-        APP_DIRECTORY_NAME
-    }
 }
 
 fn legacy_config_candidates(app_handle: &AppHandle) -> Vec<PathBuf> {
@@ -388,8 +308,8 @@ fn connection_status(server: &ServerConfig) -> ConnectionStatus {
     }
 }
 
-fn derive_job_status(job: &JobConfig, cursor: &JobCursor, is_running: bool) -> (JobStatus, String) {
-    if is_running {
+fn derive_job_status(job: &JobConfig, cursor: &JobCursor) -> (JobStatus, String) {
+    if cursor.is_running {
         return (JobStatus::Running, "Running now".to_string());
     }
     if !job.enabled {

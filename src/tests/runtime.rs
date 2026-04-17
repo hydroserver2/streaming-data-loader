@@ -131,7 +131,7 @@ fn preferred_user_data_dir_falls_back_to_home_dir_without_documents() {
 }
 
 #[test]
-fn start_job_run_logs_initial_run_for_new_datasource() {
+fn request_job_run_creates_and_clears_manual_trigger_file() {
     let temp_root = unique_temp_dir("runtime-start-job");
     let csv_path = temp_root.join("example.csv");
     fs::write(
@@ -181,10 +181,20 @@ Timestamp,Stage_ft
         })
         .expect("create job");
 
-    let started = state
-        .start_job_run(&job.id, "Initial run started")
-        .expect("start job");
-    assert!(started);
+    let trigger_path = crate::service_paths::manual_run_trigger_path(
+        &job.id,
+        csv_path.to_str().expect("utf-8 path"),
+    )
+    .expect("build trigger path");
+
+    state
+        .request_job_run(&job.id, "Manual run requested")
+        .expect("request job run");
+
+    assert!(
+        !trigger_path.exists(),
+        "manual trigger file should be cleaned up immediately after touching"
+    );
 
     let logs = state
         .config_store()
@@ -192,9 +202,8 @@ Timestamp,Stage_ft
         .expect("load logs for job");
     assert!(logs
         .iter()
-        .any(|entry| entry.message == "Initial run started"));
+        .any(|entry| entry.message == "Manual run requested"));
 
-    std::thread::sleep(std::time::Duration::from_millis(50));
     remove_temp_dir(&temp_root);
 }
 

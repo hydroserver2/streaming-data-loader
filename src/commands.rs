@@ -38,23 +38,19 @@ pub async fn update_server_config(
         .workspace_name
         .clone()
         .unwrap_or_else(|| normalized.workspace_name.clone());
-    let config = state.config_store().set_server(
+    state.config_store().set_server(
         ServerConfig {
             workspace_id,
             workspace_name,
             ..normalized
         },
         connection.workspace_name.as_deref().unwrap_or_default(),
-    )?;
-    state.reload_pipeline().await?;
-    Ok(config)
+    )
 }
 
 #[tauri::command]
 pub async fn clear_server_config(state: State<'_, AppState>) -> Result<AppConfig, String> {
-    let config = state.config_store().clear_server()?;
-    state.reload_pipeline().await?;
-    Ok(config)
+    state.config_store().clear_server()
 }
 
 #[tauri::command]
@@ -93,10 +89,6 @@ pub async fn create_job(
 ) -> Result<JobDetail, String> {
     let job = state.config_store().create_job(payload)?;
     let _ = state.append_log(&job.id, "Job created", crate::models::LogLevel::Info);
-    if job.enabled {
-        state.start_job_run(&job.id, "Initial run started")?;
-    }
-    state.reload_pipeline().await?;
     state.build_job_detail(&job)
 }
 
@@ -118,7 +110,6 @@ pub async fn update_job(
         return Err("That job could not be found.".to_string());
     };
     let _ = state.append_log(&job.id, "Job updated", crate::models::LogLevel::Info);
-    state.reload_pipeline().await?;
     state.build_job_detail(&job)
 }
 
@@ -131,7 +122,6 @@ pub async fn delete_job(
         return Err("That job could not be found.".to_string());
     }
     state.config_store().delete_job_runtime(&job_id)?;
-    state.reload_pipeline().await?;
     Ok(ActionResponse {
         ok: true,
         message: "Job deleted.".to_string(),
@@ -140,7 +130,7 @@ pub async fn delete_job(
 
 #[tauri::command]
 pub fn run_job_now(job_id: String, state: State<'_, AppState>) -> Result<ActionResponse, String> {
-    state.run_job_now(&job_id)
+    state.request_job_run(&job_id, "Manual run requested")
 }
 
 #[tauri::command]
@@ -152,7 +142,6 @@ pub async fn enable_job(
         return Err("That job could not be found.".to_string());
     };
     let _ = state.append_log(&job.id, "Job enabled", crate::models::LogLevel::Info);
-    state.reload_pipeline().await?;
     Ok(ActionResponse {
         ok: true,
         message: "Job enabled.".to_string(),
@@ -168,7 +157,6 @@ pub async fn disable_job(
         return Err("That job could not be found.".to_string());
     };
     let _ = state.append_log(&job.id, "Job disabled", crate::models::LogLevel::Warning);
-    state.reload_pipeline().await?;
     Ok(ActionResponse {
         ok: true,
         message: "Job disabled.".to_string(),

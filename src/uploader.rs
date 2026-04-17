@@ -237,6 +237,7 @@ async fn persist_success(config_store: Arc<ConfigStore>, batch: &PendingBatch) {
                             .unwrap_or(update.max_row_index),
                     ),
                     last_error: None,
+                    is_running: existing.is_running,
                 },
             )?;
             config_store.append_log(
@@ -271,6 +272,7 @@ async fn persist_failure(config_store: Arc<ConfigStore>, batch: &PendingBatch, m
                     last_pushed_timestamp: existing.last_pushed_timestamp,
                     last_pushed_row_index: existing.last_pushed_row_index,
                     last_error: Some(message.clone()),
+                    is_running: existing.is_running,
                 },
             )?;
             config_store.append_log(

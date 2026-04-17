@@ -467,6 +467,8 @@ pub struct JobCursor {
     pub last_run_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub last_error: Option<String>,
+    #[serde(default)]
+    pub is_running: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -497,6 +499,8 @@ pub struct PersistedDatasource {
     pub last_run_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub last_error: Option<String>,
+    #[serde(default)]
+    pub is_running: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recent_logs: Vec<JobLogEntry>,
 }
@@ -520,6 +524,7 @@ impl PersistedDatasource {
             last_pushed_row_index: self.last_pushed_row_index,
             last_run_at: self.last_run_at,
             last_error: self.last_error.clone(),
+            is_running: self.is_running,
         }
     }
 
@@ -541,6 +546,7 @@ impl PersistedDatasource {
             last_pushed_row_index: cursor.last_pushed_row_index,
             last_run_at: cursor.last_run_at,
             last_error: cursor.last_error,
+            is_running: cursor.is_running,
             recent_logs: recent_logs.unwrap_or_default(),
         }
     }

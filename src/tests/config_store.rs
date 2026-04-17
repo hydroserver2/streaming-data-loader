@@ -251,6 +251,53 @@ fn loading_workspace_rewrites_generated_test_csv_paths_into_current_config_dir()
     remove_temp_dir(&temp_dir);
 }
 
+#[test]
+fn running_state_is_persisted_and_can_be_cleared_globally() {
+    let temp_dir = unique_temp_dir("config-store-running");
+    let store = ConfigStore::new(temp_dir.clone());
+    store.ensure().expect("ensure store");
+    store
+        .set_server(
+            ServerConfig {
+                url: "https://example.com".to_string(),
+                workspace_id: "workspace-running".to_string(),
+                workspace_name: "Workspace Running".to_string(),
+                ..ServerConfig::default()
+            },
+            "Workspace Running",
+        )
+        .expect("set server");
+
+    let job = store
+        .create_job(JobUpsertRequest {
+            name: "Running source".to_string(),
+            enabled: true,
+            file_path: "/tmp/running.csv".to_string(),
+            schedule_minutes: 15,
+            file_config: FileConfig::default(),
+            column_mappings: Vec::new(),
+        })
+        .expect("create job");
+
+    store
+        .set_job_running(&job.id, true)
+        .expect("set job running");
+    assert!(
+        store.cursor_for(&job.id).expect("load cursor").is_running,
+        "cursor should reflect persisted running state"
+    );
+
+    store
+        .clear_all_running_jobs()
+        .expect("clear all running jobs");
+    assert!(
+        !store.cursor_for(&job.id).expect("load cursor").is_running,
+        "global running-state reset should clear persisted flags"
+    );
+
+    remove_temp_dir(&temp_dir);
+}
+
 fn unique_temp_dir(label: &str) -> PathBuf {
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)

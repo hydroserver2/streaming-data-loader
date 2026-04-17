@@ -7,12 +7,15 @@ mod models;
 mod observation_queue;
 mod pipeline;
 mod runtime;
+mod service_paths;
+mod service_runtime;
 mod timestamp;
 mod uploader;
 
 use tauri::Manager;
 
 use runtime::{resolve_config_dir, AppState};
+pub use service_runtime::run_daemon;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
@@ -28,42 +31,6 @@ pub fn run() {
             let state = AppState::new(resolve_config_dir(&app.handle())?)?;
             state.initialize()?;
             app.manage(state);
-
-            // Graceful shutdown on SIGTERM / SIGINT so the uploader can drain
-            // any queued observations before the process exits.
-            // NOTE: must call shutdown_async() — not shutdown() — because block_on
-            // panics when called from inside an async task.
-            let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                #[cfg(unix)]
-                {
-                    use tokio::signal::unix::{signal, SignalKind};
-                    let (mut sigterm, mut sigint) = match (
-                        signal(SignalKind::terminate()),
-                        signal(SignalKind::interrupt()),
-                    ) {
-                        (Ok(t), Ok(i)) => (t, i),
-                        (Err(e), _) | (_, Err(e)) => {
-                            tracing::error!(error = %e, "failed to install OS signal handlers");
-                            return;
-                        }
-                    };
-                    tokio::select! {
-                        _ = sigterm.recv() => {},
-                        _ = sigint.recv() => {},
-                    }
-                }
-                #[cfg(not(unix))]
-                {
-                    if let Err(e) = tokio::signal::ctrl_c().await {
-                        tracing::error!(error = %e, "failed to install Ctrl-C handler");
-                        return;
-                    }
-                }
-                app_handle.state::<AppState>().shutdown_async().await;
-                app_handle.exit(0);
-            });
-
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

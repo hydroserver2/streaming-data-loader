@@ -737,6 +737,7 @@ Timestamp,Stage_ft,WaterTemp_C
         last_pushed_row_index: Some(5),
         last_run_at: None,
         last_error: None,
+        is_running: false,
     };
 
     let result = scan_job_file(
@@ -1232,6 +1233,7 @@ Timestamp,Stage_ft,WaterTemp_C
         last_pushed_row_index: Some(6),
         last_run_at: None,
         last_error: None,
+        is_running: false,
     };
 
     let result = scan_job_file(
@@ -1314,6 +1316,7 @@ Timestamp,Stage_ft,WaterTemp_C
                 last_pushed_row_index: Some(5),
                 last_run_at: Some(Utc::now()),
                 last_error: None,
+                is_running: false,
             },
         )
         .expect("persist cursor");
@@ -1488,6 +1491,7 @@ Timestamp,Stage_ft,WaterTemp_C
         last_pushed_row_index: Some(5),
         last_run_at: None,
         last_error: Some("network error".to_string()),
+        is_running: false,
     };
 
     let result = scan_job_file(
