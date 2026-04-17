@@ -165,7 +165,7 @@ impl AppState {
 }
 
 pub fn resolve_config_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
-    if cfg!(target_os = "macos") {
+    if cfg!(target_os = "macos") || cfg!(target_os = "windows") {
         let preferred_dir = resolve_shared_service_config_dir()?;
         migrate_legacy_config_dir(app_handle, &preferred_dir)?;
         return Ok(preferred_dir);

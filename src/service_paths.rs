@@ -35,7 +35,17 @@ pub fn default_shared_service_config_dir() -> Result<PathBuf, String> {
         return Ok(candidate);
     }
 
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "windows")]
+    {
+        let program_data = std::env::var("PROGRAMDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from(r"C:\ProgramData"));
+        let candidate = program_data.join(active_app_directory_name());
+        fs::create_dir_all(&candidate).map_err(|err| err.to_string())?;
+        return Ok(candidate);
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
     {
         let home_dir = std::env::var("HOME")
             .or_else(|_| std::env::var("USERPROFILE"))

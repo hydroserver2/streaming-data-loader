@@ -326,11 +326,7 @@ impl ConfigStore {
     /// config lock for the entire read-modify-write means a concurrent
     /// `set_job_running` can't be clobbered between a separate read and write
     /// (bug_004).
-    pub fn clear_last_error(
-        &self,
-        job_id: &str,
-        last_run_at: DateTime<Utc>,
-    ) -> Result<(), String> {
+    pub fn clear_last_error(&self, job_id: &str, last_run_at: DateTime<Utc>) -> Result<(), String> {
         let _guard = self
             .lock
             .lock()

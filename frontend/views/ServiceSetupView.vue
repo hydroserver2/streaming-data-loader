@@ -64,8 +64,8 @@ async function handlePrimaryAction(): Promise<void> {
           service that will detect changes in files you specify on your machine
           and push updates to HydroServer as soon as changes are made. Your data
           loading jobs keep working automatically, even after you close the app
-          or log out of your user account. Because this service lives on the
-          system level, your machine will ask for an administrator password to
+          or log out of your user account. Because this service lives at the
+          system level, your machine will ask for administrator approval to
           install it.
         </p>
         <template v-else>
@@ -87,10 +87,10 @@ async function handlePrimaryAction(): Promise<void> {
           Uninstalling the app will not remove the background service.
         </h2>
         <p class="service-copy">
-          Since the Streaming Data Loader app and background service are
-          separate executables, you'll need to uninstall the background service
-          from inside the app before you uninstall the app. Use the settings
-          icon in the top-right corner whenever you want to uninstall it.
+          The background service is registered separately with the operating
+          system, so you'll need to uninstall it from inside the app before you
+          uninstall the app itself. Use the settings icon in the top-right
+          corner whenever you want to remove it.
         </p>
       </section>
 

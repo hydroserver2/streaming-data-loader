@@ -16,6 +16,7 @@ mod uploader;
 use tauri::Manager;
 
 use runtime::{resolve_config_dir, AppState};
+pub use service_manager::maybe_handle_service_management_cli;
 pub use service_runtime::run_daemon;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
