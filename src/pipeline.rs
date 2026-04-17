@@ -514,6 +514,7 @@ impl PipelineService {
                     last_pushed_row_index: existing.last_pushed_row_index,
                     last_error: None,
                     is_running: existing.is_running,
+                    datastream_cursors: existing.datastream_cursors,
                 },
             )?;
             Ok::<(), String>(())
@@ -619,18 +620,30 @@ fn scan_job_file(
 
     let reset_detected =
         matches!(mode, ScanMode::Incremental) && file_row_count < previous_row_count;
-    // When the previous upload failed, backtrack to the last confirmed push so
-    // those rows are retried.  Otherwise use the in-memory row count as usual.
-    let incremental_start = if cursor.last_error.is_some() {
-        cursor
-            .last_pushed_row_index
-            .map(|i| i as usize)
-            .unwrap_or(0)
-    } else {
-        previous_row_count
-    };
+    // Compute the earliest row any active datastream still needs.  A datastream
+    // with no cursor entry falls back to the in-memory previous_row_count
+    // (nothing to backtrack to); a cursor with a failure still has its prior
+    // last_pushed_row_index, so rows past it get re-emitted by the per-row
+    // filter below.
+    let min_needed_start = mapping_indexes
+        .iter()
+        .map(|(datastream_id, _, _)| {
+            cursor
+                .datastream_cursors
+                .get(datastream_id)
+                .and_then(|c| c.last_pushed_row_index)
+                .map(|idx| idx as usize)
+                .unwrap_or(previous_row_count)
+        })
+        .min()
+        .unwrap_or(previous_row_count);
     let start_index = match mode {
-        ScanMode::Incremental if !reset_detected => data_start_index.max(incremental_start),
+        // Fast-skip to whichever is earlier: the in-memory row count (all
+        // datastreams caught up this session) or the minimum row any datastream
+        // still needs (so retries aren't skipped).
+        ScanMode::Incremental if !reset_detected => {
+            data_start_index.max(previous_row_count.min(min_needed_start))
+        }
         ScanMode::Incremental | ScanMode::FullResync => data_start_index,
     };
 
@@ -649,13 +662,29 @@ fn scan_job_file(
         let timestamp = parse_timestamp_to_utc(timestamp_value, &job.file_config.timestamp)
             .map_err(|error| format!("Row {csv_row_number}: {error}"))?;
 
-        if matches!(mode, ScanMode::FullResync)
-            && !is_newer_than_cursor(timestamp, csv_row_number, &cursor)
-        {
-            continue;
-        }
-
         for (datastream_id, datastream_name, column_index) in &mapping_indexes {
+            // Skip rows this datastream has already confirmed pushed.  In
+            // Incremental mode, compare row_index; in FullResync (triggered by
+            // a manual "Run Now"), compare against the cursor's timestamp so
+            // previously-loaded history isn't re-uploaded.
+            let datastream_cursor = cursor.datastream_cursors.get(datastream_id);
+            let already_pushed = if reset_detected {
+                false
+            } else {
+                match mode {
+                    ScanMode::Incremental => datastream_cursor
+                        .and_then(|c| c.last_pushed_row_index)
+                        .map(|last| csv_row_number <= last)
+                        .unwrap_or(false),
+                    ScanMode::FullResync => datastream_cursor
+                        .map(|c| !is_newer_than_datastream_cursor(timestamp, csv_row_number, c))
+                        .unwrap_or(false),
+                }
+            };
+            if already_pushed {
+                continue;
+            }
+
             let value = row
                 .get(*column_index)
                 .map(String::as_str)
@@ -746,7 +775,11 @@ fn normalize_watched_path(path: impl AsRef<Path>) -> PathBuf {
     path.canonicalize().unwrap_or(path)
 }
 
-fn is_newer_than_cursor(timestamp: DateTime<Utc>, row_index: u64, cursor: &JobCursor) -> bool {
+fn is_newer_than_datastream_cursor(
+    timestamp: DateTime<Utc>,
+    row_index: u64,
+    cursor: &crate::models::DatastreamCursor,
+) -> bool {
     match cursor.last_pushed_timestamp {
         Some(last_timestamp) if timestamp < last_timestamp => false,
         Some(last_timestamp) if timestamp == last_timestamp => cursor

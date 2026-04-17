@@ -1,5 +1,7 @@
 use super::ConfigStore;
-use crate::models::{FileConfig, JobLogEntry, JobUpsertRequest, LogLevel, ServerConfig};
+use crate::models::{
+    ColumnMapping, FileConfig, JobLogEntry, JobUpsertRequest, LogLevel, ServerConfig,
+};
 use chrono::Utc;
 use std::{
     fs,
@@ -294,6 +296,194 @@ fn running_state_is_persisted_and_can_be_cleared_globally() {
         !store.cursor_for(&job.id).expect("load cursor").is_running,
         "global running-state reset should clear persisted flags"
     );
+
+    remove_temp_dir(&temp_dir);
+}
+
+/// A successful upload for one datastream should advance only that
+/// datastream's cursor, leaving a behind sibling's cursor and error intact.
+/// The job-level aggregate must then reflect the MIN of the two.
+#[test]
+fn record_datastream_success_isolates_per_datastream_state() {
+    let temp_dir = unique_temp_dir("config-store-per-ds-success");
+    let store = ConfigStore::new(temp_dir.clone());
+    store.ensure().expect("ensure store");
+    store
+        .set_server(
+            ServerConfig {
+                url: "https://example.com".to_string(),
+                workspace_id: "workspace-partial".to_string(),
+                workspace_name: "Partial Failure".to_string(),
+                ..ServerConfig::default()
+            },
+            "Partial Failure",
+        )
+        .expect("set server");
+
+    let job = store
+        .create_job(JobUpsertRequest {
+            name: "Multi-datastream job".to_string(),
+            enabled: true,
+            file_path: "/tmp/multi.csv".to_string(),
+            schedule_minutes: 15,
+            file_config: FileConfig::default(),
+            column_mappings: vec![
+                ColumnMapping {
+                    csv_column: "Stage_ft".to_string(),
+                    datastream_id: "ds-stage".to_string(),
+                    datastream_name: "Stage".to_string(),
+                },
+                ColumnMapping {
+                    csv_column: "WaterTemp_C".to_string(),
+                    datastream_id: "ds-temp".to_string(),
+                    datastream_name: "Water Temp".to_string(),
+                },
+            ],
+        })
+        .expect("create job");
+
+    // Simulate a prior failure on ds-temp at row 5.
+    let failed_at = Utc::now();
+    store
+        .record_datastream_failure(&job.id, "ds-temp", "network error", failed_at)
+        .expect("record temp failure");
+
+    // Now record a success on ds-stage all the way through row 8.
+    let stage_ts = chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
+        .unwrap()
+        .and_hms_opt(8, 20, 0)
+        .unwrap()
+        .and_utc();
+    store
+        .record_datastream_success(&job.id, "ds-stage", 8, stage_ts, Utc::now())
+        .expect("record stage success");
+
+    let cursor = store.cursor_for(&job.id).expect("load cursor");
+
+    let stage = cursor
+        .datastream_cursors
+        .get("ds-stage")
+        .expect("stage cursor present");
+    assert_eq!(stage.last_pushed_row_index, Some(8));
+    assert_eq!(stage.last_error, None);
+
+    let temp = cursor
+        .datastream_cursors
+        .get("ds-temp")
+        .expect("temp cursor present");
+    assert_eq!(
+        temp.last_pushed_row_index, None,
+        "failed sibling's cursor must not advance"
+    );
+    assert_eq!(
+        temp.last_error.as_deref(),
+        Some("network error"),
+        "failed sibling's error must survive the other datastream's success"
+    );
+
+    // Job-level aggregate is MIN across mappings: ds-temp has no row yet, so
+    // the aggregate should be None (can't skip rows any datastream still
+    // needs).
+    assert_eq!(
+        cursor.last_pushed_row_index, None,
+        "aggregate row must be None while any mapping has no confirmed cursor"
+    );
+    assert_eq!(
+        cursor.last_error.as_deref(),
+        Some("network error"),
+        "aggregate error should surface the still-failing datastream"
+    );
+
+    remove_temp_dir(&temp_dir);
+}
+
+/// Fix #2: record_datastream_failure should only touch the specified
+/// datastream's cursor, never the sibling's confirmed state.
+#[test]
+fn record_datastream_failure_preserves_sibling_progress() {
+    let temp_dir = unique_temp_dir("config-store-per-ds-failure");
+    let store = ConfigStore::new(temp_dir.clone());
+    store.ensure().expect("ensure store");
+    store
+        .set_server(
+            ServerConfig {
+                url: "https://example.com".to_string(),
+                workspace_id: "workspace-fail".to_string(),
+                workspace_name: "Fail Isolation".to_string(),
+                ..ServerConfig::default()
+            },
+            "Fail Isolation",
+        )
+        .expect("set server");
+
+    let job = store
+        .create_job(JobUpsertRequest {
+            name: "Multi-datastream job".to_string(),
+            enabled: true,
+            file_path: "/tmp/multi.csv".to_string(),
+            schedule_minutes: 15,
+            file_config: FileConfig::default(),
+            column_mappings: vec![
+                ColumnMapping {
+                    csv_column: "Stage_ft".to_string(),
+                    datastream_id: "ds-stage".to_string(),
+                    datastream_name: "Stage".to_string(),
+                },
+                ColumnMapping {
+                    csv_column: "WaterTemp_C".to_string(),
+                    datastream_id: "ds-temp".to_string(),
+                    datastream_name: "Water Temp".to_string(),
+                },
+            ],
+        })
+        .expect("create job");
+
+    let stage_ts = chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
+        .unwrap()
+        .and_hms_opt(8, 20, 0)
+        .unwrap()
+        .and_utc();
+    let temp_ts = chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
+        .unwrap()
+        .and_hms_opt(8, 05, 0)
+        .unwrap()
+        .and_utc();
+    store
+        .record_datastream_success(&job.id, "ds-stage", 8, stage_ts, Utc::now())
+        .expect("record stage success");
+    store
+        .record_datastream_success(&job.id, "ds-temp", 5, temp_ts, Utc::now())
+        .expect("record temp success");
+
+    // Now record a failure on ds-temp — stage's confirmed cursor at row 8
+    // must not regress.
+    store
+        .record_datastream_failure(&job.id, "ds-temp", "timeout", Utc::now())
+        .expect("record temp failure");
+
+    let cursor = store.cursor_for(&job.id).expect("load cursor");
+
+    let stage = cursor
+        .datastream_cursors
+        .get("ds-stage")
+        .expect("stage cursor");
+    assert_eq!(stage.last_pushed_row_index, Some(8));
+    assert_eq!(stage.last_error, None);
+
+    let temp = cursor
+        .datastream_cursors
+        .get("ds-temp")
+        .expect("temp cursor");
+    assert_eq!(
+        temp.last_pushed_row_index,
+        Some(5),
+        "temp's prior successful cursor must persist through a later failure"
+    );
+    assert_eq!(temp.last_error.as_deref(), Some("timeout"));
+
+    // Job-level aggregate row is MIN(5, 8) = 5 — matches what the scan needs
+    // in order to backtrack for the still-failing datastream.
+    assert_eq!(cursor.last_pushed_row_index, Some(5));
 
     remove_temp_dir(&temp_dir);
 }

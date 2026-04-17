@@ -469,6 +469,18 @@ pub struct JobCursor {
     pub last_error: Option<String>,
     #[serde(default)]
     pub is_running: bool,
+    #[serde(default)]
+    pub datastream_cursors: HashMap<String, DatastreamCursor>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct DatastreamCursor {
+    #[serde(default)]
+    pub last_pushed_timestamp: Option<DateTime<Utc>>,
+    #[serde(default)]
+    pub last_pushed_row_index: Option<u64>,
+    #[serde(default)]
+    pub last_error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -501,6 +513,8 @@ pub struct PersistedDatasource {
     pub last_error: Option<String>,
     #[serde(default)]
     pub is_running: bool,
+    #[serde(default)]
+    pub datastream_cursors: HashMap<String, DatastreamCursor>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub recent_logs: Vec<JobLogEntry>,
 }
@@ -519,12 +533,26 @@ impl PersistedDatasource {
     }
 
     pub fn to_cursor(&self) -> JobCursor {
+        let mut datastream_cursors = self.datastream_cursors.clone();
+        // Backfill per-datastream entries for currently-configured mappings from
+        // the job-level aggregate so state persisted before per-datastream
+        // tracking continues to resume correctly.
+        for mapping in &self.column_mappings {
+            datastream_cursors
+                .entry(mapping.datastream_id.clone())
+                .or_insert_with(|| DatastreamCursor {
+                    last_pushed_timestamp: self.last_pushed_timestamp,
+                    last_pushed_row_index: self.last_pushed_row_index,
+                    last_error: self.last_error.clone(),
+                });
+        }
         JobCursor {
             last_pushed_timestamp: self.last_pushed_timestamp,
             last_pushed_row_index: self.last_pushed_row_index,
             last_run_at: self.last_run_at,
             last_error: self.last_error.clone(),
             is_running: self.is_running,
+            datastream_cursors,
         }
     }
 
@@ -547,6 +575,7 @@ impl PersistedDatasource {
             last_run_at: cursor.last_run_at,
             last_error: cursor.last_error,
             is_running: cursor.is_running,
+            datastream_cursors: cursor.datastream_cursors,
             recent_logs: recent_logs.unwrap_or_default(),
         }
     }

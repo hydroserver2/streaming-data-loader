@@ -726,18 +726,27 @@ Timestamp,Stage_ft,WaterTemp_C
     std::fs::write(&path, csv).expect("write csv");
 
     // Cursor says we already pushed through 08:05 (row 5)
+    let last_ts = chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
+        .unwrap()
+        .and_hms_opt(8, 5, 0)
+        .unwrap()
+        .and_utc();
+    let mut datastream_cursors = std::collections::HashMap::new();
+    datastream_cursors.insert(
+        "ds-1".to_string(),
+        crate::models::DatastreamCursor {
+            last_pushed_timestamp: Some(last_ts),
+            last_pushed_row_index: Some(5),
+            last_error: None,
+        },
+    );
     let cursor = JobCursor {
-        last_pushed_timestamp: Some(
-            chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
-                .unwrap()
-                .and_hms_opt(8, 5, 0)
-                .unwrap()
-                .and_utc(),
-        ),
+        last_pushed_timestamp: Some(last_ts),
         last_pushed_row_index: Some(5),
         last_run_at: None,
         last_error: None,
         is_running: false,
+        datastream_cursors,
     };
 
     let result = scan_job_file(
@@ -1222,18 +1231,27 @@ Timestamp,Stage_ft,WaterTemp_C
     // Simulate: cursor says rows 4-6 were already pushed (max_row_index = 6).
     // Seed previous_row_count = 6 (as load_cursor_row_seeds would produce).
     // The scan should only return row 7.
+    let last_ts = chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
+        .unwrap()
+        .and_hms_opt(8, 10, 0)
+        .unwrap()
+        .and_utc();
+    let mut datastream_cursors = std::collections::HashMap::new();
+    datastream_cursors.insert(
+        "ds-1".to_string(),
+        crate::models::DatastreamCursor {
+            last_pushed_timestamp: Some(last_ts),
+            last_pushed_row_index: Some(6),
+            last_error: None,
+        },
+    );
     let cursor = JobCursor {
-        last_pushed_timestamp: Some(
-            chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
-                .unwrap()
-                .and_hms_opt(8, 10, 0)
-                .unwrap()
-                .and_utc(),
-        ),
+        last_pushed_timestamp: Some(last_ts),
         last_pushed_row_index: Some(6),
         last_run_at: None,
         last_error: None,
         is_running: false,
+        datastream_cursors,
     };
 
     let result = scan_job_file(
@@ -1302,21 +1320,30 @@ Timestamp,Stage_ft,WaterTemp_C
         "new jobs should not have a row-count seed before any uploads succeed"
     );
 
+    let persisted_ts = chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
+        .unwrap()
+        .and_hms_opt(8, 5, 0)
+        .unwrap()
+        .and_utc();
+    let mut persisted_datastream_cursors = std::collections::HashMap::new();
+    persisted_datastream_cursors.insert(
+        "ds-1".to_string(),
+        crate::models::DatastreamCursor {
+            last_pushed_timestamp: Some(persisted_ts),
+            last_pushed_row_index: Some(5),
+            last_error: None,
+        },
+    );
     config_store
         .update_cursor(
             &job.id,
             JobCursor {
-                last_pushed_timestamp: Some(
-                    chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
-                        .unwrap()
-                        .and_hms_opt(8, 5, 0)
-                        .unwrap()
-                        .and_utc(),
-                ),
+                last_pushed_timestamp: Some(persisted_ts),
                 last_pushed_row_index: Some(5),
                 last_run_at: Some(Utc::now()),
                 last_error: None,
                 is_running: false,
+                datastream_cursors: persisted_datastream_cursors,
             },
         )
         .expect("persist cursor");
@@ -1480,18 +1507,27 @@ Timestamp,Stage_ft,WaterTemp_C
     // Rows 6-8 were scanned and queued but the upload failed (last_error set).
     // In-memory previous_row_count = 8 (scan advanced past the failed rows).
     // Expected: incremental scan should backtrack to row 5 and re-queue rows 6-8.
+    let last_ts = chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
+        .unwrap()
+        .and_hms_opt(8, 5, 0)
+        .unwrap()
+        .and_utc();
+    let mut datastream_cursors = std::collections::HashMap::new();
+    datastream_cursors.insert(
+        "ds-1".to_string(),
+        crate::models::DatastreamCursor {
+            last_pushed_timestamp: Some(last_ts),
+            last_pushed_row_index: Some(5),
+            last_error: Some("network error".to_string()),
+        },
+    );
     let cursor = JobCursor {
-        last_pushed_timestamp: Some(
-            chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
-                .unwrap()
-                .and_hms_opt(8, 5, 0)
-                .unwrap()
-                .and_utc(),
-        ),
+        last_pushed_timestamp: Some(last_ts),
         last_pushed_row_index: Some(5),
         last_run_at: None,
         last_error: Some("network error".to_string()),
         is_running: false,
+        datastream_cursors,
     };
 
     let result = scan_job_file(
@@ -1511,6 +1547,121 @@ Timestamp,Stage_ft,WaterTemp_C
     assert_eq!(result.observations[0].row_index, 6);
     assert_eq!(result.observations[1].row_index, 7);
     assert_eq!(result.observations[2].row_index, 8);
+
+    let _ = std::fs::remove_file(path);
+}
+
+/// Fix #2 (multi-datastream partial failure): When a job maps the same CSV file
+/// to multiple datastreams, an upload failure on one must not advance the other
+/// datastream's cursor past unuploaded rows. The scan must read per-datastream
+/// cursors and only re-emit rows a given datastream hasn't yet confirmed.
+#[test]
+fn scan_respects_per_datastream_cursors_after_partial_failure() {
+    let path = std::env::temp_dir().join(format!(
+        "sdl-partial-failure-{}-{}.csv",
+        std::process::id(),
+        Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
+
+    // 3 header rows + 5 data rows (rows 4-8). Two measurement columns.
+    let csv = "\
+Station,Example Creek
+Generated At,2026-04-03
+Timestamp,Stage_ft,WaterTemp_C
+2026-04-03 08:00:00,2.41,7.8
+2026-04-03 08:05:00,2.45,7.9
+2026-04-03 08:10:00,2.50,8.0
+2026-04-03 08:15:00,2.55,8.1
+2026-04-03 08:20:00,2.60,8.2
+";
+    std::fs::write(&path, csv).expect("write csv");
+
+    // Job mapping the CSV to two datastreams.
+    let mut job = sample_job(path.to_str().expect("utf-8 path"));
+    job.column_mappings = vec![
+        ColumnMapping {
+            csv_column: "Stage_ft".to_string(),
+            datastream_id: "ds-stage".to_string(),
+            datastream_name: "Stage".to_string(),
+        },
+        ColumnMapping {
+            csv_column: "WaterTemp_C".to_string(),
+            datastream_id: "ds-temp".to_string(),
+            datastream_name: "Water Temp".to_string(),
+        },
+    ];
+
+    // Scenario: Stage uploaded all 5 rows successfully (row 8), but Temp
+    // failed after only 2 rows (last_pushed=5 + error). Pre-fix, the job-level
+    // cursor would have advanced to 8, causing rows 6-8 for Temp to be
+    // silently dropped. With per-datastream cursors, the scan backtracks for
+    // Temp only.
+    let stage_ts = chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
+        .unwrap()
+        .and_hms_opt(8, 20, 0)
+        .unwrap()
+        .and_utc();
+    let temp_ts = chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
+        .unwrap()
+        .and_hms_opt(8, 5, 0)
+        .unwrap()
+        .and_utc();
+    let mut datastream_cursors = HashMap::new();
+    datastream_cursors.insert(
+        "ds-stage".to_string(),
+        crate::models::DatastreamCursor {
+            last_pushed_timestamp: Some(stage_ts),
+            last_pushed_row_index: Some(8),
+            last_error: None,
+        },
+    );
+    datastream_cursors.insert(
+        "ds-temp".to_string(),
+        crate::models::DatastreamCursor {
+            last_pushed_timestamp: Some(temp_ts),
+            last_pushed_row_index: Some(5),
+            last_error: Some("network error".to_string()),
+        },
+    );
+    let cursor = JobCursor {
+        last_pushed_timestamp: Some(temp_ts),
+        last_pushed_row_index: Some(5), // MIN aggregate of per-datastream cursors
+        last_run_at: None,
+        last_error: Some("network error".to_string()),
+        is_running: false,
+        datastream_cursors,
+    };
+
+    // In-memory row count from the most recent scan is 8 (the file hasn't
+    // changed since then).
+    let result = scan_job_file(job, 8, cursor, ScanMode::Incremental).expect("partial retry scan");
+
+    // Only Temp (ds-temp) should have observations for rows 6, 7, 8. Stage is
+    // caught up at row 8 and should emit nothing.
+    let stage_obs: Vec<_> = result
+        .observations
+        .iter()
+        .filter(|o| o.datastream_id == "ds-stage")
+        .collect();
+    let temp_obs: Vec<_> = result
+        .observations
+        .iter()
+        .filter(|o| o.datastream_id == "ds-temp")
+        .collect();
+
+    assert!(
+        stage_obs.is_empty(),
+        "caught-up datastream should not re-emit rows, got {:?}",
+        stage_obs.iter().map(|o| o.row_index).collect::<Vec<_>>()
+    );
+    assert_eq!(
+        temp_obs.len(),
+        3,
+        "behind datastream should re-emit rows past its last_pushed_row_index"
+    );
+    assert_eq!(temp_obs[0].row_index, 6);
+    assert_eq!(temp_obs[1].row_index, 7);
+    assert_eq!(temp_obs[2].row_index, 8);
 
     let _ = std::fs::remove_file(path);
 }

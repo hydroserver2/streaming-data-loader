@@ -11,7 +11,7 @@ use tracing::{error, info, warn};
 use crate::{
     config_store::ConfigStore,
     hydroserver::{HydroServerService, ObservationPayloadRow},
-    models::{JobCursor, LogLevel},
+    models::LogLevel,
     observation_queue::{ObservationContext, ObservationReceiver, QueuedObservation},
 };
 
@@ -214,31 +214,22 @@ fn jitter_duration(base: Duration) -> Duration {
 }
 
 async fn persist_success(config_store: Arc<ConfigStore>, batch: &PendingBatch) {
+    let datastream_id = batch.context.datastream_id.clone();
+    let datastream_name = batch.context.datastream_name.clone();
     let updates = summarize_batch(batch);
 
     for update in updates.into_values() {
         let config_store = config_store.clone();
-        let datastream_name = batch.context.datastream_name.clone();
+        let datastream_id = datastream_id.clone();
+        let datastream_name = datastream_name.clone();
         let observation_count = update.observation_count;
         let _ = tokio::task::spawn_blocking(move || {
-            let existing = config_store.cursor_for(&update.job_id)?;
-            config_store.update_cursor(
+            config_store.record_datastream_success(
                 &update.job_id,
-                JobCursor {
-                    last_run_at: Some(Utc::now()),
-                    last_pushed_timestamp: Some(
-                        max_timestamp(existing.last_pushed_timestamp, Some(update.max_timestamp))
-                            .expect("timestamp should exist"),
-                    ),
-                    last_pushed_row_index: Some(
-                        existing
-                            .last_pushed_row_index
-                            .map(|current| current.max(update.max_row_index))
-                            .unwrap_or(update.max_row_index),
-                    ),
-                    last_error: None,
-                    is_running: existing.is_running,
-                },
+                &datastream_id,
+                update.max_row_index,
+                update.max_timestamp,
+                Utc::now(),
             )?;
             config_store.append_log(
                 &update.job_id,
@@ -257,23 +248,20 @@ async fn persist_success(config_store: Arc<ConfigStore>, batch: &PendingBatch) {
 }
 
 async fn persist_failure(config_store: Arc<ConfigStore>, batch: &PendingBatch, message: &str) {
+    let datastream_id = batch.context.datastream_id.clone();
     let message = message.to_string();
     let updates = summarize_batch(batch);
 
     for update in updates.into_values() {
         let config_store = config_store.clone();
+        let datastream_id = datastream_id.clone();
         let message = message.clone();
         let _ = tokio::task::spawn_blocking(move || {
-            let existing = config_store.cursor_for(&update.job_id)?;
-            config_store.update_cursor(
+            config_store.record_datastream_failure(
                 &update.job_id,
-                JobCursor {
-                    last_run_at: Some(Utc::now()),
-                    last_pushed_timestamp: existing.last_pushed_timestamp,
-                    last_pushed_row_index: existing.last_pushed_row_index,
-                    last_error: Some(message.clone()),
-                    is_running: existing.is_running,
-                },
+                &datastream_id,
+                &message,
+                Utc::now(),
             )?;
             config_store.append_log(
                 &update.job_id,
@@ -310,18 +298,6 @@ fn summarize_batch(batch: &PendingBatch) -> HashMap<String, JobUploadSummary> {
         entry.observation_count += 1;
     }
     updates
-}
-
-fn max_timestamp(
-    left: Option<DateTime<Utc>>,
-    right: Option<DateTime<Utc>>,
-) -> Option<DateTime<Utc>> {
-    match (left, right) {
-        (Some(left), Some(right)) => Some(left.max(right)),
-        (Some(left), None) => Some(left),
-        (None, Some(right)) => Some(right),
-        (None, None) => None,
-    }
 }
 
 struct JobUploadSummary {
