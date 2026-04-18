@@ -63,6 +63,7 @@ export function updateAuthDraftField(
   field: AuthFieldName,
   value: string
 ): void {
+  state.authDraftDirty = true
   state.authDraft[field] = value
   if (
     field === "url" ||
@@ -78,6 +79,7 @@ export function updateAuthDraftField(
 export function toggleAuthMode(_formId: "welcome-form" | "settings-form"): void {
   const nextType: AuthType =
     state.authDraft.auth_type === "apikey" ? "userpass" : "apikey"
+  state.authDraftDirty = true
   state.authDraft = { ...state.authDraft, auth_type: nextType }
   resetFieldStates(nextType)
 }
@@ -136,6 +138,7 @@ export async function submitAuthConfig(
 
         state.config = await updateServerConfig(payload)
         state.authDraft = { ...emptyServerConfig(), ...state.config.server }
+        state.authDraftDirty = false
         await syncAuthenticationStatus(state.config.server)
         await refreshServiceStatus()
         if (formId === "welcome-form") {
@@ -153,6 +156,7 @@ export async function disconnectHydroServer(): Promise<void> {
   try {
     state.config = await clearServerConfig()
     state.authDraft = emptyServerConfig()
+    state.authDraftDirty = false
     state.connectionSummary = null
     state.serviceStatus = null
     state.jobStatuses = []

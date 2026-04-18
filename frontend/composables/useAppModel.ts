@@ -23,6 +23,7 @@ import {
   restartBackgroundService,
   uninstallBackgroundService,
 } from "./useService"
+import { isTauriRuntime, normalizeError } from "../api/runtime"
 import type { AppRoute } from "../router"
 
 export { APP_NAME, API_KEY_DOCS_URL, PREVIEW_PAGE_INCREMENT, PREVIEW_PAGE_SIZE }
@@ -76,11 +77,62 @@ export function resolveAuthenticatedRoute(params: {
   return route
 }
 
+export function requiresDesktopServiceSetup(params: {
+  tauriRuntime: boolean
+  serviceReady: boolean
+  daemonReady: boolean
+}): boolean {
+  const { tauriRuntime, serviceReady, daemonReady } = params
+  return tauriRuntime && (!serviceReady || !daemonReady)
+}
+
+export function shouldHydrateAuthDraftFromDaemon(params: {
+  authSubmitting: boolean
+  authDraftDirty: boolean
+}): boolean {
+  const { authSubmitting, authDraftDirty } = params
+  return !authSubmitting && !authDraftDirty
+}
+
+function bootstrapServiceErrorMessage(params: {
+  error: unknown
+  serviceStatusInstalled: boolean
+  serviceStatusRunning: boolean
+  serviceSupported: boolean
+}): string {
+  const { error, serviceStatusInstalled, serviceStatusRunning, serviceSupported } = params
+
+  if (!serviceSupported) {
+    return normalizeError(error).message
+  }
+
+  if (!serviceStatusInstalled) {
+    return "Install the background service to continue."
+  }
+
+  if (!serviceStatusRunning) {
+    return "Restart the background service to continue."
+  }
+
+  return "Couldn't connect to the local background service. Restart it to continue."
+}
+
 function syncRouteState(): void {
   let route = getRouteFromHash()
 
   if (!state.loading) {
-    if (!isConnected.value) {
+    if (
+      requiresDesktopServiceSetup({
+        tauriRuntime: isTauriRuntime(),
+        serviceReady: isServiceReady(state.serviceStatus),
+        daemonReady: state.health !== null && state.config !== null,
+      })
+    ) {
+      if (route !== "service") {
+        navigate("service")
+        route = "service"
+      }
+    } else if (!isConnected.value) {
       if (route !== "welcome") {
         navigate("welcome")
         route = "welcome"
@@ -171,8 +223,14 @@ function applyDaemonStatusSnapshot(snapshot: DaemonStatusSnapshot): void {
   state.config = snapshot.config
   state.jobStatuses = snapshot.jobs
 
-  if (!state.authSubmitting) {
+  if (
+    shouldHydrateAuthDraftFromDaemon({
+      authSubmitting: state.authSubmitting,
+      authDraftDirty: state.authDraftDirty,
+    })
+  ) {
     state.authDraft = { ...emptyServerConfig(), ...snapshot.config.server }
+    state.authDraftDirty = false
   }
 
   if (snapshot.health.connection.state === "not_configured") {
@@ -204,13 +262,22 @@ export async function bootstrap(): Promise<void> {
     const { health, config, jobs, serviceStatus } = await loadInitialState()
     applyDaemonStatusSnapshot({ health, config, jobs })
     state.serviceStatus = serviceStatus
+    state.serviceActionError = null
     state.lastConnectionState = health.connection.state
 
     if (serverConfigured(config.server)) {
       await syncAuthenticationStatus(config.server)
     }
-  } catch {
-    // bootstrap failed; routing will fall back to the welcome/connection screen
+  } catch (error) {
+    if (isTauriRuntime()) {
+      const serviceStatus = await refreshServiceStatus()
+      state.serviceActionError = bootstrapServiceErrorMessage({
+        error,
+        serviceStatusInstalled: Boolean(serviceStatus?.installed),
+        serviceStatusRunning: Boolean(serviceStatus?.running),
+        serviceSupported: serviceStatus?.supported !== false,
+      })
+    }
   } finally {
     state.loading = false
     syncRouteState()

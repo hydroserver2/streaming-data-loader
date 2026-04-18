@@ -2,7 +2,7 @@ import test from "node:test"
 import assert from "node:assert/strict"
 
 import { emptyServerConfig, state } from "../composables/state"
-import { submitAuthConfig } from "../composables/useAuth"
+import { submitAuthConfig, updateAuthDraftField } from "../composables/useAuth"
 import { createAuthFieldStates } from "../auth-submit"
 
 const originalFetch = globalThis.fetch
@@ -17,6 +17,7 @@ function jsonResponse(body: unknown): Response {
 
 function resetAuthState(): void {
   state.authDraft = emptyServerConfig()
+  state.authDraftDirty = false
   state.authFieldStates = createAuthFieldStates()
   state.authSubmitting = false
   state.connectionSummary = null
@@ -122,4 +123,12 @@ test("submitAuthConfig saves a valid API key login and routes into onboarding", 
   assert.equal(state.config?.server.workspace_id, "workspace-1")
   assert.equal(state.connectionSummary?.workspace_name, "Primary Workspace")
   assert.equal(globalThis.window.location.hash, "#jobs/new")
+  assert.equal(state.authDraftDirty, false)
+})
+
+test("updating the host URL marks the auth draft dirty", () => {
+  updateAuthDraftField("welcome-form", "url", "https://example.com")
+
+  assert.equal(state.authDraft.url, "https://example.com")
+  assert.equal(state.authDraftDirty, true)
 })

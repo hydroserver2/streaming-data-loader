@@ -77,6 +77,7 @@ type UiState = {
   pipelineForm: PipelineFormState;
   pipelinePreview: CsvPreviewResponse | null;
   authDraft: ServerConfig;
+  authDraftDirty: boolean;
   authFieldStates: Record<AuthFieldName, FieldValidationState>;
   pipelineFieldStates: PipelineFieldStates;
   authSubmitting: boolean;
@@ -143,6 +144,7 @@ export const state = reactive<UiState>({
   pipelineForm: createEmptyPipelineForm(),
   pipelinePreview: null,
   authDraft: emptyServerConfig(),
+  authDraftDirty: false,
   authFieldStates: createAuthFieldStates(),
   pipelineFieldStates: createPipelineFieldStates(),
   authSubmitting: false,
