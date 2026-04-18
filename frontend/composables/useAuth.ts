@@ -14,7 +14,7 @@ import {
   type AuthType,
   type ConnectionTestResponse,
   type ServerConfig,
-} from "../api/app"
+} from "../api/hydroserver"
 import { navigate } from "../router"
 import {
   createEmptyPipelineForm,

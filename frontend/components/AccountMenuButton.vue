@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
-import { useAppModel } from "../composables/useAppModel"
+import { useAppModel } from '../composables/useAppModel'
 
 const model = useAppModel()
 
@@ -11,10 +11,14 @@ const showUserpassEditor = ref(false)
 const menuRef = ref<HTMLElement | null>(null)
 
 const instanceName = computed(
-  () => model.state.connectionSummary?.instance_name?.trim() || "HydroServer account"
+  () =>
+    model.state.connectionSummary?.instance_name?.trim() ||
+    'HydroServer account'
 )
 const authModeLabel = computed(() =>
-  model.state.authDraft.auth_type === "userpass" ? "Username + password" : "API key"
+  model.state.authDraft.auth_type === 'userpass'
+    ? 'Username + password'
+    : 'API key'
 )
 const workspaceLabel = computed(
   () =>
@@ -23,17 +27,17 @@ const workspaceLabel = computed(
     model.state.connectionSummary?.workspace_id?.trim() ||
     model.state.config?.server.workspace_id ||
     model.state.authDraft.workspace_id ||
-    "No workspace"
+    'No workspace'
 )
 const submitLabelText = computed(() =>
-  model.state.authSubmitting ? "Saving..." : "Save account changes"
+  model.state.authSubmitting ? 'Saving...' : 'Save account changes'
 )
 
 function fieldError(
-  name: "api_key" | "username" | "password" | "workspace_name"
+  name: 'api_key' | 'username' | 'password' | 'workspace_name'
 ): string | null {
   const fieldState = model.state.authFieldStates[name]
-  return fieldState.state === "invalid" ? fieldState.message : null
+  return fieldState.state === 'invalid' ? fieldState.message : null
 }
 
 function toggleMenu(): void {
@@ -48,22 +52,22 @@ function closeMenu(): void {
 
 function cancelApiKeyEdit(): void {
   model.updateAuthDraftField(
-    "settings-form",
-    "api_key",
-    model.state.config?.server.api_key ?? ""
+    'settings-form',
+    'api_key',
+    model.state.config?.server.api_key ?? ''
   )
   showApiKeyEditor.value = false
 }
 
 function cancelUserpassEdit(): void {
   const server = model.state.config?.server
-  model.state.authDraft.username = server?.username ?? ""
-  model.state.authDraft.password = server?.password ?? ""
-  model.state.authDraft.workspace_name = server?.workspace_name ?? ""
-  model.state.authDraft.workspace_id = server?.workspace_id ?? ""
-  model.state.authFieldStates.username = { state: "idle", message: null }
-  model.state.authFieldStates.password = { state: "idle", message: null }
-  model.state.authFieldStates.workspace_name = { state: "idle", message: null }
+  model.state.authDraft.username = server?.username ?? ''
+  model.state.authDraft.password = server?.password ?? ''
+  model.state.authDraft.workspace_name = server?.workspace_name ?? ''
+  model.state.authDraft.workspace_id = server?.workspace_id ?? ''
+  model.state.authFieldStates.username = { state: 'idle', message: null }
+  model.state.authFieldStates.password = { state: 'idle', message: null }
+  model.state.authFieldStates.workspace_name = { state: 'idle', message: null }
   showUserpassEditor.value = false
 }
 
@@ -74,19 +78,19 @@ function onDocumentPointerDown(event: PointerEvent): void {
 }
 
 function onDocumentKeydown(event: KeyboardEvent): void {
-  if (event.key === "Escape") {
+  if (event.key === 'Escape') {
     closeMenu()
   }
 }
 
 onMounted(() => {
-  document.addEventListener("pointerdown", onDocumentPointerDown)
-  document.addEventListener("keydown", onDocumentKeydown)
+  document.addEventListener('pointerdown', onDocumentPointerDown)
+  document.addEventListener('keydown', onDocumentKeydown)
 })
 
 onBeforeUnmount(() => {
-  document.removeEventListener("pointerdown", onDocumentPointerDown)
-  document.removeEventListener("keydown", onDocumentKeydown)
+  document.removeEventListener('pointerdown', onDocumentPointerDown)
+  document.removeEventListener('keydown', onDocumentKeydown)
 })
 </script>
 
@@ -131,7 +135,11 @@ onBeforeUnmount(() => {
         </div>
       </dl>
 
-      <form class="account-menu-form" autocomplete="off" @submit.prevent="model.submitAuthConfig('settings-form')">
+      <form
+        class="account-menu-form"
+        autocomplete="off"
+        @submit.prevent="model.submitAuthConfig('settings-form')"
+      >
         <template v-if="model.state.authDraft.auth_type === 'apikey'">
           <button
             v-if="!showApiKeyEditor"
@@ -149,10 +157,16 @@ onBeforeUnmount(() => {
               class="input account-menu-input"
               type="password"
               placeholder="Enter a new API key"
-              @input="model.updateAuthDraftField('settings-form', 'api_key', ($event.target as HTMLInputElement).value)"
+              @input="
+                model.updateAuthDraftField(
+                  'settings-form',
+                  'api_key',
+                  ($event.target as HTMLInputElement).value
+                )
+              "
             />
             <p v-if="fieldError('api_key')" class="field-error">
-              {{ fieldError("api_key") }}
+              {{ fieldError('api_key') }}
             </p>
           </label>
         </template>
@@ -175,10 +189,16 @@ onBeforeUnmount(() => {
                 class="input account-menu-input"
                 type="text"
                 placeholder="name@example.com"
-                @input="model.updateAuthDraftField('settings-form', 'username', ($event.target as HTMLInputElement).value)"
+                @input="
+                  model.updateAuthDraftField(
+                    'settings-form',
+                    'username',
+                    ($event.target as HTMLInputElement).value
+                  )
+                "
               />
               <p v-if="fieldError('username')" class="field-error">
-                {{ fieldError("username") }}
+                {{ fieldError('username') }}
               </p>
             </label>
 
@@ -189,10 +209,16 @@ onBeforeUnmount(() => {
                 class="input account-menu-input"
                 type="password"
                 placeholder="Enter your HydroServer password"
-                @input="model.updateAuthDraftField('settings-form', 'password', ($event.target as HTMLInputElement).value)"
+                @input="
+                  model.updateAuthDraftField(
+                    'settings-form',
+                    'password',
+                    ($event.target as HTMLInputElement).value
+                  )
+                "
               />
               <p v-if="fieldError('password')" class="field-error">
-                {{ fieldError("password") }}
+                {{ fieldError('password') }}
               </p>
             </label>
 
@@ -203,10 +229,16 @@ onBeforeUnmount(() => {
                 class="input account-menu-input"
                 type="text"
                 placeholder="Workspace"
-                @input="model.updateAuthDraftField('settings-form', 'workspace_name', ($event.target as HTMLInputElement).value)"
+                @input="
+                  model.updateAuthDraftField(
+                    'settings-form',
+                    'workspace_name',
+                    ($event.target as HTMLInputElement).value
+                  )
+                "
               />
               <p v-if="fieldError('workspace_name')" class="field-error">
-                {{ fieldError("workspace_name") }}
+                {{ fieldError('workspace_name') }}
               </p>
             </label>
           </template>
@@ -214,7 +246,12 @@ onBeforeUnmount(() => {
 
         <div class="account-menu-actions">
           <button
-            v-if="(model.state.authDraft.auth_type === 'apikey' && showApiKeyEditor) || (model.state.authDraft.auth_type !== 'apikey' && showUserpassEditor)"
+            v-if="
+              (model.state.authDraft.auth_type === 'apikey' &&
+                showApiKeyEditor) ||
+              (model.state.authDraft.auth_type !== 'apikey' &&
+                showUserpassEditor)
+            "
             class="btn-primary account-menu-save"
             type="submit"
             :disabled="model.state.authSubmitting"
@@ -222,7 +259,9 @@ onBeforeUnmount(() => {
             {{ submitLabelText }}
           </button>
           <button
-            v-if="model.state.authDraft.auth_type === 'apikey' && showApiKeyEditor"
+            v-if="
+              model.state.authDraft.auth_type === 'apikey' && showApiKeyEditor
+            "
             class="btn-ghost account-menu-cancel"
             type="button"
             @click="cancelApiKeyEdit()"
@@ -230,14 +269,20 @@ onBeforeUnmount(() => {
             Cancel
           </button>
           <button
-            v-if="model.state.authDraft.auth_type !== 'apikey' && showUserpassEditor"
+            v-if="
+              model.state.authDraft.auth_type !== 'apikey' && showUserpassEditor
+            "
             class="btn-ghost account-menu-cancel"
             type="button"
             @click="cancelUserpassEdit()"
           >
             Cancel
           </button>
-          <button class="btn-danger" type="button" @click="model.disconnectHydroServer()">
+          <button
+            class="btn-danger"
+            type="button"
+            @click="model.disconnectHydroServer()"
+          >
             Disconnect
           </button>
         </div>

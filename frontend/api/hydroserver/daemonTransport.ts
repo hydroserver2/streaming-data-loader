@@ -1,13 +1,10 @@
-import type {
-  DaemonConnectionInfo,
-  DaemonStatusSnapshot,
-} from "./types"
+import type { DaemonConnectionInfo, DaemonStatusSnapshot } from './types'
 import {
   formatErrorDetail,
   invokeCommand,
   isTauriRuntime,
   normalizeError,
-} from "../runtime"
+} from '../runtime'
 
 let daemonConnectionPromise: Promise<DaemonConnectionInfo> | null = null
 
@@ -17,16 +14,18 @@ function resetDaemonConnection(): void {
 
 export async function getDaemonConnection(): Promise<DaemonConnectionInfo> {
   if (!isTauriRuntime()) {
-    throw new Error("The daemon connection is only available in the desktop app.")
+    throw new Error(
+      'The daemon connection is only available in the desktop app.'
+    )
   }
 
   if (!daemonConnectionPromise) {
-    daemonConnectionPromise = invokeCommand<DaemonConnectionInfo>("get_daemon_connection").catch(
-      (error) => {
-        resetDaemonConnection()
-        throw error
-      }
-    )
+    daemonConnectionPromise = invokeCommand<DaemonConnectionInfo>(
+      'get_daemon_connection'
+    ).catch((error) => {
+      resetDaemonConnection()
+      throw error
+    })
   }
 
   return daemonConnectionPromise
@@ -37,13 +36,13 @@ export async function daemonCommand<T>(
   payload?: Record<string, unknown>
 ): Promise<T> {
   const connection = await getDaemonConnection()
-  const baseUrl = connection.base_url.replace(/\/$/, "")
+  const baseUrl = connection.base_url.replace(/\/$/, '')
 
   try {
     const response = await fetch(`${baseUrl}/api/commands/${command}`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
+        'Content-Type': 'application/json',
         Authorization: `Bearer ${connection.token}`,
       },
       body: JSON.stringify(payload ?? {}),
@@ -89,11 +88,13 @@ export function subscribeToDaemonStatus(handlers: {
       const connection = await getDaemonConnection()
       if (closed) return
 
-      const url = new URL(`${connection.base_url.replace(/\/$/, "")}/api/status`)
-      url.searchParams.set("access_token", connection.token)
+      const url = new URL(
+        `${connection.base_url.replace(/\/$/, '')}/api/status`
+      )
+      url.searchParams.set('access_token', connection.token)
 
       eventSource = new EventSource(url.toString())
-      eventSource.addEventListener("status", event => {
+      eventSource.addEventListener('status', (event) => {
         if (!(event instanceof MessageEvent)) return
         try {
           handlers.onStatus(JSON.parse(event.data) as DaemonStatusSnapshot)
@@ -105,7 +106,9 @@ export function subscribeToDaemonStatus(handlers: {
         eventSource?.close()
         eventSource = null
         resetDaemonConnection()
-        handlers.onError?.(new Error("Lost connection to the local daemon. Retrying..."))
+        handlers.onError?.(
+          new Error('Lost connection to the local daemon. Retrying...')
+        )
         if (!closed) {
           reconnectTimer = window.setTimeout(() => {
             reconnectTimer = null

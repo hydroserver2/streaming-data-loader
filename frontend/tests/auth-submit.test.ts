@@ -10,8 +10,8 @@ import {
   validateAuthFieldsForSubmit,
   type AuthFieldName,
   type FieldValidationState,
-} from "./auth-submit";
-import type { ConnectionTestResponse, ServerConfig } from "./api/app";
+} from "../auth-submit";
+import type { ConnectionTestResponse, ServerConfig } from "../api/hydroserver";
 
 function createServerConfig(
   overrides: Partial<ServerConfig> = {}

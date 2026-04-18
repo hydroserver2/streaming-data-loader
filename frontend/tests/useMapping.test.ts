@@ -1,8 +1,8 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import type { CsvPreviewResponse, DatastreamSummary } from "./api/app"
-import { createPipelineFieldStates } from "./pipeline-submit"
+import type { CsvPreviewResponse, DatastreamSummary } from "../api/hydroserver"
+import { createPipelineFieldStates } from "../pipeline-submit"
 import {
   buildPipelineColumnMappings,
   buildDatastreamBrowserEntries,
@@ -12,8 +12,8 @@ import {
   syncPipelineMappingDrafts,
   updatePipelineMappingDatastream,
   updatePipelineMappingThing,
-} from "./composables/useMapping"
-import { createEmptyPipelineForm, PREVIEW_PAGE_SIZE, state } from "./composables/state"
+} from "../composables/useMapping"
+import { createEmptyPipelineForm, PREVIEW_PAGE_SIZE, state } from "../composables/state"
 
 const originalFetch = globalThis.fetch
 

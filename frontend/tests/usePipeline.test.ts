@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import type { CsvPreviewResponse } from "./api/app"
+import type { CsvPreviewResponse } from "../api/hydroserver"
 import {
   editPipelineCsvSetup,
   editPipelineMappings,
@@ -16,14 +16,14 @@ import {
   showMorePreviewLines,
   submitPipelineConfig,
   updatePipelineField,
-} from "./composables/usePipeline"
+} from "../composables/usePipeline"
 import {
   createEmptyPipelineForm,
   PREVIEW_PAGE_INCREMENT,
   PREVIEW_PAGE_SIZE,
   state,
-} from "./composables/state"
-import { createPipelineFieldStates } from "./pipeline-submit"
+} from "../composables/state"
+import { createPipelineFieldStates } from "../pipeline-submit"
 
 const originalFetch = globalThis.fetch
 const originalWindow = globalThis.window

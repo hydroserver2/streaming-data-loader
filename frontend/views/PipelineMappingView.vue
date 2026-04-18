@@ -12,7 +12,7 @@ import {
   getDatastreamDetail,
   type DatastreamDetail,
   type DatastreamSummary,
-} from '../api/app'
+} from '../api/hydroserver'
 import HeaderControls from '../components/HeaderControls.vue'
 import AnimatedLoadingIcon from '../components/AnimatedLoadingIcon.vue'
 import type {

@@ -13,5 +13,5 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true
   },
-  "include": ["frontend/**/*.ts", "frontend/**/*.d.ts"]
+  "include": ["frontend/**/*.ts", "frontend/**/*.d.ts", "frontend/tests/**/*.ts"]
 }

@@ -1,9 +1,9 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import { emptyServerConfig, state } from "./composables/state"
-import { submitAuthConfig } from "./composables/useAuth"
-import { createAuthFieldStates } from "./auth-submit"
+import { emptyServerConfig, state } from "../composables/state"
+import { submitAuthConfig } from "../composables/useAuth"
+import { createAuthFieldStates } from "../auth-submit"
 
 const originalFetch = globalThis.fetch
 const originalWindow = globalThis.window

@@ -11,7 +11,7 @@ import {
   type JobLogEntry,
   type JobStatus,
   type JobStatusSummary,
-} from '../api/app'
+} from '../api/hydroserver'
 import HeaderControls from '../components/HeaderControls.vue'
 import { useAppModel } from '../composables/useAppModel'
 import { navigate } from '../router'

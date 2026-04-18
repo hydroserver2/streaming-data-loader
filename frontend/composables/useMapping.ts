@@ -4,7 +4,7 @@ import {
   getDatastreams,
   type ColumnMapping,
   type DatastreamSummary,
-} from "../api/app"
+} from "../api/hydroserver"
 import { state, type PipelineMappingDraft } from "./state"
 import { previewHeaders } from "./usePipeline"
 

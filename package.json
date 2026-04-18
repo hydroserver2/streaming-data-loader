@@ -14,7 +14,7 @@
     "build": "npm run tailwind:build && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && vite build",
     "preview": "vite preview",
     "test": "npm run test:frontend",
-    "test:frontend": "tsx --test frontend/**/*.test.ts",
+    "test:frontend": "tsx --test frontend/tests/**/*.test.ts",
     "tailwind:watch": "tailwindcss -i ./frontend/styles.css -o ./frontend/generated.css --watch",
     "tailwind:build": "tailwindcss -i ./frontend/styles.css -o ./frontend/generated.css --minify",
     "tauri": "node ./scripts/run-tauri.mjs"

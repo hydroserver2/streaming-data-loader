@@ -5,8 +5,8 @@ import {
   createPipelineFieldStates,
   validatePipelineFieldsForSubmit,
   type PipelineFieldName,
-} from "./pipeline-submit"
-import { createEmptyPipelineForm } from "./composables/state"
+} from "../pipeline-submit"
+import { createEmptyPipelineForm } from "../composables/state"
 
 function validateForm(params?: {
   hasPreview?: boolean

@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import { resolveAuthenticatedRoute } from "./composables/useAppModel"
+import { resolveAuthenticatedRoute } from "../composables/useAppModel"
 
 test("connected users with saved datasources default to the dashboard", () => {
   assert.equal(

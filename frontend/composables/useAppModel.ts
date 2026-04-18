@@ -4,7 +4,7 @@ import {
   getBootstrap,
   subscribeToDaemonStatus,
   type DaemonStatusSnapshot,
-} from "../api/app"
+} from "../api/hydroserver"
 import { getServiceStatus } from "../api/os-service"
 import { getRouteFromHash, navigate } from "../router"
 import {

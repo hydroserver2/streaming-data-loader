@@ -22,7 +22,7 @@ import type {
   HealthResponse,
   JobStatusSummary,
   ServerConfig,
-} from "../api/app";
+} from "../api/hydroserver";
 import type { ServiceStatusResponse } from "../api/os-service";
 
 export type PipelineIdentifierType = "name" | "index";
