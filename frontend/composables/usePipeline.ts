@@ -687,9 +687,6 @@ export function submitPipelineConfig(): void {
 
   state.validatedPipelineSettings = buildPipelineTransformerSettings()
   state.pipelineReadyForMapping = true
-  void import("./useMapping")
-    .then(({ loadPipelineDatastreams }) => loadPipelineDatastreams())
-    .catch(() => undefined)
   navigate("jobs-new-mapping")
 }
 
