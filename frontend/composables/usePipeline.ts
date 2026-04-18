@@ -14,6 +14,7 @@ import {
   resetPipelineFieldStates,
   validatePipelineFieldsForSubmit,
 } from "../pipeline-submit"
+import { loadPipelineDatastreams } from "./useMapping"
 import { navigate } from "../router"
 import {
   createEmptyPipelineForm,
@@ -795,7 +796,6 @@ async function preparePipelineEditFlow(
   state.pipelineReadyForMapping = section === "mappings"
 
   if (section === "mappings") {
-    const { loadPipelineDatastreams } = await import("./useMapping")
     await loadPipelineDatastreams()
     state.pipelineMappingDrafts = pipelineMappingDraftsFromJob(job)
     navigate("jobs-new-mapping")

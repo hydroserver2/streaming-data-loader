@@ -1,16 +1,19 @@
 use std::{
     fs,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::Command,
     time::{SystemTime, UNIX_EPOCH},
 };
 
 use tauri::AppHandle;
 
-use crate::{
-    models::ServiceStatusResponse,
-    service_paths::{active_app_directory_name, default_shared_service_config_dir},
-};
+use crate::{models::ServiceStatusResponse, service_paths::active_app_directory_name};
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use std::path::Path;
+
+#[cfg(target_os = "macos")]
+use crate::service_paths::default_shared_service_config_dir;
 
 #[cfg(windows)]
 use std::{
@@ -22,7 +25,7 @@ use std::{
 use windows_service::{
     service::{
         ServiceAccess, ServiceErrorControl, ServiceInfo, ServiceStartType, ServiceState,
-        ServiceStatus, ServiceType,
+        ServiceType,
     },
     service_manager::{ServiceManager, ServiceManagerAccess},
     Error as WindowsServiceError,

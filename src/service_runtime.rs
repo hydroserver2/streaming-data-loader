@@ -12,7 +12,7 @@ use crate::{
 use fs2::FileExt;
 
 #[cfg(windows)]
-use std::{ffi::OsString, sync::mpsc};
+use std::{ffi::OsString, sync::mpsc, time::Duration};
 
 #[cfg(windows)]
 use windows_service::{
