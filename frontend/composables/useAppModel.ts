@@ -94,6 +94,19 @@ export function shouldHydrateAuthDraftFromDaemon(params: {
   return !authSubmitting && !authDraftDirty
 }
 
+export function shouldApplyDaemonConnectionState(params: {
+  authSubmitting: boolean
+  snapshotConnectionState: DaemonStatusSnapshot["health"]["connection"]["state"]
+}): boolean {
+  const { authSubmitting, snapshotConnectionState } = params
+
+  if (authSubmitting) {
+    return snapshotConnectionState === "connected"
+  }
+
+  return true
+}
+
 function bootstrapServiceErrorMessage(params: {
   error: unknown
   serviceStatusInstalled: boolean
@@ -233,11 +246,18 @@ function applyDaemonStatusSnapshot(snapshot: DaemonStatusSnapshot): void {
     state.authDraftDirty = false
   }
 
-  if (snapshot.health.connection.state === "not_configured") {
-    state.connectionSummary = null
-    state.lastConnectionState = "not_configured"
-  } else if (!state.lastConnectionState || state.lastConnectionState === "not_configured") {
-    state.lastConnectionState = snapshot.health.connection.state
+  if (
+    shouldApplyDaemonConnectionState({
+      authSubmitting: state.authSubmitting,
+      snapshotConnectionState: snapshot.health.connection.state,
+    })
+  ) {
+    if (snapshot.health.connection.state === "not_configured") {
+      state.connectionSummary = null
+      state.lastConnectionState = "not_configured"
+    } else if (!state.lastConnectionState || state.lastConnectionState === "not_configured") {
+      state.lastConnectionState = snapshot.health.connection.state
+    }
   }
 }
 

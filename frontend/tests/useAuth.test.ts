@@ -51,7 +51,7 @@ test.after(() => {
   }
 })
 
-test("submitAuthConfig saves a valid API key login and routes into onboarding", async () => {
+test("submitAuthConfig saves a valid API key login state", async () => {
   const requests: string[] = []
 
   state.authDraft = {
@@ -122,7 +122,6 @@ test("submitAuthConfig saves a valid API key login and routes into onboarding", 
   assert.equal(state.lastConnectionState, "connected")
   assert.equal(state.config?.server.workspace_id, "workspace-1")
   assert.equal(state.connectionSummary?.workspace_name, "Primary Workspace")
-  assert.equal(globalThis.window.location.hash, "#jobs/new")
   assert.equal(state.authDraftDirty, false)
 })
 

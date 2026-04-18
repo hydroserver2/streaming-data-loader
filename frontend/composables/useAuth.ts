@@ -15,7 +15,6 @@ import {
   type ConnectionTestResponse,
   type ServerConfig,
 } from "../api/hydroserver"
-import { navigate } from "../router"
 import {
   createEmptyPipelineForm,
   emptyServerConfig,
@@ -104,7 +103,7 @@ export async function syncAuthenticationStatus(
 }
 
 export async function submitAuthConfig(
-  formId: "welcome-form" | "settings-form"
+  _formId: "welcome-form" | "settings-form"
 ): Promise<void> {
   if (state.authSubmitting) return
 
@@ -141,9 +140,6 @@ export async function submitAuthConfig(
         state.authDraftDirty = false
         await syncAuthenticationStatus(state.config.server)
         await refreshServiceStatus()
-        if (formId === "welcome-form") {
-          navigate(state.config.jobs.length > 0 ? "dashboard" : "jobs-new")
-        }
       },
     })
   } catch (error) {
@@ -177,7 +173,6 @@ export async function disconnectHydroServer(): Promise<void> {
     state.pipelineEditTarget = null
     state.pipelineCreateSubmitting = false
     resetFieldStates("apikey")
-    navigate("welcome")
   } catch (error) {
     console.error("Couldn't disconnect from HydroServer right now.", error)
   }

@@ -4,6 +4,7 @@ import assert from "node:assert/strict"
 import {
   requiresDesktopServiceSetup,
   resolveAuthenticatedRoute,
+  shouldApplyDaemonConnectionState,
   shouldHydrateAuthDraftFromDaemon,
 } from "../composables/useAppModel"
 
@@ -115,6 +116,26 @@ test("daemon snapshots still hydrate a clean auth draft", () => {
     shouldHydrateAuthDraftFromDaemon({
       authSubmitting: false,
       authDraftDirty: false,
+    }),
+    true
+  )
+})
+
+test("daemon snapshots do not downgrade connection state during auth submission", () => {
+  assert.equal(
+    shouldApplyDaemonConnectionState({
+      authSubmitting: true,
+      snapshotConnectionState: "not_configured",
+    }),
+    false
+  )
+})
+
+test("connected daemon snapshots can still apply during auth submission", () => {
+  assert.equal(
+    shouldApplyDaemonConnectionState({
+      authSubmitting: true,
+      snapshotConnectionState: "connected",
     }),
     true
   )
