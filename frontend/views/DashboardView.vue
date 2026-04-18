@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 
 import {
-  getJobs,
   getJobLogs,
-  getConfig,
   deleteJob,
   revealFileInFolder,
   runJobNow,
@@ -13,7 +11,7 @@ import {
   type JobLogEntry,
   type JobStatus,
   type JobStatusSummary,
-} from '../api'
+} from '../api/app'
 import HeaderControls from '../components/HeaderControls.vue'
 import { useAppModel } from '../composables/useAppModel'
 import { navigate } from '../router'
@@ -58,7 +56,12 @@ const workspaceLabel = computed(
     'Current workspace'
 )
 const datasourceCount = computed(() => jobs.value.length)
-const jobStatusById = ref<Record<string, JobStatusSummary>>({})
+const jobStatusById = computed(
+  () =>
+    Object.fromEntries(
+      model.state.jobStatuses.map((summary) => [summary.id, summary])
+    ) as Record<string, JobStatusSummary>
+)
 const pendingDeleteJobId = ref<string | null>(null)
 const deletingJobId = ref<string | null>(null)
 type RunButtonState = 'idle' | 'requested'
@@ -74,12 +77,9 @@ type NavSection = 'file' | 'setup' | 'mappings'
 const pendingNavigation = ref<{ jobId: string; section: NavSection } | null>(null)
 const RUN_BUTTON_MIN_LOCK_MS = 1000
 const RUN_REFRESH_OFFSETS_MS = [0, 800, 2000, 4000] as const
-const DASHBOARD_REFRESH_INTERVAL_MS = 3000
-let dashboardRefreshTimer: number | null = null
-let jobStatusRequestVersion = 0
 let jobLogsRequestVersion = 0
-let dashboardRefreshInFlight = false
-let dashboardRefreshQueued = false
+const LOG_REFRESH_INTERVAL_MS = 3000
+let logRefreshTimer: number | null = null
 
 function wait(milliseconds: number): Promise<void> {
   return new Promise((resolve) => {
@@ -118,7 +118,6 @@ async function confirmDeleteJob(jobId: string): Promise<void> {
   pendingDeleteJobId.value = null
   try {
     await deleteJob(jobId)
-    model.state.config = await getConfig()
   } finally {
     deletingJobId.value = null
   }
@@ -139,7 +138,6 @@ async function handleRunNow(jobId: string): Promise<void> {
     void refreshJobAfterRun(jobId)
   } catch (error) {
     console.error("Couldn't start this data source right now.", error)
-    await loadJobStatuses()
   } finally {
     const elapsed = Date.now() - requestedAt
     if (elapsed < RUN_BUTTON_MIN_LOCK_MS) {
@@ -192,7 +190,6 @@ async function saveEditingName(job: JobConfig): Promise<void> {
       file_config: job.file_config,
       column_mappings: job.column_mappings,
     })
-    model.state.config = await getConfig()
     editingNameJobId.value = null
     editingNameValue.value = ''
   } catch (error) {
@@ -304,24 +301,26 @@ function setJobStatusOverride(
   const fileConfig = existing?.file_config ?? job?.file_config
   if (!fileConfig) return
 
-  jobStatusById.value = {
-    ...jobStatusById.value,
-    [jobId]: {
-      id: existing?.id ?? jobId,
-      name: existing?.name ?? job?.name ?? '',
-      enabled: existing?.enabled ?? job?.enabled ?? true,
-      file_path: existing?.file_path ?? job?.file_path ?? '',
-      schedule_minutes: existing?.schedule_minutes ?? job?.schedule_minutes ?? 0,
-      file_config: fileConfig,
-      column_mappings: existing?.column_mappings ?? job?.column_mappings ?? [],
-      status: existing?.status ?? 'pending',
-      status_message: existing?.status_message ?? '',
-      last_pushed_timestamp: existing?.last_pushed_timestamp ?? null,
-      last_run_at: existing?.last_run_at ?? null,
-      last_error: existing?.last_error ?? null,
-      ...overrides,
-    },
+  const nextSummary: JobStatusSummary = {
+    id: existing?.id ?? jobId,
+    name: existing?.name ?? job?.name ?? '',
+    enabled: existing?.enabled ?? job?.enabled ?? true,
+    file_path: existing?.file_path ?? job?.file_path ?? '',
+    schedule_minutes: existing?.schedule_minutes ?? job?.schedule_minutes ?? 0,
+    file_config: fileConfig,
+    column_mappings: existing?.column_mappings ?? job?.column_mappings ?? [],
+    status: existing?.status ?? 'pending',
+    status_message: existing?.status_message ?? '',
+    last_pushed_timestamp: existing?.last_pushed_timestamp ?? null,
+    last_run_at: existing?.last_run_at ?? null,
+    last_error: existing?.last_error ?? null,
+    ...overrides,
   }
+
+  model.state.jobStatuses = [
+    ...model.state.jobStatuses.filter((summary) => summary.id !== jobId),
+    nextSummary,
+  ]
 }
 
 function formatTimestamp(value: string | null): string {
@@ -471,80 +470,38 @@ async function refreshJobAfterRun(jobId: string): Promise<void> {
     }
     elapsed = offset
 
-    await refreshDashboardState()
-  }
-}
-
-async function loadJobStatuses(): Promise<void> {
-  if (jobs.value.length === 0) {
-    jobStatusById.value = {}
-    return
-  }
-
-  const requestVersion = ++jobStatusRequestVersion
-
-  try {
-    const summaries = await getJobs()
-    if (requestVersion !== jobStatusRequestVersion) return
-    const nextStatuses = Object.fromEntries(
-      summaries.map((summary) => [summary.id, summary])
-    ) as Record<string, JobStatusSummary>
-    jobStatusById.value = nextStatuses
-  } catch {
-    if (requestVersion !== jobStatusRequestVersion) return
-  }
-}
-
-async function refreshDashboardState(): Promise<void> {
-  if (dashboardRefreshInFlight) {
-    dashboardRefreshQueued = true
-    return
-  }
-
-  dashboardRefreshInFlight = true
-
-  try {
-    await loadJobStatuses()
     if (diagnosticsJobId.value) {
       await refreshOpenLogs(diagnosticsJobId.value)
     }
-  } finally {
-    dashboardRefreshInFlight = false
-    if (dashboardRefreshQueued) {
-      dashboardRefreshQueued = false
-      void refreshDashboardState()
-    }
   }
 }
 
-function startDashboardRefreshLoop(): void {
-  if (dashboardRefreshTimer !== null) return
+function restartLogRefreshLoop(): void {
+  if (logRefreshTimer !== null) {
+    window.clearInterval(logRefreshTimer)
+    logRefreshTimer = null
+  }
 
-  dashboardRefreshTimer = window.setInterval(() => {
-    void refreshDashboardState()
-  }, DASHBOARD_REFRESH_INTERVAL_MS)
+  if (!diagnosticsJobId.value) return
+
+  logRefreshTimer = window.setInterval(() => {
+    if (diagnosticsJobId.value) {
+      void refreshOpenLogs(diagnosticsJobId.value)
+    }
+  }, LOG_REFRESH_INTERVAL_MS)
 }
-
-function stopDashboardRefreshLoop(): void {
-  if (dashboardRefreshTimer === null) return
-
-  window.clearInterval(dashboardRefreshTimer)
-  dashboardRefreshTimer = null
-}
-
-onMounted(() => {
-  void refreshDashboardState()
-  startDashboardRefreshLoop()
-})
 
 onBeforeUnmount(() => {
-  stopDashboardRefreshLoop()
+  if (logRefreshTimer !== null) {
+    window.clearInterval(logRefreshTimer)
+    logRefreshTimer = null
+  }
 })
 
 watch(
-  () => jobs.value.map((job) => job.id).join('|'),
+  () => diagnosticsJobId.value,
   () => {
-    void refreshDashboardState()
+    restartLogRefreshLoop()
   },
   { immediate: true }
 )

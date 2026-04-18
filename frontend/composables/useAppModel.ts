@@ -1,6 +1,11 @@
 import { computed, watch } from "vue"
 
-import { getConfig, getHealth, getServiceStatus } from "../api"
+import {
+  getBootstrap,
+  subscribeToDaemonStatus,
+  type DaemonStatusSnapshot,
+} from "../api/app"
+import { getServiceStatus } from "../api/os-service"
 import { getRouteFromHash, navigate } from "../router"
 import {
   state,
@@ -121,6 +126,8 @@ export const useWelcomeSurface = computed(
     )
 )
 
+let stopStatusSubscription: (() => void) | null = null
+
 const STARTUP_RETRY_ATTEMPTS = 12
 const STARTUP_RETRY_DELAY_MS = 350
 
@@ -145,12 +152,11 @@ async function loadInitialState() {
   let lastError: unknown = null
   for (let attempt = 1; attempt <= STARTUP_RETRY_ATTEMPTS; attempt++) {
     try {
-      const [health, config, serviceStatus] = await Promise.all([
-        getHealth(),
-        getConfig(),
+      const [bootstrapResponse, serviceStatus] = await Promise.all([
+        getBootstrap(),
         getServiceStatus(),
       ])
-      return { health, config, serviceStatus }
+      return { ...bootstrapResponse, serviceStatus }
     } catch (error) {
       lastError = error
       if (attempt === STARTUP_RETRY_ATTEMPTS || !isTransientError(error)) throw error
@@ -160,16 +166,44 @@ async function loadInitialState() {
   throw lastError instanceof Error ? lastError : new Error(`Failed to load ${APP_NAME}.`)
 }
 
+function applyDaemonStatusSnapshot(snapshot: DaemonStatusSnapshot): void {
+  state.health = snapshot.health
+  state.config = snapshot.config
+  state.jobStatuses = snapshot.jobs
+
+  if (!state.authSubmitting) {
+    state.authDraft = { ...emptyServerConfig(), ...snapshot.config.server }
+  }
+
+  if (snapshot.health.connection.state === "not_configured") {
+    state.connectionSummary = null
+    state.lastConnectionState = "not_configured"
+  } else if (!state.lastConnectionState || state.lastConnectionState === "not_configured") {
+    state.lastConnectionState = snapshot.health.connection.state
+  }
+}
+
+function ensureStatusSubscription(): void {
+  stopStatusSubscription?.()
+  stopStatusSubscription = subscribeToDaemonStatus({
+    onStatus(snapshot) {
+      applyDaemonStatusSnapshot(snapshot)
+    },
+    onError(error) {
+      console.error("The daemon status stream disconnected.", error)
+    },
+  })
+}
+
 export async function bootstrap(): Promise<void> {
   state.loading = true
   syncRouteState()
 
   try {
-    const { health, config, serviceStatus } = await loadInitialState()
-    state.health = health
-    state.config = config
+    ensureStatusSubscription()
+    const { health, config, jobs, serviceStatus } = await loadInitialState()
+    applyDaemonStatusSnapshot({ health, config, jobs })
     state.serviceStatus = serviceStatus
-    state.authDraft = { ...emptyServerConfig(), ...config.server }
     state.lastConnectionState = health.connection.state
 
     if (serverConfigured(config.server)) {

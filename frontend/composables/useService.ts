@@ -4,7 +4,7 @@ import {
   restartOsService,
   uninstallOsService,
   type ServiceStatusResponse,
-} from "../api"
+} from "../api/os-service"
 import { navigate } from "../router"
 import { state } from "./state"
 

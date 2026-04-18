@@ -2,7 +2,7 @@ import type {
   AuthType,
   ConnectionTestResponse,
   ServerConfig,
-} from "./api";
+} from "./api/app";
 
 export type AuthFieldName =
   | "url"

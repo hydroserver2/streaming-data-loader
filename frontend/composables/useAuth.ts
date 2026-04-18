@@ -14,7 +14,7 @@ import {
   type AuthType,
   type ConnectionTestResponse,
   type ServerConfig,
-} from "../api"
+} from "../api/app"
 import { navigate } from "../router"
 import {
   createEmptyPipelineForm,
@@ -155,6 +155,7 @@ export async function disconnectHydroServer(): Promise<void> {
     state.authDraft = emptyServerConfig()
     state.connectionSummary = null
     state.serviceStatus = null
+    state.jobStatuses = []
     state.serviceActionError = null
     state.lastConnectionState = "not_configured"
     state.pipelineForm = createEmptyPipelineForm()

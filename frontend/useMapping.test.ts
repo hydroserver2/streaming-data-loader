@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import type { CsvPreviewResponse, DatastreamSummary } from "./api"
+import type { CsvPreviewResponse, DatastreamSummary } from "./api/app"
 import { createPipelineFieldStates } from "./pipeline-submit"
 import {
   buildPipelineColumnMappings,

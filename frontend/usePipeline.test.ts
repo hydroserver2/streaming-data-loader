@@ -1,7 +1,7 @@
 import test from "node:test"
 import assert from "node:assert/strict"
 
-import type { CsvPreviewResponse } from "./api"
+import type { CsvPreviewResponse } from "./api/app"
 import {
   editPipelineCsvSetup,
   editPipelineMappings,
@@ -771,7 +771,7 @@ test("editPipelineMappings preloads mappings and routes to step 3", async () => 
   assert.deepEqual(state.pipelineMappingDrafts, [
     {
       csvColumn: "value",
-      thingId: "",
+      thingId: "thing-1",
       datastreamId: "stream-1",
     },
   ])

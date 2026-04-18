@@ -65,11 +65,6 @@ impl ConfigStore {
         Ok(config)
     }
 
-    pub fn watch_config_signature(&self) -> Result<String, String> {
-        let config = self.load()?;
-        serde_json::to_string(&config).map_err(|err| err.to_string())
-    }
-
     pub fn set_server(
         &self,
         server: ServerConfig,

@@ -6,8 +6,7 @@ use std::{
 pub const APP_DIRECTORY_NAME: &str = "Streaming Data Loader";
 pub const DEV_APP_DIRECTORY_NAME: &str = "Streaming Data Loader Dev";
 
-const MANUAL_TRIGGER_PREFIX: &str = ".sdl-run-now-";
-const MANUAL_TRIGGER_SUFFIX: &str = ".trigger";
+const DAEMON_ENDPOINT_FILENAME: &str = "daemon.endpoint.json";
 
 pub fn active_app_directory_name() -> &'static str {
     if cfg!(debug_assertions) {
@@ -57,13 +56,6 @@ pub fn default_shared_service_config_dir() -> Result<PathBuf, String> {
     }
 }
 
-pub fn manual_run_trigger_path(job_id: &str, file_path: &str) -> Result<PathBuf, String> {
-    let watched_file = Path::new(file_path);
-    let parent = watched_file
-        .parent()
-        .ok_or_else(|| "Couldn't determine the watched folder for this data source.".to_string())?;
-
-    Ok(parent.join(format!(
-        "{MANUAL_TRIGGER_PREFIX}{job_id}{MANUAL_TRIGGER_SUFFIX}"
-    )))
+pub fn daemon_endpoint_path(config_dir: &Path) -> PathBuf {
+    config_dir.join(DAEMON_ENDPOINT_FILENAME)
 }

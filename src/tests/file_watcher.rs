@@ -15,7 +15,6 @@ fn burst_writes_collapse_into_single_event() {
         .unwrap_or_else(|_| file_path.clone());
 
     let watched: HashSet<PathBuf> = [canonical.clone()].into_iter().collect();
-    let triggers = HashMap::new();
     let (tx, mut rx) = mpsc::unbounded_channel();
 
     // Simulate 10 rapid events for the same file — the kind a burst write produces
@@ -23,7 +22,7 @@ fn burst_writes_collapse_into_single_event() {
         .map(|_| make_event(file_path.clone(), DebouncedEventKind::Any))
         .collect();
 
-    handle_debounced_events(Ok(events), &watched, &triggers, &tx);
+    handle_debounced_events(Ok(events), &watched, &tx);
 
     // Only one message should be sent despite 10 events
     let mut count = 0;
@@ -47,11 +46,10 @@ fn unwatched_files_are_ignored() {
         .unwrap_or_else(|_| watched_file.clone());
 
     let watched: HashSet<PathBuf> = [canonical].into_iter().collect();
-    let triggers = HashMap::new();
     let (tx, mut rx) = mpsc::unbounded_channel();
 
     let events = vec![make_event(unwatched_file.clone(), DebouncedEventKind::Any)];
-    handle_debounced_events(Ok(events), &watched, &triggers, &tx);
+    handle_debounced_events(Ok(events), &watched, &tx);
 
     assert!(
         rx.try_recv().is_err(),
@@ -60,30 +58,4 @@ fn unwatched_files_are_ignored() {
 
     let _ = std::fs::remove_file(&watched_file);
     let _ = std::fs::remove_file(&unwatched_file);
-}
-
-#[test]
-fn manual_trigger_files_map_back_to_watched_csvs() {
-    let dir = std::env::temp_dir();
-    let watched_file = dir.join("sdl-trigger-target.csv");
-    let trigger_file = dir.join(".sdl-run-now-job-1.trigger");
-    std::fs::write(&watched_file, "test").expect("create watched file");
-
-    let canonical = watched_file
-        .canonicalize()
-        .unwrap_or_else(|_| watched_file.clone());
-    let watched: HashSet<PathBuf> = [canonical.clone()].into_iter().collect();
-    let triggers = HashMap::from([(trigger_file.clone(), canonical.clone())]);
-    let (tx, mut rx) = mpsc::unbounded_channel();
-
-    let events = vec![make_event(trigger_file, DebouncedEventKind::Any)];
-    handle_debounced_events(Ok(events), &watched, &triggers, &tx);
-
-    assert_eq!(rx.try_recv().expect("should forward trigger"), canonical);
-    assert!(
-        rx.try_recv().is_err(),
-        "trigger should only emit one scan path"
-    );
-
-    let _ = std::fs::remove_file(&watched_file);
 }

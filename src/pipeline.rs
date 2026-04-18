@@ -24,7 +24,6 @@ use crate::{
     observation_queue::{
         bounded, ObservationContext, ObservationReceiver, ObservationSender, QueuedObservation,
     },
-    service_paths::manual_run_trigger_path,
     timestamp::parse_timestamp_to_utc,
     uploader::spawn_upload_worker,
 };
@@ -127,26 +126,11 @@ impl PipelineService {
         }
 
         let watched_paths = snapshot.jobs_by_path.keys().cloned().collect::<Vec<_>>();
-        let manual_trigger_targets = snapshot
-            .jobs_by_path
-            .values()
-            .flat_map(|jobs| {
-                jobs.iter().filter_map(|job| {
-                    manual_run_trigger_path(&job.id, &job.file_path)
-                        .ok()
-                        .map(|trigger_path| (trigger_path, normalize_watched_path(&job.file_path)))
-                })
-            })
-            .collect::<Vec<_>>();
         info!(
             watched_file_count = watched_paths.len(),
             "reloading pipeline watcher"
         );
-        let watcher = FilesystemWatcher::start(
-            watched_paths.clone(),
-            manual_trigger_targets,
-            self.inner.event_tx.clone(),
-        )?;
+        let watcher = FilesystemWatcher::start(watched_paths.clone(), self.inner.event_tx.clone())?;
         *self.inner.watcher.lock().await = watcher;
 
         // Seed row_counts from persisted cursors for paths not yet tracked in memory.
@@ -168,6 +152,52 @@ impl PipelineService {
         }
 
         Ok(())
+    }
+
+    pub async fn run_job_now(&self, job_id: &str) -> Result<(), String> {
+        let watch_plan = self.inner.watch_plan.read().await;
+        let Some((path, job, server)) = watch_plan.jobs_by_path.iter().find_map(|(path, jobs)| {
+            jobs.iter()
+                .find(|job| job.id == job_id)
+                .map(|job| (path.clone(), job.clone(), watch_plan.server.clone()))
+        }) else {
+            return Err("That job could not be found.".to_string());
+        };
+        let Some(server) = server else {
+            return Err("Configure HydroServer before requesting a manual run.".to_string());
+        };
+        drop(watch_plan);
+
+        let path = normalize_watched_path(path);
+        if !self.begin_path_scan(&path).await {
+            return Err("That data source is already running.".to_string());
+        }
+
+        let previous_row_count = {
+            let row_counts = self.inner.row_counts.lock().await;
+            row_counts.get(&path).copied().unwrap_or_default()
+        };
+
+        let outcome = self
+            .scan_job(
+                path.clone(),
+                server,
+                job,
+                previous_row_count,
+                ScanMode::FullResync,
+            )
+            .await;
+
+        if let Ok(row_count) = outcome.as_ref() {
+            self.inner
+                .row_counts
+                .lock()
+                .await
+                .insert(path.clone(), *row_count);
+        }
+
+        self.end_path_scan(&path).await;
+        outcome.map(|_| ())
     }
 
     pub async fn shutdown(&self) {

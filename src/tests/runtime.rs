@@ -131,7 +131,7 @@ fn preferred_user_data_dir_falls_back_to_home_dir_without_documents() {
 }
 
 #[test]
-fn request_job_run_creates_and_clears_manual_trigger_file() {
+fn status_snapshot_includes_job_runtime_details() {
     let temp_root = unique_temp_dir("runtime-start-job");
     let csv_path = temp_root.join("example.csv");
     fs::write(
@@ -181,28 +181,24 @@ Timestamp,Stage_ft
         })
         .expect("create job");
 
-    let trigger_path = crate::service_paths::manual_run_trigger_path(
-        &job.id,
-        csv_path.to_str().expect("utf-8 path"),
-    )
-    .expect("build trigger path");
-
     state
-        .request_job_run(&job.id, "Manual run requested")
-        .expect("request job run");
+        .append_log(
+            &job.id,
+            "Manual run requested",
+            crate::models::LogLevel::Info,
+        )
+        .expect("append log");
 
-    assert!(
-        !trigger_path.exists(),
-        "manual trigger file should be cleaned up immediately after touching"
-    );
-
-    let logs = state
-        .config_store()
-        .logs_for(&job.id, 10)
-        .expect("load logs for job");
-    assert!(logs
+    let snapshot = state.status_snapshot().expect("build status snapshot");
+    let summary = snapshot
+        .jobs
         .iter()
-        .any(|entry| entry.message == "Manual run requested"));
+        .find(|entry| entry.id == job.id)
+        .expect("job summary");
+
+    assert_eq!(summary.name, "Example");
+    assert_eq!(summary.status, crate::models::JobStatus::Pending);
+    assert_eq!(snapshot.config.jobs.len(), 1);
 
     remove_temp_dir(&temp_root);
 }

@@ -653,6 +653,28 @@ pub struct HealthResponse {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AppBootstrapResponse {
+    pub health: HealthResponse,
+    pub config: AppConfig,
+    #[serde(default)]
+    pub jobs: Vec<JobStatusSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DaemonConnectionInfo {
+    pub base_url: String,
+    pub token: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DaemonStatusSnapshot {
+    pub health: HealthResponse,
+    pub config: AppConfig,
+    #[serde(default)]
+    pub jobs: Vec<JobStatusSummary>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConnectionTestResponse {
     pub ok: bool,
     pub state: ConnectionState,

@@ -10,9 +10,9 @@ should be interpreted, and map value columns to HydroServer datastreams. Once a
 data source is enabled, SDL watches the file for changes and pushes new
 observations into the selected datastreams.
 
-The desktop UI and the watcher/uploader runtime are now split. The UI reads and
-writes the persisted JSON config/workspace/log files, while a separate headless
-daemon owns filesystem watching, scheduling, and uploads.
+The desktop UI and the watcher/uploader runtime are now split. The UI talks to
+the headless daemon over localhost HTTP, and the daemon is the only process
+that reads and writes persisted config/workspace/log state.
 
 ## What SDL does
 
@@ -35,8 +35,30 @@ daemon owns filesystem watching, scheduling, and uploads.
 - `streaming-data-loader-daemon` is the headless Rust service.
 - On macOS, both default to `/Users/Shared/Streaming Data Loader` for shared
   config, workspace, and log files unless `SDL_CONFIG_DIR` is set.
-- The UI's `Run Now` action touches a per-job trigger file in the watched
-  folder; the daemon sees that filesystem event and runs the matching job.
+- The daemon publishes its active localhost API endpoint and bearer token to
+  `<config_dir>/daemon.endpoint.json`.
+
+## Daemon API
+
+The runtime boundary is intentionally small:
+
+- Commands go in with `POST /api/commands/...`.
+- Status comes out through `GET /api/status` as Server-Sent Events.
+- The Tauri app only uses direct commands for OS-specific concerns like service
+  install/restart/uninstall and local file-manager actions.
+
+Key command routes:
+
+- `POST /api/commands/bootstrap`
+- `POST /api/commands/update-server-config`
+- `POST /api/commands/create-job`
+- `POST /api/commands/update-job`
+- `POST /api/commands/delete-job`
+- `POST /api/commands/run-job-now`
+
+The status stream sends full app snapshots containing health, config, and job
+runtime summaries. The frontend treats the daemon as its backend and no longer
+mutates shared state files directly.
 
 ## macOS launchd
 
@@ -62,5 +84,8 @@ sudo launchctl bootstrap system /Library/LaunchDaemons/com.hydroserver.sdl.plist
 
 - `npm run dev` runs the frontend with Vite.
 - `npm run tauri dev` runs the desktop app with the frontend dev server.
+- `npm run tauri dev` also sets `SDL_CONFIG_DIR=.sdl-dev-data` so the desktop
+  app and daemon use a repo-local config directory during development instead of
+  the shared system directory.
 - `cargo run --bin streaming-data-loader-daemon` runs the headless daemon.
 - `npm test` runs the frontend test suite.

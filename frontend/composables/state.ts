@@ -20,9 +20,10 @@ import type {
   CsvTransformerSettings,
   CsvTransformerTimestampSettings,
   HealthResponse,
-  ServiceStatusResponse,
+  JobStatusSummary,
   ServerConfig,
-} from "../api";
+} from "../api/app";
+import type { ServiceStatusResponse } from "../api/os-service";
 
 export type PipelineIdentifierType = "name" | "index";
 export type PipelineEditorStep = 1 | 2;
@@ -67,6 +68,7 @@ type UiState = {
   config: AppConfig | null;
   connectionSummary: ConnectionTestResponse | null;
   serviceStatus: ServiceStatusResponse | null;
+  jobStatuses: JobStatusSummary[];
   serviceStatusLoading: boolean;
   serviceActionSubmitting: boolean;
   serviceActionError: string | null;
@@ -132,6 +134,7 @@ export const state = reactive<UiState>({
   config: null,
   connectionSummary: null,
   serviceStatus: null,
+  jobStatuses: [],
   serviceStatusLoading: false,
   serviceActionSubmitting: false,
   serviceActionError: null,

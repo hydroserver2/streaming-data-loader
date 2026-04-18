@@ -4,7 +4,7 @@ import {
   getDatastreams,
   type ColumnMapping,
   type DatastreamSummary,
-} from "../api"
+} from "../api/app"
 import { state, type PipelineMappingDraft } from "./state"
 import { previewHeaders } from "./usePipeline"
 

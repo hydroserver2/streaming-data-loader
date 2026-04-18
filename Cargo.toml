@@ -26,6 +26,7 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
+axum = { version = "0.7", features = ["macros"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
@@ -33,12 +34,15 @@ chrono = { version = "0.4", features = ["serde"] }
 chrono-tz = "0.10"
 csv = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time", "signal"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 notify = "6"
 notify-debouncer-mini = "0.4.1"
 governor = { version = "0.7", default-features = false, features = ["std"] }
 fs2 = "0.4"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["fmt"] }
+tower-http = { version = "0.6", features = ["cors"] }
+rand = "0.8"
 
 [target.'cfg(windows)'.dependencies]
 windows-service = "0.8"

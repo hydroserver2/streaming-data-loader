@@ -11,17 +11,20 @@ use crate::{
     config_store::ConfigStore,
     hydroserver::HydroServerService,
     models::{
-        ActionResponse, AppConfig, ConnectionState, ConnectionStatus, HealthResponse, JobConfig,
-        JobCursor, JobDetail, JobLogEntry, JobStatus, JobStatusSummary, LogLevel, ServerConfig,
+        AppBootstrapResponse, AppConfig, ConnectionState, ConnectionStatus, DaemonStatusSnapshot,
+        HealthResponse, JobConfig, JobCursor, JobDetail, JobLogEntry, JobStatus, JobStatusSummary,
+        LogLevel, ServerConfig,
     },
     service_paths::{
-        active_app_directory_name, manual_run_trigger_path, resolve_shared_service_config_dir,
-        APP_DIRECTORY_NAME, DEV_APP_DIRECTORY_NAME,
+        active_app_directory_name, resolve_shared_service_config_dir, APP_DIRECTORY_NAME,
+        DEV_APP_DIRECTORY_NAME,
     },
 };
 
 const APP_VERSION: &str = env!("CARGO_PKG_VERSION");
+#[cfg_attr(not(test), allow(dead_code))]
 const BUNDLE_IDENTIFIER: &str = "com.streaming-data-loader";
+#[cfg_attr(not(test), allow(dead_code))]
 const LEGACY_BUNDLE_IDENTIFIER: &str = "com.streaming-data-loader.app";
 
 #[derive(Clone)]
@@ -81,8 +84,41 @@ impl AppState {
         self.inner.config_store.as_ref()
     }
 
+    pub fn config_store_handle(&self) -> Arc<ConfigStore> {
+        self.inner.config_store.clone()
+    }
+
     pub fn hydroserver(&self) -> &HydroServerService {
         self.inner.hydroserver.as_ref()
+    }
+
+    pub fn hydroserver_handle(&self) -> Arc<HydroServerService> {
+        self.inner.hydroserver.clone()
+    }
+
+    pub fn status_snapshot(&self) -> Result<DaemonStatusSnapshot, String> {
+        let health = self.health()?;
+        let config = self.config()?;
+        let jobs = config
+            .jobs
+            .iter()
+            .map(|job| self.build_job_summary(job))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(DaemonStatusSnapshot {
+            health,
+            config,
+            jobs,
+        })
+    }
+
+    pub fn bootstrap(&self) -> Result<AppBootstrapResponse, String> {
+        let snapshot = self.status_snapshot()?;
+        Ok(AppBootstrapResponse {
+            health: snapshot.health,
+            config: snapshot.config,
+            jobs: snapshot.jobs,
+        })
     }
 
     pub fn build_job_summary(&self, job: &JobConfig) -> Result<JobStatusSummary, String> {
@@ -136,34 +172,9 @@ impl AppState {
         };
         self.inner.config_store.append_log(job_id, entry)
     }
-
-    pub fn request_job_run(&self, job_id: &str, message: &str) -> Result<ActionResponse, String> {
-        let job = self
-            .config_store()
-            .get_job(job_id)?
-            .ok_or_else(|| "That job could not be found.".to_string())?;
-
-        if !job.enabled {
-            return Err("Enable this data source before requesting a manual run.".to_string());
-        }
-
-        let trigger_path = manual_run_trigger_path(&job.id, &job.file_path)?;
-        let payload = format!(
-            "requested_at={}\njob_id={}\n",
-            Utc::now().to_rfc3339(),
-            job.id
-        );
-        fs::write(&trigger_path, payload).map_err(|err| err.to_string())?;
-        fs::remove_file(&trigger_path).map_err(|err| err.to_string())?;
-        self.append_log(&job.id, message, LogLevel::Info)?;
-
-        Ok(ActionResponse {
-            ok: true,
-            message: "Run requested.".to_string(),
-        })
-    }
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn resolve_config_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     if cfg!(target_os = "macos") || cfg!(target_os = "windows") {
         let preferred_dir = resolve_shared_service_config_dir()?;
@@ -192,6 +203,7 @@ pub fn resolve_config_dir(app_handle: &AppHandle) -> Result<PathBuf, String> {
     Err("Couldn't resolve an application data directory.".to_string())
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn preferred_user_data_dir(
     app_data_dir: Option<PathBuf>,
     home_dir: Option<PathBuf>,
@@ -211,10 +223,12 @@ fn preferred_user_data_dir(
     Err("Couldn't resolve an application data directory.".to_string())
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn try_create_dir(path: &Path) -> bool {
     fs::create_dir_all(path).is_ok()
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn migrate_legacy_config_dir(app_handle: &AppHandle, target_dir: &Path) -> Result<(), String> {
     if has_runtime_state(target_dir) {
         return Ok(());
@@ -230,6 +244,7 @@ fn migrate_legacy_config_dir(app_handle: &AppHandle, target_dir: &Path) -> Resul
     move_or_copy_dir_contents(&source_dir, target_dir)
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn legacy_config_candidates(app_handle: &AppHandle) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
 
@@ -260,10 +275,12 @@ fn legacy_config_candidates(app_handle: &AppHandle) -> Vec<PathBuf> {
     candidates
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn has_runtime_state(path: &Path) -> bool {
     path.join("config.json").exists() || path.join("workspaces").is_dir()
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn copy_dir_contents(source_dir: &Path, target_dir: &Path) -> Result<(), String> {
     fs::create_dir_all(target_dir).map_err(|err| err.to_string())?;
 
@@ -282,6 +299,7 @@ fn copy_dir_contents(source_dir: &Path, target_dir: &Path) -> Result<(), String>
     Ok(())
 }
 
+#[cfg_attr(not(test), allow(dead_code))]
 fn move_or_copy_dir_contents(source_dir: &Path, target_dir: &Path) -> Result<(), String> {
     if let Some(parent) = target_dir.parent() {
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;

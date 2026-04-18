@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url"
 
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const tauriArgs = process.argv.slice(2)
+const isDevCommand = tauriArgs.includes("dev")
+const devConfigDir = resolve(rootDir, ".sdl-dev-data")
 
 function run(command, args, options = {}) {
   return spawnSync(command, args, {
@@ -49,5 +51,12 @@ if (!commandExists("rustc")) {
   process.exit(1)
 }
 
-const result = run("npx", ["--no-install", "tauri", ...tauriArgs])
+const result = run("npx", ["--no-install", "tauri", ...tauriArgs], {
+  env: {
+    ...process.env,
+    ...(isDevCommand && !process.env.SDL_CONFIG_DIR
+      ? { SDL_CONFIG_DIR: devConfigDir }
+      : {}),
+  },
+})
 process.exit(result.status ?? 1)

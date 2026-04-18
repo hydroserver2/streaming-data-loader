@@ -11,7 +11,7 @@ import {
   type AuthFieldName,
   type FieldValidationState,
 } from "./auth-submit";
-import type { ConnectionTestResponse, ServerConfig } from "./api";
+import type { ConnectionTestResponse, ServerConfig } from "./api/app";
 
 function createServerConfig(
   overrides: Partial<ServerConfig> = {}

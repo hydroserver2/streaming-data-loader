@@ -9,6 +9,7 @@
 # Root frontend artifacts
 /node_modules/
 /dist/
+.sdl-dev-data/
 *.local
 /.cache/
 /.venv/

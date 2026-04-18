@@ -6,8 +6,8 @@ import type {
   CsvPreviewResponse,
   CsvTransformerSettings,
   CsvTransformerTimestampSettings,
-} from "../api"
-import { createJob, getConfig, getCsvPreview, updateJob } from "../api"
+} from "../api/app"
+import { createJob, getConfig, getCsvPreview, updateJob } from "../api/app"
 import {
   createPipelineFieldStates,
   type PipelineFieldName,
