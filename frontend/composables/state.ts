@@ -81,6 +81,7 @@ type UiState = {
   authFieldStates: Record<AuthFieldName, FieldValidationState>;
   pipelineFieldStates: PipelineFieldStates;
   authSubmitting: boolean;
+  postAuthRedirectPending: boolean;
   pipelineSelectionTarget: PreviewSelectionTarget;
   pipelineEditorStartStep: PipelineEditorStep | null;
   pipelinePreviewRowsRequested: number;
@@ -148,6 +149,7 @@ export const state = reactive<UiState>({
   authFieldStates: createAuthFieldStates(),
   pipelineFieldStates: createPipelineFieldStates(),
   authSubmitting: false,
+  postAuthRedirectPending: false,
   pipelineSelectionTarget: null,
   pipelineEditorStartStep: null,
   pipelinePreviewRowsRequested: PREVIEW_PAGE_SIZE,

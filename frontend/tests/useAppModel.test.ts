@@ -3,6 +3,7 @@ import assert from "node:assert/strict"
 
 import {
   requiresDesktopServiceSetup,
+  resolvePostAuthRoute,
   resolveAuthenticatedRoute,
   shouldApplyDaemonConnectionState,
   shouldHydrateAuthDraftFromDaemon,
@@ -65,6 +66,26 @@ test("connected users are sent to service setup when the background service is u
       serviceReady: false,
     }),
     "service"
+  )
+})
+
+test("post-auth redirect sends users with saved datasources to the dashboard", () => {
+  assert.equal(
+    resolvePostAuthRoute({
+      hasSavedDatasources: true,
+      serviceReady: true,
+    }),
+    "dashboard"
+  )
+})
+
+test("post-auth redirect sends users without saved datasources to onboarding", () => {
+  assert.equal(
+    resolvePostAuthRoute({
+      hasSavedDatasources: false,
+      serviceReady: true,
+    }),
+    "jobs-new"
   )
 })
 

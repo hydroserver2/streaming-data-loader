@@ -140,6 +140,7 @@ export async function submitAuthConfig(
         state.authDraftDirty = false
         await syncAuthenticationStatus(state.config.server)
         await refreshServiceStatus()
+        state.postAuthRedirectPending = _formId === "welcome-form"
       },
     })
   } catch (error) {
@@ -153,8 +154,8 @@ export async function disconnectHydroServer(): Promise<void> {
     state.config = await clearServerConfig()
     state.authDraft = emptyServerConfig()
     state.authDraftDirty = false
+    state.postAuthRedirectPending = false
     state.connectionSummary = null
-    state.serviceStatus = null
     state.jobStatuses = []
     state.serviceActionError = null
     state.lastConnectionState = "not_configured"

@@ -107,6 +107,17 @@ export function shouldApplyDaemonConnectionState(params: {
   return true
 }
 
+export function resolvePostAuthRoute(params: {
+  hasSavedDatasources: boolean
+  serviceReady: boolean
+}): AppRoute {
+  const { hasSavedDatasources, serviceReady } = params
+  if (!serviceReady) {
+    return "service"
+  }
+  return hasSavedDatasources ? "dashboard" : "jobs-new"
+}
+
 function bootstrapServiceErrorMessage(params: {
   error: unknown
   serviceStatusInstalled: boolean
@@ -151,16 +162,22 @@ function syncRouteState(): void {
         route = "welcome"
       }
     } else {
-      const nextRoute = resolveAuthenticatedRoute({
-        route,
-        hasSavedDatasources: hasSavedDatasources.value,
-        pipelineReadyForMapping: state.pipelineReadyForMapping,
-        serviceReady: isServiceReady(state.serviceStatus),
-      })
+      const nextRoute = state.postAuthRedirectPending
+        ? resolvePostAuthRoute({
+            hasSavedDatasources: hasSavedDatasources.value,
+            serviceReady: isServiceReady(state.serviceStatus),
+          })
+        : resolveAuthenticatedRoute({
+            route,
+            hasSavedDatasources: hasSavedDatasources.value,
+            pipelineReadyForMapping: state.pipelineReadyForMapping,
+            serviceReady: isServiceReady(state.serviceStatus),
+          })
       if (nextRoute !== route) {
         navigate(nextRoute)
         route = nextRoute
       }
+      state.postAuthRedirectPending = false
     }
   }
 
