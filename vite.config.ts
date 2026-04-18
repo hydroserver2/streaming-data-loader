@@ -5,13 +5,14 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "")
   const frontendHost = env.SDL_FRONTEND_HOST || "localhost"
   const frontendPort = Number(env.SDL_FRONTEND_PORT || "1420")
+  const shouldOpenBrowser = env.SDL_OPEN_BROWSER !== "false"
 
   return {
     clearScreen: false,
     plugins: [vue()],
     server: {
       host: frontendHost,
-      open: true,
+      open: shouldOpenBrowser,
       port: frontendPort,
       strictPort: true,
       watch: {

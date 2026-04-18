@@ -7,9 +7,13 @@ import net from "node:net"
 const rootDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const children = []
 
-function spawnTask(command, args) {
+function spawnTask(command, args, options = {}) {
   const child = spawn(command, args, {
     cwd: rootDir,
+    env: {
+      ...process.env,
+      ...options.env,
+    },
     stdio: "inherit",
     shell: process.platform === "win32",
   })
@@ -95,5 +99,9 @@ spawnTask("npm", ["run", "tailwind:watch"])
 if (await isPortOpen(frontendHost, frontendPort)) {
   console.log(`Vite dev server already detected on ${frontendHost}:${frontendPort}; reusing it for Tauri.`)
 } else {
-  spawnTask("npm", ["run", "dev"])
+  spawnTask("npm", ["run", "dev"], {
+    env: {
+      SDL_OPEN_BROWSER: "false",
+    },
+  })
 }
