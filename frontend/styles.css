@@ -51,6 +51,10 @@
     scrollbar-gutter: stable;
   }
 
+  html.platform-windows {
+    scrollbar-gutter: auto;
+  }
+
   body {
     min-height: 100vh;
     margin: 0;

@@ -5,6 +5,22 @@ export function isTauriRuntime(): boolean {
   )
 }
 
+export function isWindowsPlatform(): boolean {
+  if (typeof navigator === 'undefined') {
+    return false
+  }
+
+  const navigatorWithUserAgentData = navigator as Navigator & {
+    userAgentData?: { platform?: string }
+  }
+  const platform =
+    navigatorWithUserAgentData.userAgentData?.platform ??
+    navigator.platform ??
+    navigator.userAgent
+
+  return /win/i.test(platform)
+}
+
 export function formatErrorDetail(detail: unknown): string | null {
   if (typeof detail === 'string' && detail.trim()) {
     return detail
