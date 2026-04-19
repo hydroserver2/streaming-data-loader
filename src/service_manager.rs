@@ -89,6 +89,8 @@ const ERROR_SERVICE_ALREADY_RUNNING: i32 = 1056;
 const ERROR_SERVICE_NOT_ACTIVE: i32 = 1062;
 #[cfg(windows)]
 const ERROR_SERVICE_EXISTS: i32 = 1073;
+#[cfg(windows)]
+const ERROR_SERVICE_MARKED_FOR_DELETE: i32 = 1072;
 
 pub fn get_service_status(app_handle: &AppHandle) -> Result<ServiceStatusResponse, String> {
     #[cfg(target_os = "macos")]
@@ -777,7 +779,7 @@ fn get_windows_service_status() -> Result<ServiceStatusResponse, String> {
         ServiceAccess::QUERY_STATUS | ServiceAccess::QUERY_CONFIG,
     ) {
         Ok(service) => service,
-        Err(error) if windows_service_not_found(&error) => {
+        Err(error) if windows_service_unavailable(&error) => {
             return Ok(ServiceStatusResponse {
                 supported: true,
                 installed: false,
@@ -1133,11 +1135,29 @@ fn windows_service_not_found(error: &WindowsServiceError) -> bool {
 }
 
 #[cfg(windows)]
+fn windows_service_unavailable(error: &WindowsServiceError) -> bool {
+    windows_service_not_found(error) || windows_service_marked_for_delete(error)
+}
+
+#[cfg(windows)]
+fn windows_service_marked_for_delete(error: &WindowsServiceError) -> bool {
+    match error {
+        WindowsServiceError::Winapi(io_error) => {
+            io_error.raw_os_error() == Some(ERROR_SERVICE_MARKED_FOR_DELETE)
+        }
+        _ => false,
+    }
+}
+
+#[cfg(windows)]
 fn format_windows_service_error(error: WindowsServiceError) -> String {
     match error {
         WindowsServiceError::Winapi(io_error) => match io_error.raw_os_error() {
             Some(ERROR_SERVICE_DOES_NOT_EXIST) => {
                 "The background service is not installed.".to_string()
+            }
+            Some(ERROR_SERVICE_MARKED_FOR_DELETE) => {
+                "The background service is being removed.".to_string()
             }
             Some(ERROR_SERVICE_ALREADY_RUNNING) => {
                 "The background service is already running.".to_string()

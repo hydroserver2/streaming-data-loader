@@ -12,6 +12,10 @@ function resetDaemonConnection(): void {
   daemonConnectionPromise = null
 }
 
+export function disconnectDaemonConnection(): void {
+  resetDaemonConnection()
+}
+
 export async function getDaemonConnection(): Promise<DaemonConnectionInfo> {
   if (!isTauriRuntime()) {
     throw new Error(

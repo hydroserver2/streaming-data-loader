@@ -8,6 +8,7 @@ import {
   shouldBootstrapDesktopDaemon,
   shouldApplyDaemonConnectionState,
   shouldHydrateAuthDraftFromDaemon,
+  shouldRefreshServiceStatusOnFocus,
 } from "../composables/useAppModel"
 
 test("connected users with saved datasources default to the dashboard", () => {
@@ -194,6 +195,28 @@ test("connected daemon snapshots can still apply during auth submission", () => 
     shouldApplyDaemonConnectionState({
       authSubmitting: true,
       snapshotConnectionState: "connected",
+    }),
+    true
+  )
+})
+
+test("focus refresh is skipped while a service action is in progress", () => {
+  assert.equal(
+    shouldRefreshServiceStatusOnFocus({
+      loading: false,
+      connected: true,
+      serviceActionSubmitting: true,
+    }),
+    false
+  )
+})
+
+test("focus refresh still runs when the app is connected and idle", () => {
+  assert.equal(
+    shouldRefreshServiceStatusOnFocus({
+      loading: false,
+      connected: true,
+      serviceActionSubmitting: false,
     }),
     true
   )

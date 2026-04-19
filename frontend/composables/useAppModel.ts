@@ -5,6 +5,7 @@ import {
   subscribeToDaemonStatus,
   type DaemonStatusSnapshot,
 } from "../api/hydroserver"
+import { disconnectDaemonConnection } from "../api/hydroserver/daemonTransport"
 import { getServiceStatus, type ServiceStatusResponse } from "../api/os-service"
 import { getRouteFromHash, navigate } from "../router"
 import {
@@ -96,6 +97,15 @@ export function shouldBootstrapDesktopDaemon(params: {
   }
 
   return isServiceReady(serviceStatus)
+}
+
+export function shouldRefreshServiceStatusOnFocus(params: {
+  loading: boolean
+  connected: boolean
+  serviceActionSubmitting: boolean
+}): boolean {
+  const { loading, connected, serviceActionSubmitting } = params
+  return !loading && connected && !serviceActionSubmitting
 }
 
 export function shouldHydrateAuthDraftFromDaemon(params: {
@@ -342,13 +352,18 @@ function clearDaemonStatusSnapshot(): void {
   state.jobStatuses = []
 }
 
+function disconnectDaemonSession(): void {
+  stopStatusSubscription?.()
+  stopStatusSubscription = null
+  disconnectDaemonConnection()
+}
+
 export async function bootstrap(): Promise<void> {
   state.loading = true
   syncRouteState()
 
   try {
-    stopStatusSubscription?.()
-    stopStatusSubscription = null
+    disconnectDaemonSession()
 
     const { serviceStatus, bootstrapResponse } = await loadInitialState()
     state.serviceStatus = serviceStatus
@@ -384,12 +399,37 @@ export async function bootstrap(): Promise<void> {
   }
 }
 
+async function runServiceActionWithDaemonDisconnect(
+  action: () => Promise<void>
+): Promise<void> {
+  disconnectDaemonSession()
+  await action()
+}
+
+async function installBackgroundServiceFromModel(): Promise<void> {
+  await runServiceActionWithDaemonDisconnect(() => installBackgroundService())
+}
+
+async function restartBackgroundServiceFromModel(): Promise<void> {
+  await runServiceActionWithDaemonDisconnect(() => restartBackgroundService())
+}
+
+async function uninstallBackgroundServiceFromModel(): Promise<void> {
+  await runServiceActionWithDaemonDisconnect(() => uninstallBackgroundService())
+}
+
 export function init(): void {
   window.addEventListener("hashchange", () => {
     syncRouteState()
   })
   window.addEventListener("focus", () => {
-    if (!state.loading && isConnected.value) {
+    if (
+      shouldRefreshServiceStatusOnFocus({
+        loading: state.loading,
+        connected: isConnected.value,
+        serviceActionSubmitting: state.serviceActionSubmitting,
+      })
+    ) {
       void refreshServiceStatus()
     }
   })
@@ -491,9 +531,9 @@ const model = {
   showMorePreviewLines,
   browseForCsvPath,
   refreshServiceStatus,
-  installBackgroundService,
-  restartBackgroundService,
-  uninstallBackgroundService,
+  installBackgroundService: installBackgroundServiceFromModel,
+  restartBackgroundService: restartBackgroundServiceFromModel,
+  uninstallBackgroundService: uninstallBackgroundServiceFromModel,
 } as const
 
 export function useAppModel() {

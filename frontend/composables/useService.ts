@@ -15,6 +15,10 @@ export function isServiceReady(status: ServiceStatusResponse | null | undefined)
 }
 
 export async function refreshServiceStatus(): Promise<ServiceStatusResponse | null> {
+  if (state.serviceActionSubmitting) {
+    return state.serviceStatus
+  }
+
   state.serviceStatusLoading = true
 
   try {
