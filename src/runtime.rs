@@ -248,6 +248,11 @@ fn migrate_legacy_config_dir(app_handle: &AppHandle, target_dir: &Path) -> Resul
 fn legacy_config_candidates(app_handle: &AppHandle) -> Vec<PathBuf> {
     let mut candidates = Vec::new();
 
+    #[cfg(windows)]
+    {
+        candidates.extend(crate::service_paths::legacy_shared_service_config_dirs());
+    }
+
     if let Ok(data_dir) = app_handle.path().data_dir() {
         candidates.push(data_dir.join(LEGACY_BUNDLE_IDENTIFIER));
         candidates.push(data_dir.join(BUNDLE_IDENTIFIER));

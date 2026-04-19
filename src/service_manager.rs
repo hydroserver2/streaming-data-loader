@@ -833,8 +833,14 @@ fn maybe_handle_windows_management_cli() -> Option<i32> {
     while let Some(arg) = args.next() {
         if arg == OsStr::new(WINDOWS_SERVICE_ACTION_FLAG) {
             action = args.next();
+        } else if let Some(value) =
+            inline_windows_path_flag_value(&arg, WINDOWS_SERVICE_RESULT_FLAG)
+        {
+            result_file = Some(value);
         } else if arg == OsStr::new(WINDOWS_SERVICE_RESULT_FLAG) {
             result_file = args.next().map(PathBuf::from);
+        } else if let Some(value) = inline_windows_path_flag_value(&arg, SERVICE_CONFIG_DIR_FLAG) {
+            config_dir = Some(value);
         } else if arg == OsStr::new(SERVICE_CONFIG_DIR_FLAG) {
             config_dir = args.next().map(PathBuf::from);
         }
@@ -868,15 +874,15 @@ fn run_windows_elevated_action(app_handle: &AppHandle, action: &str) -> Result<(
         config_dir = %config_dir.display(),
         "requesting elevated Windows background service action"
     );
+    let result_file_arg = windows_inline_path_flag_argument(WINDOWS_SERVICE_RESULT_FLAG, &result_path);
+    let config_dir_arg = windows_inline_path_flag_argument(SERVICE_CONFIG_DIR_FLAG, &config_dir);
     let script = format!(
-        "$proc = Start-Process -FilePath '{}' -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList @('{}', '{}', '{}', '{}', '{}', '{}'); exit $proc.ExitCode",
+        "$proc = Start-Process -FilePath '{}' -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList @('{}', '{}', '{}', '{}'); exit $proc.ExitCode",
         powershell_quote(&executable_path.to_string_lossy()),
         WINDOWS_SERVICE_ACTION_FLAG,
         action,
-        WINDOWS_SERVICE_RESULT_FLAG,
-        powershell_quote(&result_path.to_string_lossy()),
-        SERVICE_CONFIG_DIR_FLAG,
-        powershell_quote(&config_dir.to_string_lossy())
+        powershell_quote(&result_file_arg),
+        powershell_quote(&config_dir_arg)
     );
 
     let status = Command::new("powershell")
@@ -1269,6 +1275,24 @@ fn windows_service_config_dir_launch_argument(config_dir: &Path) -> OsString {
         r#"{SERVICE_CONFIG_DIR_FLAG}="{}""#,
         config_dir.to_string_lossy()
     ))
+}
+
+#[cfg(windows)]
+fn windows_inline_path_flag_argument(flag: &str, path: &Path) -> String {
+    format!(r#"{flag}="{}""#, path.to_string_lossy())
+}
+
+#[cfg(windows)]
+fn inline_windows_path_flag_value(arg: &OsString, flag: &str) -> Option<PathBuf> {
+    let prefix = format!("{flag}=");
+    let value = arg.to_string_lossy();
+    let raw_path = value.strip_prefix(&prefix)?;
+    let path = raw_path.trim_matches('"');
+    if path.is_empty() {
+        return None;
+    }
+
+    Some(PathBuf::from(path))
 }
 
 #[cfg(target_os = "macos")]

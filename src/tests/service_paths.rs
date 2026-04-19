@@ -1,4 +1,7 @@
-use super::{service_config_dir_override_from_args, SERVICE_CONFIG_DIR_FLAG};
+use super::{
+    active_shared_service_directory_name, service_config_dir_override_from_args,
+    SERVICE_CONFIG_DIR_FLAG,
+};
 use std::{ffi::OsString, path::PathBuf};
 
 #[test]
@@ -51,4 +54,16 @@ fn service_config_dir_override_reads_inline_argument_without_quotes() {
     ]);
 
     assert_eq!(override_path, Some(PathBuf::from(r"C:\ProgramData\Streaming")));
+}
+
+#[cfg(windows)]
+#[test]
+fn active_shared_service_directory_name_uses_windows_safe_folder_name() {
+    let expected = if cfg!(debug_assertions) {
+        "StreamingDataLoaderDev"
+    } else {
+        "StreamingDataLoader"
+    };
+
+    assert_eq!(active_shared_service_directory_name(), expected);
 }

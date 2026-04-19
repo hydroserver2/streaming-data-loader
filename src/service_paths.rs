@@ -6,6 +6,10 @@ use std::{
 
 pub const APP_DIRECTORY_NAME: &str = "Streaming Data Loader";
 pub const DEV_APP_DIRECTORY_NAME: &str = "Streaming Data Loader Dev";
+#[cfg(windows)]
+pub const WINDOWS_SHARED_APP_DIRECTORY_NAME: &str = "StreamingDataLoader";
+#[cfg(windows)]
+pub const WINDOWS_SHARED_DEV_APP_DIRECTORY_NAME: &str = "StreamingDataLoaderDev";
 pub const SERVICE_CONFIG_DIR_FLAG: &str = "--service-config-dir";
 
 const DAEMON_ENDPOINT_FILENAME: &str = "daemon.endpoint.json";
@@ -16,6 +20,22 @@ pub fn active_app_directory_name() -> &'static str {
         DEV_APP_DIRECTORY_NAME
     } else {
         APP_DIRECTORY_NAME
+    }
+}
+
+pub fn active_shared_service_directory_name() -> &'static str {
+    #[cfg(windows)]
+    {
+        return if cfg!(debug_assertions) {
+            WINDOWS_SHARED_DEV_APP_DIRECTORY_NAME
+        } else {
+            WINDOWS_SHARED_APP_DIRECTORY_NAME
+        };
+    }
+
+    #[cfg(not(windows))]
+    {
+        active_app_directory_name()
     }
 }
 
@@ -37,17 +57,14 @@ pub fn resolve_shared_service_config_dir() -> Result<PathBuf, String> {
 pub fn default_shared_service_config_dir() -> Result<PathBuf, String> {
     #[cfg(target_os = "macos")]
     {
-        let candidate = PathBuf::from("/Users/Shared").join(active_app_directory_name());
+        let candidate = PathBuf::from("/Users/Shared").join(active_shared_service_directory_name());
         fs::create_dir_all(&candidate).map_err(|err| err.to_string())?;
         return Ok(candidate);
     }
 
     #[cfg(target_os = "windows")]
     {
-        let program_data = std::env::var("PROGRAMDATA")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| PathBuf::from(r"C:\ProgramData"));
-        let candidate = program_data.join(active_app_directory_name());
+        let candidate = windows_program_data_dir().join(active_shared_service_directory_name());
         fs::create_dir_all(&candidate).map_err(|err| err.to_string())?;
         return Ok(candidate);
     }
@@ -58,7 +75,7 @@ pub fn default_shared_service_config_dir() -> Result<PathBuf, String> {
             .or_else(|_| std::env::var("USERPROFILE"))
             .map(PathBuf::from)
             .map_err(|_| "Couldn't resolve an application data directory.".to_string())?;
-        let candidate = home_dir.join(active_app_directory_name());
+        let candidate = home_dir.join(active_shared_service_directory_name());
         fs::create_dir_all(&candidate).map_err(|err| err.to_string())?;
         Ok(candidate)
     }
@@ -73,6 +90,15 @@ pub fn resolve_shared_logs_dir() -> Result<PathBuf, String> {
 
 pub fn daemon_endpoint_path(config_dir: &Path) -> PathBuf {
     config_dir.join(DAEMON_ENDPOINT_FILENAME)
+}
+
+#[cfg(windows)]
+pub fn legacy_shared_service_config_dirs() -> Vec<PathBuf> {
+    let program_data = windows_program_data_dir();
+    vec![
+        program_data.join(APP_DIRECTORY_NAME),
+        program_data.join(DEV_APP_DIRECTORY_NAME),
+    ]
 }
 
 pub(crate) fn service_config_dir_override_from_args<I, T>(args: I) -> Option<PathBuf>
@@ -103,6 +129,13 @@ fn inline_service_config_dir_override(arg: &OsString) -> Option<PathBuf> {
     }
 
     Some(PathBuf::from(path))
+}
+
+#[cfg(windows)]
+fn windows_program_data_dir() -> PathBuf {
+    std::env::var("PROGRAMDATA")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| PathBuf::from(r"C:\ProgramData"))
 }
 
 #[cfg(test)]
