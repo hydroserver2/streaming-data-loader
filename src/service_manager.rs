@@ -937,8 +937,7 @@ fn install_windows_service(config_dir: Option<PathBuf>) -> Result<(), String> {
         executable_path,
         launch_arguments: vec![
             OsString::from("--service"),
-            OsString::from(SERVICE_CONFIG_DIR_FLAG),
-            config_dir.as_os_str().to_os_string(),
+            windows_service_config_dir_launch_argument(&config_dir),
         ],
         dependencies: vec![],
         account_name: None,
@@ -1046,8 +1045,7 @@ fn sync_windows_service_launch_config(
         .map_err(format_windows_service_error)?;
     let desired_launch_arguments = vec![
         OsString::from("--service"),
-        OsString::from(SERVICE_CONFIG_DIR_FLAG),
-        config_dir.as_os_str().to_os_string(),
+        windows_service_config_dir_launch_argument(config_dir),
     ];
 
     let desired_config = ServiceInfo {
@@ -1218,6 +1216,14 @@ fn applescript_escape(value: &str) -> String {
 #[cfg(windows)]
 fn powershell_quote(value: &str) -> String {
     value.replace('\'', "''")
+}
+
+#[cfg(windows)]
+fn windows_service_config_dir_launch_argument(config_dir: &Path) -> OsString {
+    OsString::from(format!(
+        r#"{SERVICE_CONFIG_DIR_FLAG}="{}""#,
+        config_dir.to_string_lossy()
+    ))
 }
 
 #[cfg(target_os = "macos")]

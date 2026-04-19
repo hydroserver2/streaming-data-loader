@@ -27,3 +27,28 @@ fn service_config_dir_override_ignores_missing_value() {
 
     assert_eq!(override_path, None);
 }
+
+#[test]
+fn service_config_dir_override_reads_inline_argument_with_spaces() {
+    let override_path = service_config_dir_override_from_args([
+        OsString::from("streaming-data-loader.exe"),
+        OsString::from("--service"),
+        OsString::from(r#"--service-config-dir="C:\ProgramData\Streaming Data Loader""#),
+    ]);
+
+    assert_eq!(
+        override_path,
+        Some(PathBuf::from(r"C:\ProgramData\Streaming Data Loader"))
+    );
+}
+
+#[test]
+fn service_config_dir_override_reads_inline_argument_without_quotes() {
+    let override_path = service_config_dir_override_from_args([
+        OsString::from("streaming-data-loader.exe"),
+        OsString::from("--service"),
+        OsString::from(r"--service-config-dir=C:\ProgramData\Streaming"),
+    ]);
+
+    assert_eq!(override_path, Some(PathBuf::from(r"C:\ProgramData\Streaming")));
+}

@@ -77,9 +77,24 @@ where
         if arg == OsString::from(SERVICE_CONFIG_DIR_FLAG) {
             return args.next().map(PathBuf::from);
         }
+        if let Some(inline_path) = inline_service_config_dir_override(&arg) {
+            return Some(inline_path);
+        }
     }
 
     None
+}
+
+fn inline_service_config_dir_override(arg: &OsString) -> Option<PathBuf> {
+    let prefix = format!("{SERVICE_CONFIG_DIR_FLAG}=");
+    let value = arg.to_string_lossy();
+    let raw_path = value.strip_prefix(&prefix)?;
+    let path = raw_path.trim_matches('"');
+    if path.is_empty() {
+        return None;
+    }
+
+    Some(PathBuf::from(path))
 }
 
 #[cfg(test)]
