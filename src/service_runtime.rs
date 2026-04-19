@@ -51,16 +51,18 @@ pub fn run_daemon() -> Result<(), String> {
     run_console_daemon()
 }
 
+type ReadyCallback = Box<dyn FnOnce() + Send>;
+
 fn run_console_daemon() -> Result<(), String> {
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()
         .build()
         .map_err(|err| err.to_string())?;
 
-    runtime.block_on(run_daemon_until(wait_for_shutdown_signal()))
+    runtime.block_on(run_daemon_until(wait_for_shutdown_signal(), None))
 }
 
-async fn run_daemon_until<F>(shutdown: F) -> Result<(), String>
+async fn run_daemon_until<F>(shutdown: F, on_ready: Option<ReadyCallback>) -> Result<(), String>
 where
     F: Future<Output = Result<(), String>>,
 {
@@ -75,6 +77,10 @@ where
     daemon.publish_status()?;
     let status_task = daemon.start_status_monitor();
     let api_server = DaemonApiServer::start(daemon.clone(), config_dir).await?;
+
+    if let Some(on_ready) = on_ready {
+        on_ready();
+    }
 
     let shutdown_result = shutdown.await;
 
@@ -206,11 +212,11 @@ fn run_windows_service() -> Result<(), String> {
     status_handle
         .set_service_status(ServiceStatus {
             service_type: WINDOWS_SERVICE_TYPE,
-            current_state: ServiceState::Running,
-            controls_accepted: ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
+            current_state: ServiceState::StartPending,
+            controls_accepted: ServiceControlAccept::empty(),
             exit_code: ServiceExitCode::NO_ERROR,
-            checkpoint: 0,
-            wait_hint: Duration::default(),
+            checkpoint: 1,
+            wait_hint: Duration::from_secs(30),
             process_id: None,
         })
         .map_err(|error| error.to_string())?;
@@ -220,13 +226,31 @@ fn run_windows_service() -> Result<(), String> {
         .build()
         .map_err(|err| err.to_string())?;
 
-    let result = runtime.block_on(run_daemon_until(async move {
-        tokio::task::spawn_blocking(move || shutdown_rx.recv())
-            .await
-            .map_err(|err| err.to_string())?
-            .map_err(|_| "The Windows service control channel disconnected.".to_string())?;
-        Ok(())
-    }));
+    let ready_status_handle = status_handle;
+    let on_ready: ReadyCallback = Box::new(move || {
+        if let Err(error) = ready_status_handle.set_service_status(ServiceStatus {
+            service_type: WINDOWS_SERVICE_TYPE,
+            current_state: ServiceState::Running,
+            controls_accepted: ServiceControlAccept::STOP | ServiceControlAccept::SHUTDOWN,
+            exit_code: ServiceExitCode::NO_ERROR,
+            checkpoint: 0,
+            wait_hint: Duration::default(),
+            process_id: None,
+        }) {
+            tracing::error!(error = %error, "Couldn't transition Windows service to Running");
+        }
+    });
+
+    let result = runtime.block_on(run_daemon_until(
+        async move {
+            tokio::task::spawn_blocking(move || shutdown_rx.recv())
+                .await
+                .map_err(|err| err.to_string())?
+                .map_err(|_| "The Windows service control channel disconnected.".to_string())?;
+            Ok(())
+        },
+        Some(on_ready),
+    ));
 
     let exit_code = if result.is_ok() {
         ServiceExitCode::NO_ERROR

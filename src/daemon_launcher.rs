@@ -7,11 +7,13 @@ use std::{
 use tauri::AppHandle;
 
 use crate::{
-    daemon_api::read_connection_info, models::DaemonConnectionInfo, runtime,
+    daemon_api::{read_connection_info, ConnectionReadError},
+    models::DaemonConnectionInfo,
+    runtime,
     service_paths::resolve_shared_service_config_dir,
 };
 
-const DAEMON_STARTUP_TIMEOUT: Duration = Duration::from_secs(8);
+const DAEMON_STARTUP_TIMEOUT: Duration = Duration::from_secs(20);
 const DAEMON_POLL_INTERVAL: Duration = Duration::from_millis(150);
 
 pub async fn ensure_daemon_connection(
@@ -61,8 +63,10 @@ async fn wait_for_live_connection(config_dir: PathBuf) -> Result<DaemonConnectio
 async fn read_live_connection(config_dir: PathBuf) -> Result<Option<DaemonConnectionInfo>, String> {
     let connection = match read_connection_info(config_dir) {
         Ok(connection) => connection,
-        Err(error) if is_missing_endpoint_error(&error) => return Ok(None),
-        Err(error) => return Err(error),
+        Err(ConnectionReadError::MissingEndpoint) | Err(ConnectionReadError::Incomplete) => {
+            return Ok(None);
+        }
+        Err(ConnectionReadError::Fatal(error)) => return Err(error),
     };
 
     if ping(&connection).await {
@@ -70,10 +74,6 @@ async fn read_live_connection(config_dir: PathBuf) -> Result<Option<DaemonConnec
     }
 
     Ok(None)
-}
-
-fn is_missing_endpoint_error(error: &str) -> bool {
-    error.contains("No such file") || error.contains("cannot find the file")
 }
 
 async fn ping(connection: &DaemonConnectionInfo) -> bool {

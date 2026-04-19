@@ -1,4 +1,4 @@
-use std::{convert::Infallible, fs, net::SocketAddr, path::PathBuf};
+use std::{convert::Infallible, fs, io, net::SocketAddr, path::PathBuf};
 
 use axum::{
     extract::{Query, State},
@@ -176,16 +176,34 @@ impl DaemonApiServer {
     }
 }
 
-pub fn read_connection_info(config_dir: PathBuf) -> Result<DaemonConnectionInfo, String> {
+#[derive(Debug)]
+pub enum ConnectionReadError {
+    MissingEndpoint,
+    Incomplete,
+    Fatal(String),
+}
+
+pub fn read_connection_info(
+    config_dir: PathBuf,
+) -> Result<DaemonConnectionInfo, ConnectionReadError> {
     let endpoint_path = daemon_endpoint_path(&config_dir);
-    let payload = fs::read_to_string(&endpoint_path).map_err(|err| {
-        format!(
-            "Couldn't read the daemon endpoint file at {}: {err}",
-            endpoint_path.display()
-        )
-    })?;
-    let endpoint: PersistedDaemonEndpoint =
-        serde_json::from_str(&payload).map_err(|err| err.to_string())?;
+    let payload = match fs::read_to_string(&endpoint_path) {
+        Ok(payload) => payload,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => {
+            return Err(ConnectionReadError::MissingEndpoint);
+        }
+        Err(err) => {
+            return Err(ConnectionReadError::Fatal(format!(
+                "Couldn't read the daemon endpoint file at {}: {err}",
+                endpoint_path.display()
+            )));
+        }
+    };
+
+    let endpoint: PersistedDaemonEndpoint = match serde_json::from_str(&payload) {
+        Ok(endpoint) => endpoint,
+        Err(_) => return Err(ConnectionReadError::Incomplete),
+    };
 
     Ok(DaemonConnectionInfo {
         base_url: endpoint.base_url,
@@ -198,7 +216,24 @@ fn persist_endpoint(path: &PathBuf, endpoint: &PersistedDaemonEndpoint) -> Resul
         fs::create_dir_all(parent).map_err(|err| err.to_string())?;
     }
     let payload = serde_json::to_vec_pretty(endpoint).map_err(|err| err.to_string())?;
-    fs::write(path, payload).map_err(|err| err.to_string())
+
+    let tmp_path = path.with_extension(format!("json.tmp.{}", std::process::id()));
+    fs::write(&tmp_path, &payload).map_err(|err| {
+        format!(
+            "Couldn't stage daemon endpoint file at {}: {err}",
+            tmp_path.display()
+        )
+    })?;
+
+    if let Err(err) = fs::rename(&tmp_path, path) {
+        let _ = fs::remove_file(&tmp_path);
+        return Err(format!(
+            "Couldn't publish daemon endpoint file at {}: {err}",
+            path.display()
+        ));
+    }
+
+    Ok(())
 }
 
 fn remove_endpoint_if_current(path: &PathBuf, token: &str) {
