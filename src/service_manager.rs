@@ -7,7 +7,10 @@ use std::{
 
 use tauri::AppHandle;
 
-use crate::{models::ServiceStatusResponse, service_paths::active_app_directory_name};
+use crate::models::ServiceStatusResponse;
+
+#[cfg(target_os = "macos")]
+use crate::service_paths::active_app_directory_name;
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 use std::path::Path;
@@ -73,6 +76,8 @@ const WINDOWS_SERVICE_RESULT_FLAG: &str = "--windows-service-result-file";
 const WINDOWS_SERVICE_WAIT_TIMEOUT: Duration = Duration::from_secs(30);
 #[cfg(windows)]
 const WINDOWS_STATUS_POLL_INTERVAL: Duration = Duration::from_millis(500);
+#[cfg(windows)]
+const WINDOWS_DAEMON_PID_FILENAME: &str = "daemon.pid";
 #[cfg(windows)]
 const ERROR_SERVICE_DOES_NOT_EXIST: i32 = 1060;
 #[cfg(windows)]
@@ -905,6 +910,8 @@ fn install_windows_service() -> Result<(), String> {
         return Err("The background service is already installed.".to_string());
     }
 
+    stop_existing_windows_daemon()?;
+
     let executable_path = std::env::current_exe().map_err(|err| err.to_string())?;
     let service_info = ServiceInfo {
         name: OsString::from(WINDOWS_SERVICE_NAME),
@@ -936,6 +943,39 @@ fn install_windows_service() -> Result<(), String> {
         .start(&empty_args)
         .map_err(format_windows_service_error)?;
     wait_for_windows_service_state(&service, ServiceState::Running)
+}
+
+#[cfg(windows)]
+fn stop_existing_windows_daemon() -> Result<(), String> {
+    let config_dir = crate::service_paths::default_shared_service_config_dir()?;
+    let pid_path = config_dir.join(WINDOWS_DAEMON_PID_FILENAME);
+    let endpoint_path = crate::service_paths::daemon_endpoint_path(&config_dir);
+
+    let Some(pid) = fs::read_to_string(&pid_path)
+        .ok()
+        .and_then(|contents| contents.trim().parse::<u32>().ok())
+    else {
+        return Ok(());
+    };
+
+    let stop_script = format!(
+        "$p = Get-Process -Id {pid} -ErrorAction SilentlyContinue; if ($p) {{ Stop-Process -Id {pid} -Force -ErrorAction SilentlyContinue }}"
+    );
+    let _ = Command::new("powershell")
+        .args([
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-Command",
+            &stop_script,
+        ])
+        .status();
+
+    std::thread::sleep(Duration::from_secs(1));
+
+    let _ = fs::remove_file(&endpoint_path);
+    let _ = fs::remove_file(&pid_path);
+    Ok(())
 }
 
 #[cfg(windows)]
@@ -1069,6 +1109,7 @@ fn service_executable_path(_app_handle: &AppHandle) -> Result<PathBuf, String> {
     std::env::current_exe().map_err(|err| err.to_string())
 }
 
+#[cfg(target_os = "macos")]
 fn write_temp_script(kind: &str, contents: &str) -> Result<PathBuf, String> {
     let path = std::env::temp_dir().join(format!(
         "sdl-service-{kind}-{}.sh",
@@ -1081,6 +1122,7 @@ fn write_temp_script(kind: &str, contents: &str) -> Result<PathBuf, String> {
     Ok(path)
 }
 
+#[cfg(target_os = "macos")]
 fn temp_plist_path() -> PathBuf {
     std::env::temp_dir().join(format!(
         "{}.plist",
@@ -1099,6 +1141,7 @@ fn temp_result_path(kind: &str) -> PathBuf {
     ))
 }
 
+#[cfg(target_os = "macos")]
 fn shell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
@@ -1121,6 +1164,7 @@ fn powershell_quote(value: &str) -> String {
     value.replace('\'', "''")
 }
 
+#[cfg(target_os = "macos")]
 fn xml_escape(value: &str) -> String {
     value
         .replace('&', "&amp;")

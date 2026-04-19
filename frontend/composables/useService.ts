@@ -44,7 +44,10 @@ async function runServiceAction(
     const status = await action()
     state.serviceStatus = status
 
-    if (!isServiceReady(status)) {
+    if (isServiceReady(status)) {
+      const { bootstrap } = await import("./useAppModel")
+      await bootstrap()
+    } else {
       navigate("service")
     }
   } catch (error) {

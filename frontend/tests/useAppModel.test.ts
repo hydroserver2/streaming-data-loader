@@ -5,6 +5,7 @@ import {
   requiresDesktopServiceSetup,
   resolvePostAuthRoute,
   resolveAuthenticatedRoute,
+  shouldBootstrapDesktopDaemon,
   shouldApplyDaemonConnectionState,
   shouldHydrateAuthDraftFromDaemon,
 } from "../composables/useAppModel"
@@ -119,6 +120,42 @@ test("browser runtime does not require OS service setup", () => {
       daemonReady: false,
     }),
     false
+  )
+})
+
+test("desktop runtime skips daemon bootstrap until the service is ready", () => {
+  assert.equal(
+    shouldBootstrapDesktopDaemon({
+      tauriRuntime: true,
+      serviceStatus: {
+        supported: true,
+        installed: false,
+        running: false,
+        label: "",
+        plist_path: "",
+        executable_path: "",
+        status_message: "",
+      },
+    }),
+    false
+  )
+})
+
+test("desktop runtime bootstraps the daemon once the service is running", () => {
+  assert.equal(
+    shouldBootstrapDesktopDaemon({
+      tauriRuntime: true,
+      serviceStatus: {
+        supported: true,
+        installed: true,
+        running: true,
+        label: "",
+        plist_path: "",
+        executable_path: "",
+        status_message: "",
+      },
+    }),
+    true
   )
 })
 

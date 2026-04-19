@@ -5,7 +5,7 @@ import {
   subscribeToDaemonStatus,
   type DaemonStatusSnapshot,
 } from "../api/hydroserver"
-import { getServiceStatus } from "../api/os-service"
+import { getServiceStatus, type ServiceStatusResponse } from "../api/os-service"
 import { getRouteFromHash, navigate } from "../router"
 import {
   state,
@@ -84,6 +84,18 @@ export function requiresDesktopServiceSetup(params: {
 }): boolean {
   const { tauriRuntime, serviceReady, daemonReady } = params
   return tauriRuntime && (!serviceReady || !daemonReady)
+}
+
+export function shouldBootstrapDesktopDaemon(params: {
+  tauriRuntime: boolean
+  serviceStatus: ServiceStatusResponse | null
+}): boolean {
+  const { tauriRuntime, serviceStatus } = params
+  if (!tauriRuntime) {
+    return true
+  }
+
+  return isServiceReady(serviceStatus)
 }
 
 export function shouldHydrateAuthDraftFromDaemon(params: {
@@ -230,15 +242,49 @@ function isTransientError(error: unknown): boolean {
   )
 }
 
-async function loadInitialState() {
+async function loadDesktopInitialState(): Promise<{
+  serviceStatus: ServiceStatusResponse
+  bootstrapResponse: Awaited<ReturnType<typeof getBootstrap>> | null
+}> {
+  const serviceStatus = await getServiceStatus()
+  if (
+    !shouldBootstrapDesktopDaemon({
+      tauriRuntime: true,
+      serviceStatus,
+    })
+  ) {
+    return { serviceStatus, bootstrapResponse: null }
+  }
+
   let lastError: unknown = null
   for (let attempt = 1; attempt <= STARTUP_RETRY_ATTEMPTS; attempt++) {
     try {
-      const [bootstrapResponse, serviceStatus] = await Promise.all([
-        getBootstrap(),
-        getServiceStatus(),
-      ])
-      return { ...bootstrapResponse, serviceStatus }
+      return {
+        serviceStatus,
+        bootstrapResponse: await getBootstrap(),
+      }
+    } catch (error) {
+      lastError = error
+      if (attempt === STARTUP_RETRY_ATTEMPTS || !isTransientError(error)) throw error
+      await sleep(STARTUP_RETRY_DELAY_MS)
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error(`Failed to load ${APP_NAME}.`)
+}
+
+async function loadInitialState() {
+  if (isTauriRuntime()) {
+    return loadDesktopInitialState()
+  }
+
+  let lastError: unknown = null
+  for (let attempt = 1; attempt <= STARTUP_RETRY_ATTEMPTS; attempt++) {
+    try {
+      return {
+        serviceStatus: null,
+        bootstrapResponse: await getBootstrap(),
+      }
     } catch (error) {
       lastError = error
       if (attempt === STARTUP_RETRY_ATTEMPTS || !isTransientError(error)) throw error
@@ -290,24 +336,41 @@ function ensureStatusSubscription(): void {
   })
 }
 
+function clearDaemonStatusSnapshot(): void {
+  state.health = null
+  state.config = null
+  state.jobStatuses = []
+}
+
 export async function bootstrap(): Promise<void> {
   state.loading = true
   syncRouteState()
 
   try {
-    ensureStatusSubscription()
-    const { health, config, jobs, serviceStatus } = await loadInitialState()
-    applyDaemonStatusSnapshot({ health, config, jobs })
+    stopStatusSubscription?.()
+    stopStatusSubscription = null
+
+    const { serviceStatus, bootstrapResponse } = await loadInitialState()
     state.serviceStatus = serviceStatus
     state.serviceActionError = null
-    state.lastConnectionState = health.connection.state
 
-    if (serverConfigured(config.server)) {
-      await syncAuthenticationStatus(config.server)
+    if (!bootstrapResponse) {
+      clearDaemonStatusSnapshot()
+      state.lastConnectionState = null
+      return
+    }
+
+    applyDaemonStatusSnapshot(bootstrapResponse)
+    ensureStatusSubscription()
+    state.lastConnectionState = bootstrapResponse.health.connection.state
+
+    if (serverConfigured(bootstrapResponse.config.server)) {
+      await syncAuthenticationStatus(bootstrapResponse.config.server)
     }
   } catch (error) {
     if (isTauriRuntime()) {
       const serviceStatus = await refreshServiceStatus()
+      clearDaemonStatusSnapshot()
       state.serviceActionError = bootstrapServiceErrorMessage({
         error,
         serviceStatusInstalled: Boolean(serviceStatus?.installed),

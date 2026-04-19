@@ -1,7 +1,7 @@
 use std::{
     path::PathBuf,
     process::{Command, Stdio},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use tauri::AppHandle;
@@ -24,9 +24,27 @@ pub async fn ensure_daemon_connection(
         return Ok(connection);
     }
 
-    spawn_daemon_process(resolve_service_executable_path()?)?;
+    #[cfg(windows)]
+    {
+        let service_status = crate::service_manager::get_service_status(app_handle)?;
+        if service_status.supported {
+            if !service_status.installed {
+                return Err("Install the background service to continue.".to_string());
+            }
+            if !service_status.running {
+                return Err("Restart the background service to continue.".to_string());
+            }
 
-    let started_at = std::time::Instant::now();
+            return wait_for_live_connection(config_dir).await;
+        }
+    }
+
+    spawn_daemon_process(resolve_service_executable_path()?)?;
+    wait_for_live_connection(config_dir).await
+}
+
+async fn wait_for_live_connection(config_dir: PathBuf) -> Result<DaemonConnectionInfo, String> {
+    let started_at = Instant::now();
     loop {
         if let Some(connection) = read_live_connection(config_dir.clone()).await? {
             return Ok(connection);
