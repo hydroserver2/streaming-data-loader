@@ -9,6 +9,7 @@ pub const DEV_APP_DIRECTORY_NAME: &str = "Streaming Data Loader Dev";
 pub const SERVICE_CONFIG_DIR_FLAG: &str = "--service-config-dir";
 
 const DAEMON_ENDPOINT_FILENAME: &str = "daemon.endpoint.json";
+const LOGS_DIRECTORY_NAME: &str = "logs";
 
 pub fn active_app_directory_name() -> &'static str {
     if cfg!(debug_assertions) {
@@ -61,6 +62,13 @@ pub fn default_shared_service_config_dir() -> Result<PathBuf, String> {
         fs::create_dir_all(&candidate).map_err(|err| err.to_string())?;
         Ok(candidate)
     }
+}
+
+pub fn resolve_shared_logs_dir() -> Result<PathBuf, String> {
+    let config_dir = resolve_shared_service_config_dir()?;
+    let logs_dir = config_dir.join(LOGS_DIRECTORY_NAME);
+    fs::create_dir_all(&logs_dir).map_err(|err| err.to_string())?;
+    Ok(logs_dir)
 }
 
 pub fn daemon_endpoint_path(config_dir: &Path) -> PathBuf {

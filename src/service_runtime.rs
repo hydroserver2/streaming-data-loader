@@ -36,10 +36,7 @@ const WINDOWS_SERVICE_TYPE: ServiceType = ServiceType::OWN_PROCESS;
 define_windows_service!(ffi_windows_service_main, windows_service_main);
 
 pub fn run_daemon() -> Result<(), String> {
-    let _ = tracing_subscriber::fmt()
-        .with_target(false)
-        .with_max_level(tracing::Level::INFO)
-        .try_init();
+    crate::logging::init_daemon_logging();
 
     #[cfg(windows)]
     {

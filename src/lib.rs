@@ -6,6 +6,7 @@ mod daemon_launcher;
 mod daemon_state;
 mod file_watcher;
 mod hydroserver;
+mod logging;
 mod models;
 mod observation_queue;
 mod pipeline;
@@ -17,6 +18,7 @@ mod timestamp;
 mod uploader;
 pub use service_manager::maybe_handle_service_management_cli;
 pub use service_runtime::run_daemon;
+pub use logging::init_process_logging_from_args;
 
 #[cfg(windows)]
 use tauri::Manager;
@@ -31,10 +33,7 @@ const WINDOW_CHROME_DARK_BACKGROUND_RGB: u32 = 0x33312f;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let _ = tracing_subscriber::fmt()
-        .with_target(false)
-        .with_max_level(tracing::Level::INFO)
-        .try_init();
+    logging::init_desktop_logging();
 
     tauri::Builder::default()
         .setup(|app| {

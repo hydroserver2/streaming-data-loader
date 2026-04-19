@@ -862,6 +862,12 @@ fn run_windows_elevated_action(app_handle: &AppHandle, action: &str) -> Result<(
     let executable_path = service_executable_path(app_handle)?;
     let result_path = temp_result_path("windows-service");
     let config_dir = crate::runtime::resolve_config_dir(app_handle)?;
+    tracing::info!(
+        action,
+        executable_path = %executable_path.display(),
+        config_dir = %config_dir.display(),
+        "requesting elevated Windows background service action"
+    );
     let script = format!(
         "$proc = Start-Process -FilePath '{}' -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList @('{}', '{}', '{}', '{}', '{}', '{}'); exit $proc.ExitCode",
         powershell_quote(&executable_path.to_string_lossy()),
@@ -891,12 +897,15 @@ fn run_windows_elevated_action(app_handle: &AppHandle, action: &str) -> Result<(
     let _ = fs::remove_file(&result_path);
 
     if status.success() {
+        tracing::info!(action, "Windows background service action completed");
         return Ok(());
     }
 
-    Err(message.unwrap_or_else(|| {
+    let message = message.unwrap_or_else(|| {
         "The Windows background service action failed or was canceled.".to_string()
-    }))
+    });
+    tracing::error!(action, error = %message, "Windows background service action failed");
+    Err(message)
 }
 
 #[cfg(windows)]
@@ -904,6 +913,14 @@ fn run_windows_management_action(
     action: &OsStr,
     config_dir: Option<PathBuf>,
 ) -> Result<(), String> {
+    tracing::info!(
+        action = %action.to_string_lossy(),
+        config_dir = %config_dir
+            .as_ref()
+            .map(|path| path.display().to_string())
+            .unwrap_or_else(|| "<default>".to_string()),
+        "handling Windows background service management action"
+    );
     match action.to_string_lossy().as_ref() {
         "install" => install_windows_service(config_dir),
         "restart" => restart_windows_service(config_dir),
@@ -930,6 +947,11 @@ fn install_windows_service(config_dir: Option<PathBuf>) -> Result<(), String> {
     stop_existing_windows_daemon(&config_dir)?;
 
     let executable_path = std::env::current_exe().map_err(|err| err.to_string())?;
+    tracing::info!(
+        executable_path = %executable_path.display(),
+        config_dir = %config_dir.display(),
+        "installing Windows background service"
+    );
     let service_info = ServiceInfo {
         name: OsString::from(WINDOWS_SERVICE_NAME),
         display_name: OsString::from(WINDOWS_SERVICE_DISPLAY_NAME),
@@ -1011,9 +1033,11 @@ fn restart_windows_service(config_dir: Option<PathBuf>) -> Result<(), String> {
         .map_err(format_windows_service_error)?;
 
     if let Some(config_dir) = config_dir {
+        tracing::info!(config_dir = %config_dir.display(), "syncing Windows service launch config before restart");
         sync_windows_service_launch_config(&service, &config_dir)?;
     }
 
+    tracing::info!("restarting Windows background service");
     stop_windows_service_if_needed(&service)?;
     let empty_args: [&OsStr; 0] = [];
     service
@@ -1033,6 +1057,7 @@ fn uninstall_windows_service(_config_dir: Option<PathBuf>) -> Result<(), String>
         )
         .map_err(format_windows_service_error)?;
 
+    tracing::info!("uninstalling Windows background service");
     stop_windows_service_if_needed(&service)?;
     service.delete().map_err(format_windows_service_error)
 }
