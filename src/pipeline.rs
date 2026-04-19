@@ -188,7 +188,7 @@ impl PipelineService {
             )
             .await;
 
-        if let Ok(row_count) = outcome.as_ref() {
+        if let Ok((row_count, _reset_detected)) = outcome.as_ref() {
             self.inner
                 .row_counts
                 .lock()
@@ -394,6 +394,7 @@ impl PipelineService {
             };
 
             let mut latest_row_count = previous_row_count;
+            let mut reset_any = false;
             for job in jobs {
                 match self
                     .scan_job(
@@ -405,11 +406,18 @@ impl PipelineService {
                     )
                     .await
                 {
-                    Ok(row_count) => {
-                        latest_row_count = latest_row_count.max(row_count);
+                    Ok((row_count, reset_detected)) => {
+                        if reset_detected {
+                            reset_any = true;
+                            latest_row_count = row_count;
+                        } else if !reset_any {
+                            latest_row_count = latest_row_count.max(row_count);
+                        }
                     }
                     Err(error) => {
-                        latest_row_count = latest_row_count.max(previous_row_count);
+                        if !reset_any {
+                            latest_row_count = latest_row_count.max(previous_row_count);
+                        }
                         error!(file = %path.display(), error = %error, "job scan failed");
                     }
                 }
@@ -436,7 +444,7 @@ impl PipelineService {
         job: JobConfig,
         previous_row_count: usize,
         mode: ScanMode,
-    ) -> Result<usize, String> {
+    ) -> Result<(usize, bool), String> {
         self.set_job_running(&job.id, true).await?;
 
         let outcome = async {
@@ -450,6 +458,7 @@ impl PipelineService {
             .map_err(|err| err.to_string())??;
 
             if result.reset_detected {
+                self.reset_job_datastream_cursors(&job.id).await?;
                 self.append_log(
                     &job.id,
                     "Detected that the watched CSV file was replaced or truncated; rescanning from the configured data start row.",
@@ -468,7 +477,7 @@ impl PipelineService {
                     )
                     .await?;
                 }
-                return Ok(result.file_row_count);
+                return Ok((result.file_row_count, result.reset_detected));
             }
 
             let mut queued = 0usize;
@@ -502,7 +511,7 @@ impl PipelineService {
                 "queued observations from watched CSV file"
             );
 
-            Ok(result.file_row_count)
+            Ok((result.file_row_count, result.reset_detected))
         }
         .await;
 
@@ -535,6 +544,14 @@ impl PipelineService {
         let config_store = self.inner.config_store.clone();
         let job_id = job_id.to_string();
         tokio::task::spawn_blocking(move || config_store.clear_last_error(&job_id, Utc::now()))
+            .await
+            .map_err(|err| err.to_string())?
+    }
+
+    async fn reset_job_datastream_cursors(&self, job_id: &str) -> Result<(), String> {
+        let config_store = self.inner.config_store.clone();
+        let job_id = job_id.to_string();
+        tokio::task::spawn_blocking(move || config_store.reset_job_datastream_cursors(&job_id))
             .await
             .map_err(|err| err.to_string())?
     }

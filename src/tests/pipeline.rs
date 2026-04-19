@@ -1430,7 +1430,7 @@ Timestamp,Stage_ft,WaterTemp_C
         )
         .await
         .expect("scan first job");
-    assert_eq!(first_result, 5);
+    assert_eq!(first_result, (5, false));
 
     let second_result = runtime
         .scan_job(
@@ -1442,7 +1442,7 @@ Timestamp,Stage_ft,WaterTemp_C
         )
         .await
         .expect("scan second job");
-    assert_eq!(second_result, 5);
+    assert_eq!(second_result, (5, false));
 
     let shared_row_count = runtime
         .inner

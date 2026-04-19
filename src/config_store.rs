@@ -316,6 +316,33 @@ impl ConfigStore {
         Ok(())
     }
 
+    /// Clear all per-datastream cursors for a job after the watched CSV was
+    /// rotated or truncated. Without this, `record_datastream_success` keeps
+    /// `.max()`ing against the pre-rotation high-water mark and the scanner
+    /// re-queues the same rows on every tick (bug_001).
+    pub fn reset_job_datastream_cursors(&self, job_id: &str) -> Result<(), String> {
+        let _guard = self
+            .lock
+            .lock()
+            .map_err(|_| "Config lock poisoned.".to_string())?;
+        self.ensure_locked()?;
+        let Some(mut workspace) = self.load_active_workspace_locked()? else {
+            return Ok(());
+        };
+
+        for datasource in &mut workspace.datasources {
+            if datasource.id != job_id {
+                continue;
+            }
+            datasource.datastream_cursors.clear();
+            recompute_job_aggregates(datasource);
+            self.write_workspace_locked(&workspace)?;
+            return Ok(());
+        }
+
+        Ok(())
+    }
+
     /// Atomically clear the job-level `last_error` and update `last_run_at`.
     /// Used by the scanner after a successful scan iteration.  Taking the
     /// config lock for the entire read-modify-write means a concurrent

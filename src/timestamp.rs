@@ -25,26 +25,24 @@ pub fn parse_timestamp_to_utc(
 
 pub fn validate_fixed_offset(value: &str) -> Result<FixedOffset, String> {
     let clean = value.trim();
-    if clean.len() != 5 && clean.len() != 6 {
-        return Err(invalid_offset_message(clean));
-    }
+    let bytes = clean.as_bytes();
 
-    let normalized = if clean.contains(':') {
-        clean.to_string()
-    } else {
-        format!("{}{}:{}", &clean[0..1], &clean[1..3], &clean[3..5])
-    };
-
-    let sign = match &normalized[0..1] {
-        "+" => 1,
-        "-" => -1,
+    let (hours_str, minutes_str) = match bytes.len() {
+        5 if bytes[3] != b':' => (&clean[1..3], &clean[3..5]),
+        6 if bytes[3] == b':' => (&clean[1..3], &clean[4..6]),
         _ => return Err(invalid_offset_message(clean)),
     };
 
-    let hours = normalized[1..3]
+    let sign = match bytes[0] {
+        b'+' => 1,
+        b'-' => -1,
+        _ => return Err(invalid_offset_message(clean)),
+    };
+
+    let hours = hours_str
         .parse::<i32>()
         .map_err(|_| invalid_offset_message(clean))?;
-    let minutes = normalized[4..6]
+    let minutes = minutes_str
         .parse::<i32>()
         .map_err(|_| invalid_offset_message(clean))?;
 
