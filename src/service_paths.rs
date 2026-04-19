@@ -1,10 +1,12 @@
 use std::{
+    ffi::OsString,
     fs,
     path::{Path, PathBuf},
 };
 
 pub const APP_DIRECTORY_NAME: &str = "Streaming Data Loader";
 pub const DEV_APP_DIRECTORY_NAME: &str = "Streaming Data Loader Dev";
+pub const SERVICE_CONFIG_DIR_FLAG: &str = "--service-config-dir";
 
 const DAEMON_ENDPOINT_FILENAME: &str = "daemon.endpoint.json";
 
@@ -17,6 +19,11 @@ pub fn active_app_directory_name() -> &'static str {
 }
 
 pub fn resolve_shared_service_config_dir() -> Result<PathBuf, String> {
+    if let Some(config_dir) = service_config_dir_override_from_args(std::env::args_os()) {
+        fs::create_dir_all(&config_dir).map_err(|err| err.to_string())?;
+        return Ok(config_dir);
+    }
+
     if let Ok(config_dir) = std::env::var("SDL_CONFIG_DIR") {
         let candidate = PathBuf::from(config_dir);
         fs::create_dir_all(&candidate).map_err(|err| err.to_string())?;
@@ -59,3 +66,22 @@ pub fn default_shared_service_config_dir() -> Result<PathBuf, String> {
 pub fn daemon_endpoint_path(config_dir: &Path) -> PathBuf {
     config_dir.join(DAEMON_ENDPOINT_FILENAME)
 }
+
+pub(crate) fn service_config_dir_override_from_args<I, T>(args: I) -> Option<PathBuf>
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString>,
+{
+    let mut args = args.into_iter().map(Into::into);
+    while let Some(arg) = args.next() {
+        if arg == OsString::from(SERVICE_CONFIG_DIR_FLAG) {
+            return args.next().map(PathBuf::from);
+        }
+    }
+
+    None
+}
+
+#[cfg(test)]
+#[path = "tests/service_paths.rs"]
+mod tests;

@@ -8,6 +8,8 @@ use std::{
 use tauri::AppHandle;
 
 use crate::models::ServiceStatusResponse;
+#[cfg(windows)]
+use crate::service_paths::SERVICE_CONFIG_DIR_FLAG;
 
 #[cfg(target_os = "macos")]
 use crate::service_paths::active_app_directory_name;
@@ -21,6 +23,7 @@ use crate::service_paths::default_shared_service_config_dir;
 #[cfg(windows)]
 use std::{
     ffi::{OsStr, OsString},
+    path::Path,
     time::{Duration, Instant},
 };
 
@@ -823,17 +826,20 @@ fn maybe_handle_windows_management_cli() -> Option<i32> {
     let mut args = std::env::args_os().skip(1);
     let mut action: Option<OsString> = None;
     let mut result_file: Option<PathBuf> = None;
+    let mut config_dir: Option<PathBuf> = None;
 
     while let Some(arg) = args.next() {
         if arg == OsStr::new(WINDOWS_SERVICE_ACTION_FLAG) {
             action = args.next();
         } else if arg == OsStr::new(WINDOWS_SERVICE_RESULT_FLAG) {
             result_file = args.next().map(PathBuf::from);
+        } else if arg == OsStr::new(SERVICE_CONFIG_DIR_FLAG) {
+            config_dir = args.next().map(PathBuf::from);
         }
     }
 
     let action = action?;
-    let result = run_windows_management_action(action.as_os_str());
+    let result = run_windows_management_action(action.as_os_str(), config_dir);
 
     if let Some(path) = result_file {
         match &result {
@@ -853,13 +859,16 @@ fn maybe_handle_windows_management_cli() -> Option<i32> {
 fn run_windows_elevated_action(app_handle: &AppHandle, action: &str) -> Result<(), String> {
     let executable_path = service_executable_path(app_handle)?;
     let result_path = temp_result_path("windows-service");
+    let config_dir = crate::runtime::resolve_config_dir(app_handle)?;
     let script = format!(
-        "$proc = Start-Process -FilePath '{}' -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList @('{}', '{}', '{}', '{}'); exit $proc.ExitCode",
+        "$proc = Start-Process -FilePath '{}' -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList @('{}', '{}', '{}', '{}', '{}', '{}'); exit $proc.ExitCode",
         powershell_quote(&executable_path.to_string_lossy()),
         WINDOWS_SERVICE_ACTION_FLAG,
         action,
         WINDOWS_SERVICE_RESULT_FLAG,
-        powershell_quote(&result_path.to_string_lossy())
+        powershell_quote(&result_path.to_string_lossy()),
+        SERVICE_CONFIG_DIR_FLAG,
+        powershell_quote(&config_dir.to_string_lossy())
     );
 
     let status = Command::new("powershell")
@@ -889,17 +898,20 @@ fn run_windows_elevated_action(app_handle: &AppHandle, action: &str) -> Result<(
 }
 
 #[cfg(windows)]
-fn run_windows_management_action(action: &OsStr) -> Result<(), String> {
+fn run_windows_management_action(
+    action: &OsStr,
+    config_dir: Option<PathBuf>,
+) -> Result<(), String> {
     match action.to_string_lossy().as_ref() {
-        "install" => install_windows_service(),
-        "restart" => restart_windows_service(),
-        "uninstall" => uninstall_windows_service(),
+        "install" => install_windows_service(config_dir),
+        "restart" => restart_windows_service(config_dir),
+        "uninstall" => uninstall_windows_service(config_dir),
         _ => Err("Unknown Windows service action.".to_string()),
     }
 }
 
 #[cfg(windows)]
-fn install_windows_service() -> Result<(), String> {
+fn install_windows_service(config_dir: Option<PathBuf>) -> Result<(), String> {
     let manager = ServiceManager::local_computer(
         None::<&str>,
         ServiceManagerAccess::CONNECT | ServiceManagerAccess::CREATE_SERVICE,
@@ -910,7 +922,10 @@ fn install_windows_service() -> Result<(), String> {
         return Err("The background service is already installed.".to_string());
     }
 
-    stop_existing_windows_daemon()?;
+    let config_dir =
+        config_dir.unwrap_or(crate::service_paths::resolve_shared_service_config_dir()?);
+
+    stop_existing_windows_daemon(&config_dir)?;
 
     let executable_path = std::env::current_exe().map_err(|err| err.to_string())?;
     let service_info = ServiceInfo {
@@ -920,7 +935,11 @@ fn install_windows_service() -> Result<(), String> {
         start_type: ServiceStartType::AutoStart,
         error_control: ServiceErrorControl::Normal,
         executable_path,
-        launch_arguments: vec![OsString::from("--service")],
+        launch_arguments: vec![
+            OsString::from("--service"),
+            OsString::from(SERVICE_CONFIG_DIR_FLAG),
+            config_dir.as_os_str().to_os_string(),
+        ],
         dependencies: vec![],
         account_name: None,
         account_password: None,
@@ -946,10 +965,9 @@ fn install_windows_service() -> Result<(), String> {
 }
 
 #[cfg(windows)]
-fn stop_existing_windows_daemon() -> Result<(), String> {
-    let config_dir = crate::service_paths::default_shared_service_config_dir()?;
+fn stop_existing_windows_daemon(config_dir: &Path) -> Result<(), String> {
     let pid_path = config_dir.join(WINDOWS_DAEMON_PID_FILENAME);
-    let endpoint_path = crate::service_paths::daemon_endpoint_path(&config_dir);
+    let endpoint_path = crate::service_paths::daemon_endpoint_path(config_dir);
 
     let Some(pid) = fs::read_to_string(&pid_path)
         .ok()
@@ -979,15 +997,21 @@ fn stop_existing_windows_daemon() -> Result<(), String> {
 }
 
 #[cfg(windows)]
-fn restart_windows_service() -> Result<(), String> {
+fn restart_windows_service(config_dir: Option<PathBuf>) -> Result<(), String> {
     let manager = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
         .map_err(format_windows_service_error)?;
+    let service_access = ServiceAccess::QUERY_STATUS
+        | ServiceAccess::QUERY_CONFIG
+        | ServiceAccess::CHANGE_CONFIG
+        | ServiceAccess::START
+        | ServiceAccess::STOP;
     let service = manager
-        .open_service(
-            WINDOWS_SERVICE_NAME,
-            ServiceAccess::QUERY_STATUS | ServiceAccess::START | ServiceAccess::STOP,
-        )
+        .open_service(WINDOWS_SERVICE_NAME, service_access)
         .map_err(format_windows_service_error)?;
+
+    if let Some(config_dir) = config_dir {
+        sync_windows_service_launch_config(&service, &config_dir)?;
+    }
 
     stop_windows_service_if_needed(&service)?;
     let empty_args: [&OsStr; 0] = [];
@@ -998,7 +1022,7 @@ fn restart_windows_service() -> Result<(), String> {
 }
 
 #[cfg(windows)]
-fn uninstall_windows_service() -> Result<(), String> {
+fn uninstall_windows_service(_config_dir: Option<PathBuf>) -> Result<(), String> {
     let manager = ServiceManager::local_computer(None::<&str>, ServiceManagerAccess::CONNECT)
         .map_err(format_windows_service_error)?;
     let service = manager
@@ -1010,6 +1034,38 @@ fn uninstall_windows_service() -> Result<(), String> {
 
     stop_windows_service_if_needed(&service)?;
     service.delete().map_err(format_windows_service_error)
+}
+
+#[cfg(windows)]
+fn sync_windows_service_launch_config(
+    service: &windows_service::service::Service,
+    config_dir: &Path,
+) -> Result<(), String> {
+    let existing_config = service
+        .query_config()
+        .map_err(format_windows_service_error)?;
+    let desired_launch_arguments = vec![
+        OsString::from("--service"),
+        OsString::from(SERVICE_CONFIG_DIR_FLAG),
+        config_dir.as_os_str().to_os_string(),
+    ];
+
+    let desired_config = ServiceInfo {
+        name: OsString::from(WINDOWS_SERVICE_NAME),
+        display_name: existing_config.display_name,
+        service_type: existing_config.service_type,
+        start_type: existing_config.start_type,
+        error_control: existing_config.error_control,
+        executable_path: existing_config.executable_path,
+        launch_arguments: desired_launch_arguments,
+        dependencies: existing_config.dependencies,
+        account_name: existing_config.account_name,
+        account_password: None,
+    };
+
+    service
+        .change_config(&desired_config)
+        .map_err(format_windows_service_error)
 }
 
 #[cfg(windows)]
