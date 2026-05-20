@@ -604,14 +604,6 @@ impl Default for AppConfig {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
-pub struct AppStateFile {
-    #[serde(default)]
-    pub cursors: HashMap<String, JobCursor>,
-    #[serde(default)]
-    pub logs: HashMap<String, Vec<JobLogEntry>>,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceStateFile {
     #[serde(default = "default_version")]

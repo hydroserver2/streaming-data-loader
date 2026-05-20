@@ -13,8 +13,8 @@ use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
 
 use crate::models::{
-    AppConfig, AppStateFile, ColumnMapping, FileConfig, JobConfig, JobCursor, JobLogEntry,
-    JobUpsertRequest, PersistedDatasource, ServerConfig, WorkspaceStateFile,
+    AppConfig, JobConfig, JobCursor, JobLogEntry, JobUpsertRequest, PersistedDatasource,
+    ServerConfig, WorkspaceStateFile,
 };
 
 static JOB_COUNTER: AtomicU64 = AtomicU64::new(1);
@@ -24,7 +24,6 @@ const JOB_LOG_ROTATE_FILES: usize = 7;
 pub struct ConfigStore {
     config_dir: PathBuf,
     config_path: PathBuf,
-    legacy_state_path: PathBuf,
     workspace_dir: PathBuf,
     logs_dir: PathBuf,
     job_logs_dir: PathBuf,
@@ -37,7 +36,6 @@ impl ConfigStore {
         let job_logs_dir = logs_dir.join("jobs");
         Self {
             config_path: config_dir.join("config.json"),
-            legacy_state_path: config_dir.join("state.json"),
             workspace_dir: config_dir.join("workspaces"),
             logs_dir,
             job_logs_dir,
@@ -235,33 +233,7 @@ impl ConfigStore {
             .map_err(|_| "Config lock poisoned.".to_string())?;
         self.ensure_locked()?;
 
-        let entries = self.read_job_logs_locked(job_id, limit)?;
-        if !entries.is_empty() {
-            return Ok(entries);
-        }
-
-        let workspace = self.load_active_workspace_locked()?;
-        let migrated_entries = self.read_job_logs_locked(job_id, limit)?;
-        if !migrated_entries.is_empty() {
-            return Ok(migrated_entries);
-        }
-
-        Ok(workspace
-            .and_then(|workspace| {
-                workspace
-                    .datasources
-                    .into_iter()
-                    .find(|item| item.id == job_id)
-            })
-            .map(|datasource| {
-                let count = datasource.recent_logs.len();
-                datasource
-                    .recent_logs
-                    .into_iter()
-                    .skip(count.saturating_sub(limit))
-                    .collect()
-            })
-            .unwrap_or_default())
+        self.read_job_logs_locked(job_id, limit)
     }
 
     /// Atomically record a successful batch upload for a specific datastream.
@@ -532,7 +504,7 @@ impl ConfigStore {
             self.write_config_locked(&AppConfig::default())?;
         }
 
-        self.migrate_legacy_workspace_data_locked()
+        Ok(())
     }
 
     fn read_config_locked(&self) -> Result<AppConfig, String> {
@@ -541,37 +513,11 @@ impl ConfigStore {
         }
 
         let contents = fs::read_to_string(&self.config_path).map_err(|err| err.to_string())?;
-        let value: Value = serde_json::from_str(&contents).map_err(|err| err.to_string())?;
-
-        let version = value.get("version").and_then(Value::as_u64).unwrap_or(1) as u32;
-        let server = value
-            .get("server")
-            .cloned()
-            .map(parse_server_config)
-            .transpose()?
-            .unwrap_or_default();
-        let jobs = value
-            .get("jobs")
-            .and_then(Value::as_array)
-            .map(|items| {
-                items
-                    .iter()
-                    .cloned()
-                    .map(parse_job_config)
-                    .collect::<Result<Vec<_>, _>>()
-            })
-            .transpose()?
-            .unwrap_or_default();
-
-        Ok(AppConfig {
-            version,
-            server,
-            launch_at_login_initialized: value
-                .get("launch_at_login_initialized")
-                .and_then(Value::as_bool)
-                .unwrap_or(false),
-            jobs,
-        })
+        let mut config: AppConfig =
+            serde_json::from_str(&contents).map_err(|err| err.to_string())?;
+        config.server = config.server.normalized();
+        config.jobs.clear();
+        Ok(config)
     }
 
     fn write_config_locked(&self, config: &AppConfig) -> Result<(), String> {
@@ -651,59 +597,18 @@ impl ConfigStore {
         }
 
         let contents = fs::read_to_string(path).map_err(|err| err.to_string())?;
-        let value: Value = serde_json::from_str(&contents).map_err(|err| err.to_string())?;
-        let mut workspace = parse_workspace_state(value)?;
-        let mut changed = false;
-        for datasource in &mut workspace.datasources {
-            if let Some(migrated_file_path) =
-                self.migrate_generated_test_csv_path(&datasource.file_path)
-            {
-                datasource.file_path = migrated_file_path;
-                changed = true;
-            }
-
-            if datasource.recent_logs.is_empty() {
-                continue;
-            }
-
-            if !self.job_logs_exist_locked(&datasource.id) {
-                self.append_job_logs_locked(&datasource.id, &datasource.recent_logs)?;
-            }
-            datasource.recent_logs.clear();
-            changed = true;
-        }
-
-        if changed {
-            self.write_workspace_locked(&workspace)?;
-        }
+        let mut workspace: WorkspaceStateFile =
+            serde_json::from_str(&contents).map_err(|err| err.to_string())?;
+        workspace.workspace_id = workspace.workspace_id.trim().to_string();
+        workspace.workspace_name = workspace.workspace_name.trim().to_string();
+        workspace.hydroserver_url = workspace.hydroserver_url.trim().to_string();
+        workspace.datasources = workspace
+            .datasources
+            .into_iter()
+            .map(normalize_persisted_datasource)
+            .collect::<Result<Vec<_>, _>>()?;
 
         Ok(Some(workspace))
-    }
-
-    fn migrate_generated_test_csv_path(&self, file_path: &str) -> Option<String> {
-        let original = Path::new(file_path);
-        if original.exists() {
-            return None;
-        }
-
-        let mut relative = PathBuf::new();
-        let mut found_generated_test_dir = false;
-        for component in original.components() {
-            if found_generated_test_dir {
-                relative.push(component.as_os_str());
-            } else if component.as_os_str() == "generated-test-csv" {
-                found_generated_test_dir = true;
-            }
-        }
-
-        if !found_generated_test_dir || relative.as_os_str().is_empty() {
-            return None;
-        }
-
-        let candidate = self.config_dir.join("generated-test-csv").join(relative);
-        candidate
-            .exists()
-            .then(|| candidate.to_string_lossy().into_owned())
     }
 
     fn load_active_workspace_locked(&self) -> Result<Option<WorkspaceStateFile>, String> {
@@ -746,19 +651,6 @@ impl ConfigStore {
         }
 
         paths
-    }
-
-    fn job_logs_exist_locked(&self, job_id: &str) -> bool {
-        self.job_log_path(job_id).exists()
-            || (1..=JOB_LOG_ROTATE_FILES)
-                .any(|index| self.rotated_job_log_path(job_id, index).exists())
-    }
-
-    fn append_job_logs_locked(&self, job_id: &str, entries: &[JobLogEntry]) -> Result<(), String> {
-        for entry in entries {
-            self.append_job_log_locked(job_id, entry)?;
-        }
-        Ok(())
     }
 
     fn append_job_log_locked(&self, job_id: &str, entry: &JobLogEntry) -> Result<(), String> {
@@ -851,138 +743,11 @@ impl ConfigStore {
             .map(|datasource| datasource.to_job_config())
             .collect())
     }
-
-    fn migrate_legacy_workspace_data_locked(&self) -> Result<(), String> {
-        let config = self.read_config_locked()?;
-        let workspace_id = config.server.workspace_id.trim().to_string();
-        if workspace_id.is_empty() {
-            return Ok(());
-        }
-
-        let legacy_jobs = config.jobs.clone();
-        let legacy_state = self.read_legacy_state_locked()?;
-        if legacy_jobs.is_empty() && legacy_state.is_none() {
-            return Ok(());
-        }
-
-        let path = self.workspace_path(&workspace_id);
-        if path.exists() {
-            if !legacy_jobs.is_empty() {
-                let stripped_config = AppConfig {
-                    version: config.version,
-                    server: config.server,
-                    launch_at_login_initialized: config.launch_at_login_initialized,
-                    jobs: Vec::new(),
-                };
-                self.write_config_locked(&stripped_config)?;
-            }
-            return Ok(());
-        }
-
-        let workspace = WorkspaceStateFile {
-            version: 1,
-            workspace_id: workspace_id.clone(),
-            workspace_name: String::new(),
-            hydroserver_url: config.server.url.clone(),
-            datasources: legacy_jobs
-                .into_iter()
-                .map(|job| {
-                    let cursor = legacy_state
-                        .as_ref()
-                        .and_then(|state| state.cursors.get(&job.id).cloned());
-                    let recent_logs = legacy_state
-                        .as_ref()
-                        .and_then(|state| state.logs.get(&job.id).cloned());
-                    PersistedDatasource::from_job(job, cursor, recent_logs)
-                })
-                .collect(),
-        };
-
-        self.write_workspace_locked(&workspace)?;
-
-        let stripped_config = AppConfig {
-            version: config.version,
-            server: config.server,
-            launch_at_login_initialized: config.launch_at_login_initialized,
-            jobs: Vec::new(),
-        };
-        self.write_config_locked(&stripped_config)
-    }
-
-    fn read_legacy_state_locked(&self) -> Result<Option<AppStateFile>, String> {
-        if !self.legacy_state_path.exists() {
-            return Ok(None);
-        }
-
-        let contents =
-            fs::read_to_string(&self.legacy_state_path).map_err(|err| err.to_string())?;
-        let state: AppStateFile = serde_json::from_str(&contents).map_err(|err| err.to_string())?;
-        if state.cursors.is_empty() && state.logs.is_empty() {
-            return Ok(None);
-        }
-
-        Ok(Some(state))
-    }
 }
 
-fn parse_server_config(value: Value) -> Result<ServerConfig, String> {
-    let server: ServerConfig = serde_json::from_value(value).map_err(|err| err.to_string())?;
-    Ok(server.normalized())
-}
-
-fn parse_job_config(value: Value) -> Result<JobConfig, String> {
-    let mut job: JobConfig =
-        serde_json::from_value(normalize_job_value(value)).map_err(|err| err.to_string())?;
-    job = job.normalized()?;
-    Ok(job)
-}
-
-fn parse_workspace_state(value: Value) -> Result<WorkspaceStateFile, String> {
-    let version = value.get("version").and_then(Value::as_u64).unwrap_or(1) as u32;
-    let workspace_id = value
-        .get("workspace_id")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .trim()
-        .to_string();
-    let workspace_name = value
-        .get("workspace_name")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .trim()
-        .to_string();
-    let hydroserver_url = value
-        .get("hydroserver_url")
-        .and_then(Value::as_str)
-        .unwrap_or_default()
-        .trim()
-        .to_string();
-    let datasources = value
-        .get("datasources")
-        .and_then(Value::as_array)
-        .map(|items| {
-            items
-                .iter()
-                .cloned()
-                .map(parse_persisted_datasource)
-                .collect::<Result<Vec<_>, _>>()
-        })
-        .transpose()?
-        .unwrap_or_default();
-
-    Ok(WorkspaceStateFile {
-        version,
-        workspace_id,
-        workspace_name,
-        hydroserver_url,
-        datasources,
-    })
-}
-
-fn parse_persisted_datasource(value: Value) -> Result<PersistedDatasource, String> {
-    let mut datasource: PersistedDatasource =
-        serde_json::from_value(normalize_job_value(value)).map_err(|err| err.to_string())?;
-
+fn normalize_persisted_datasource(
+    mut datasource: PersistedDatasource,
+) -> Result<PersistedDatasource, String> {
     let normalized_job = datasource.to_job_config().normalized()?;
     datasource.id = normalized_job.id;
     datasource.name = normalized_job.name;
@@ -992,127 +757,6 @@ fn parse_persisted_datasource(value: Value) -> Result<PersistedDatasource, Strin
     datasource.file_config = normalized_job.file_config;
     datasource.column_mappings = normalized_job.column_mappings;
     Ok(datasource)
-}
-
-fn normalize_job_value(value: Value) -> Value {
-    let mut value = value;
-    if let Some(object) = value.as_object_mut() {
-        if let Some(file_config) = object.get("file_config").cloned() {
-            object.insert(
-                "file_config".to_string(),
-                migrate_file_config_value(file_config),
-            );
-        }
-        if let Some(column_mappings) = object.get("column_mappings").cloned() {
-            object.insert(
-                "column_mappings".to_string(),
-                normalize_column_mappings_value(column_mappings),
-            );
-        }
-    }
-    value
-}
-
-fn normalize_column_mappings_value(value: Value) -> Value {
-    let Value::Array(items) = value else {
-        return Value::Array(Vec::new());
-    };
-
-    Value::Array(
-        items
-            .into_iter()
-            .filter_map(|item| match serde_json::from_value::<ColumnMapping>(item) {
-                Ok(mapping) => Some(serde_json::to_value(mapping.normalized().ok()?).ok()?),
-                Err(_) => None,
-            })
-            .collect(),
-    )
-}
-
-fn migrate_file_config_value(value: Value) -> Value {
-    let Some(object) = value.as_object() else {
-        return serde_json::to_value(FileConfig::default()).unwrap_or(Value::Null);
-    };
-
-    if object.contains_key("timestamp")
-        || object.contains_key("identifierType")
-        || object.contains_key("identifier_type")
-    {
-        return value;
-    }
-
-    let legacy_key = string_field(object, &["timestamp_column", "timestampColumn"])
-        .unwrap_or_else(|| "timestamp".to_string());
-    let legacy_format = string_field(object, &["timestamp_format", "timestampFormat"]);
-    let legacy_timezone = string_field(object, &["timezone"]);
-
-    let mut timestamp = json!({
-        "key": legacy_key,
-    });
-
-    if let Some(format) = legacy_format {
-        timestamp["format"] = Value::String("custom".to_string());
-        timestamp["customFormat"] = Value::String(format);
-    } else {
-        timestamp["format"] = Value::String("ISO8601".to_string());
-    }
-
-    match legacy_timezone {
-        Some(timezone) if timezone.contains('/') => {
-            timestamp["timezoneMode"] = Value::String("daylightSavings".to_string());
-            timestamp["timezone"] = Value::String(timezone);
-            if timestamp["format"] == Value::String("ISO8601".to_string()) {
-                timestamp["format"] = Value::String("naive".to_string());
-            }
-        }
-        Some(timezone) if timezone.eq_ignore_ascii_case("UTC") => {
-            timestamp["timezoneMode"] = Value::String("utc".to_string());
-            if timestamp["format"] == Value::String("ISO8601".to_string()) {
-                timestamp["format"] = Value::String("naive".to_string());
-            }
-        }
-        Some(timezone) => {
-            timestamp["timezoneMode"] = Value::String("fixedOffset".to_string());
-            timestamp["timezone"] = Value::String(timezone);
-            if timestamp["format"] == Value::String("ISO8601".to_string()) {
-                timestamp["format"] = Value::String("naive".to_string());
-            }
-        }
-        None => {
-            timestamp["timezoneMode"] = Value::String("embeddedOffset".to_string());
-        }
-    }
-
-    json!({
-        "headerRow": object
-            .get("headerRow")
-            .cloned()
-            .or_else(|| object.get("header_row").cloned())
-            .unwrap_or(Value::from(1)),
-        "dataStartRow": object
-            .get("dataStartRow")
-            .cloned()
-            .or_else(|| object.get("data_start_row").cloned())
-            .unwrap_or(Value::from(2)),
-        "delimiter": object
-            .get("delimiter")
-            .cloned()
-            .unwrap_or_else(|| Value::String(",".to_string())),
-        "identifierType": object
-            .get("identifierType")
-            .cloned()
-            .or_else(|| object.get("identifier_type").cloned())
-            .unwrap_or_else(|| Value::String("name".to_string())),
-        "timestamp": timestamp,
-    })
-}
-
-fn string_field(object: &serde_json::Map<String, Value>, keys: &[&str]) -> Option<String> {
-    keys.iter()
-        .find_map(|key| object.get(*key))
-        .and_then(Value::as_str)
-        .map(|value| value.trim().to_string())
-        .filter(|value| !value.is_empty())
 }
 
 /// Recomputes the job-level `last_pushed_row_index`, `last_pushed_timestamp`,
