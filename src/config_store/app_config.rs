@@ -63,13 +63,8 @@ impl ConfigStore {
     }
 
     pub(super) fn read_config_locked(&self) -> Result<AppConfig, String> {
-        if !self.config_path.exists() {
-            return Ok(AppConfig::default());
-        }
-
-        let contents = fs::read_to_string(&self.config_path).map_err(|err| err.to_string())?;
-        let mut config: AppConfig =
-            serde_json::from_str(&contents).map_err(|err| err.to_string())?;
+        let mut config =
+            super::json_file::read_json_file::<AppConfig>(&self.config_path)?.unwrap_or_default();
         config.server = config.server.normalized();
         config.jobs.clear();
         Ok(config)

@@ -124,6 +124,64 @@ Timestamp,Stage_ft,WaterTemp_C
 }
 
 #[test]
+fn incomplete_trailing_line_is_held_back_until_completed() {
+    let path = std::env::temp_dir().join(format!(
+        "sdl-pipeline-partial-{}-{}.csv",
+        std::process::id(),
+        Utc::now().timestamp_nanos_opt().unwrap_or_default()
+    ));
+
+    // The logger has flushed one complete data row and is partway through the
+    // next one — no trailing newline, and the timestamp is truncated.
+    std::fs::write(
+        &path,
+        "\
+Station,Example Creek at Demo Site
+Generated At,2026-04-03 09:00:00
+Timestamp,Stage_ft,WaterTemp_C
+2026-04-03 08:00:00,2.41,7.8
+2026-04-03 08:05",
+    )
+    .expect("write csv");
+
+    let job = sample_job(path.to_str().expect("utf-8 path"));
+
+    // The partial final line must not abort the scan or get parsed; only the
+    // one completed data row is reported.
+    let result = scan_job_file(job.clone(), 0, JobCursor::default(), ScanMode::Incremental)
+        .expect("partial trailing line should not error the scan");
+    assert_eq!(result.file_row_count, 4);
+    assert_eq!(result.observations.len(), 1);
+    assert_eq!(result.observations[0].row_index, 4);
+
+    // Once the writer finishes the row and flushes a newline, it's picked up.
+    std::fs::write(
+        &path,
+        "\
+Station,Example Creek at Demo Site
+Generated At,2026-04-03 09:00:00
+Timestamp,Stage_ft,WaterTemp_C
+2026-04-03 08:00:00,2.41,7.8
+2026-04-03 08:05:00,2.45,7.9
+",
+    )
+    .expect("complete csv");
+
+    let result = scan_job_file(
+        job,
+        result.file_row_count,
+        JobCursor::default(),
+        ScanMode::Incremental,
+    )
+    .expect("completed row scan");
+    assert_eq!(result.file_row_count, 5);
+    assert_eq!(result.observations.len(), 1);
+    assert_eq!(result.observations[0].row_index, 5);
+
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
 fn scan_persists_row_count_across_successive_events() {
     let path = std::env::temp_dir().join(format!(
         "sdl-pipeline-persist-{}-{}.csv",

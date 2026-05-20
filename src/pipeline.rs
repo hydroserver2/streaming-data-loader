@@ -622,7 +622,17 @@ fn scan_job_file(
         .chars()
         .next()
         .ok_or_else(|| "Delimiter is required.".to_string())?;
-    let rows = read_csv_rows(&csv_text, delimiter)?;
+    let mut rows = read_csv_rows(&csv_text, delimiter)?;
+    // A data logger may be partway through appending a row when we read the
+    // file. If the text doesn't end with a line terminator, treat the final
+    // line as an incomplete record: drop it so a half-written row is never
+    // parsed or uploaded, and no cursor advances past it. The completed row is
+    // picked up on a later scan once the writer flushes its newline. (A row
+    // that is genuinely complete but lacks a trailing newline is simply
+    // re-evaluated next scan, so nothing is lost — only briefly deferred.)
+    if !rows.is_empty() && !ends_with_line_terminator(&csv_text) {
+        rows.pop();
+    }
     let file_row_count = rows.len();
 
     if rows.is_empty() {
@@ -792,6 +802,12 @@ fn read_csv_rows(csv_text: &str, delimiter: char) -> Result<Vec<Vec<String>>, St
                 .map_err(|err| err.to_string())
         })
         .collect()
+}
+
+/// Whether the decoded CSV text ends on a completed line. Covers `\n`, `\r\n`
+/// (ends in `\n`), and lone-`\r` (classic Mac) terminators.
+fn ends_with_line_terminator(text: &str) -> bool {
+    text.ends_with('\n') || text.ends_with('\r')
 }
 
 fn parse_observation_value(value: &str) -> Value {

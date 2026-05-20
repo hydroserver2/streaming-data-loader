@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
 use crate::models::WorkspaceStateFile;
 
@@ -68,13 +68,10 @@ impl ConfigStore {
         }
 
         let path = self.workspace_path(workspace_id);
-        if !path.exists() {
+        let Some(mut workspace) = super::json_file::read_json_file::<WorkspaceStateFile>(&path)?
+        else {
             return Ok(None);
-        }
-
-        let contents = fs::read_to_string(path).map_err(|err| err.to_string())?;
-        let mut workspace: WorkspaceStateFile =
-            serde_json::from_str(&contents).map_err(|err| err.to_string())?;
+        };
         workspace.workspace_id = workspace.workspace_id.trim().to_string();
         workspace.workspace_name = workspace.workspace_name.trim().to_string();
         workspace.hydroserver_url = workspace.hydroserver_url.trim().to_string();

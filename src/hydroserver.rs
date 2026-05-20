@@ -381,6 +381,36 @@ impl HydroServerService {
         Ok(expanded_datastream_to_detail(&payload))
     }
 
+    /// Fetch the datastream's current `phenomenonEndTime` — the timestamp of
+    /// the latest observation HydroServer has stored. Used to reconcile our
+    /// cursor after a bulk-insert conflict: observations at or before this
+    /// watermark are confirmed durable on the server. `Ok(None)` means the
+    /// datastream has no observations yet.
+    pub(crate) async fn fetch_phenomenon_end_time(
+        &self,
+        server: &ServerConfig,
+        datastream_id: &str,
+    ) -> Result<Option<DateTime<Utc>>, RequestError> {
+        let normalized = server.clone().normalized();
+        let mut session = HydroServerSession::new(self.http.clone(), normalized.clone());
+
+        let mut params: Vec<(&str, String)> = Vec::new();
+        if !normalized.workspace_id.is_empty() {
+            params.push(("workspace_id", normalized.workspace_id.clone()));
+        }
+
+        let payload = session
+            .request_json(
+                Method::GET,
+                &format!("{BASE_ROUTE}/datastreams/{datastream_id}"),
+                &params,
+                None,
+            )
+            .await?;
+
+        Ok(parse_phenomenon_end_time(&payload))
+    }
+
     pub(crate) async fn post_observations_batch(
         &self,
         server: &ServerConfig,
@@ -891,6 +921,17 @@ impl RequestError {
             } if *status == StatusCode::CONFLICT
         )
     }
+}
+
+/// Read `phenomenonEndTime` (the API serializes camelCase; the snake_case
+/// variant is accepted too) from a datastream payload as a UTC timestamp.
+fn parse_phenomenon_end_time(payload: &Value) -> Option<DateTime<Utc>> {
+    payload
+        .get("phenomenonEndTime")
+        .or_else(|| payload.get("phenomenon_end_time"))
+        .and_then(Value::as_str)
+        .and_then(|raw| DateTime::parse_from_rfc3339(raw).ok())
+        .map(|parsed| parsed.with_timezone(&Utc))
 }
 
 fn resolve_api_key_workspace(
