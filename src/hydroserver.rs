@@ -19,6 +19,9 @@ const BASE_ROUTE: &str = "/api/data";
 const DATASTREAM_PAGE_SIZE: usize = 1000;
 const DATASTREAM_CACHE_TTL_SECONDS: i64 = 300;
 
+type DatastreamCacheEntry = (DateTime<Utc>, Vec<DatastreamSummary>);
+type DatastreamCache = HashMap<String, DatastreamCacheEntry>;
+
 #[derive(Debug, Clone)]
 pub struct ObservationPayloadRow {
     pub phenomenon_time: DateTime<Utc>,
@@ -27,7 +30,7 @@ pub struct ObservationPayloadRow {
 
 pub struct HydroServerService {
     http: Client,
-    datastream_cache: Mutex<HashMap<String, (DateTime<Utc>, Vec<DatastreamSummary>)>>,
+    datastream_cache: Mutex<DatastreamCache>,
 }
 
 impl HydroServerService {

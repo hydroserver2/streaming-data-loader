@@ -51,13 +51,13 @@ pub fn reveal_file_in_folder(path: String) -> Result<ActionResponse, String> {
 fn reveal_path_with_platform_file_manager(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
-        return run_command(Command::new("open").arg("-R").arg(path));
+        run_command(Command::new("open").arg("-R").arg(path))
     }
 
     #[cfg(target_os = "windows")]
     {
         let select_arg = format!("/select,{}", path.display());
-        return run_command(Command::new("explorer").arg(select_arg));
+        run_command(Command::new("explorer").arg(select_arg))
     }
 
     #[cfg(target_os = "linux")]
@@ -69,7 +69,7 @@ fn reveal_path_with_platform_file_manager(path: &Path) -> Result<(), String> {
                 .map(Path::to_path_buf)
                 .unwrap_or_else(|| path.to_path_buf())
         };
-        return run_command(Command::new("xdg-open").arg(directory));
+        run_command(Command::new("xdg-open").arg(directory))
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]

@@ -261,18 +261,18 @@ fn generate_token() -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
-fn authorize(headers: &HeaderMap, token: &str) -> Result<(), Response> {
+fn authorize(headers: &HeaderMap, token: &str) -> Option<Response> {
     let Some(value) = headers.get(header::AUTHORIZATION) else {
-        return Err((StatusCode::UNAUTHORIZED, "Missing bearer token.").into_response());
+        return Some((StatusCode::UNAUTHORIZED, "Missing bearer token.").into_response());
     };
     let Ok(value) = value.to_str() else {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid bearer token.").into_response());
+        return Some((StatusCode::UNAUTHORIZED, "Invalid bearer token.").into_response());
     };
     let expected = format!("Bearer {token}");
     if value != expected {
-        return Err((StatusCode::UNAUTHORIZED, "Invalid bearer token.").into_response());
+        return Some((StatusCode::UNAUTHORIZED, "Invalid bearer token.").into_response());
     }
-    Ok(())
+    None
 }
 
 fn command_error(error: String) -> Response {
@@ -285,14 +285,14 @@ fn command_error(error: String) -> Response {
 
 fn parse_json_payload<T: DeserializeOwned>(
     payload: Result<Json<T>, axum::extract::rejection::JsonRejection>,
-) -> Result<T, Response> {
+) -> Result<T, String> {
     payload
         .map(|Json(value)| value)
-        .map_err(|rejection| command_error(rejection.to_string()))
+        .map_err(|rejection| rejection.to_string())
 }
 
 async fn ping(State(state): State<ApiState>, headers: HeaderMap) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
 
@@ -304,7 +304,7 @@ async fn ping(State(state): State<ApiState>, headers: HeaderMap) -> Response {
 }
 
 async fn bootstrap(State(state): State<ApiState>, headers: HeaderMap) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
 
@@ -315,7 +315,7 @@ async fn bootstrap(State(state): State<ApiState>, headers: HeaderMap) -> Respons
 }
 
 async fn get_health(State(state): State<ApiState>, headers: HeaderMap) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
 
@@ -326,7 +326,7 @@ async fn get_health(State(state): State<ApiState>, headers: HeaderMap) -> Respon
 }
 
 async fn get_config(State(state): State<ApiState>, headers: HeaderMap) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
 
@@ -337,7 +337,7 @@ async fn get_config(State(state): State<ApiState>, headers: HeaderMap) -> Respon
 }
 
 async fn get_jobs(State(state): State<ApiState>, headers: HeaderMap) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
 
@@ -352,12 +352,12 @@ async fn get_job(
     headers: HeaderMap,
     payload: Result<Json<JobIdPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state.daemon.get_job(&payload.job_id) {
@@ -371,12 +371,12 @@ async fn get_job_logs(
     headers: HeaderMap,
     payload: Result<Json<JobIdPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state.daemon.get_job_logs(&payload.job_id) {
@@ -390,12 +390,12 @@ async fn update_server_config(
     headers: HeaderMap,
     payload: Result<Json<ServerPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state.daemon.update_server_config(payload.server).await {
@@ -405,7 +405,7 @@ async fn update_server_config(
 }
 
 async fn clear_server_config(State(state): State<ApiState>, headers: HeaderMap) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
 
@@ -420,12 +420,12 @@ async fn test_connection(
     headers: HeaderMap,
     payload: Result<Json<ServerPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state.daemon.test_connection(payload.server).await {
@@ -439,12 +439,12 @@ async fn validate_server_url(
     headers: HeaderMap,
     payload: Result<Json<UrlPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state.daemon.validate_server_url(payload.url).await {
@@ -458,12 +458,12 @@ async fn create_job(
     headers: HeaderMap,
     payload: Result<Json<JobPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state.daemon.create_job(payload.payload).await {
@@ -477,12 +477,12 @@ async fn update_job(
     headers: HeaderMap,
     payload: Result<Json<UpdateJobPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state
@@ -500,12 +500,12 @@ async fn delete_job(
     headers: HeaderMap,
     payload: Result<Json<JobIdPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state.daemon.delete_job(&payload.job_id).await {
@@ -519,12 +519,12 @@ async fn run_job_now(
     headers: HeaderMap,
     payload: Result<Json<JobIdPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state.daemon.run_job_now(&payload.job_id).await {
@@ -538,12 +538,12 @@ async fn enable_job(
     headers: HeaderMap,
     payload: Result<Json<JobIdPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state.daemon.enable_job(&payload.job_id).await {
@@ -557,12 +557,12 @@ async fn disable_job(
     headers: HeaderMap,
     payload: Result<Json<JobIdPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state.daemon.disable_job(&payload.job_id).await {
@@ -572,7 +572,7 @@ async fn disable_job(
 }
 
 async fn get_datastreams(State(state): State<ApiState>, headers: HeaderMap) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
 
@@ -587,12 +587,12 @@ async fn get_datastream_detail(
     headers: HeaderMap,
     payload: Result<Json<DatastreamPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state
@@ -610,12 +610,12 @@ async fn get_csv_preview(
     headers: HeaderMap,
     payload: Result<Json<CsvPreviewPayload>, axum::extract::rejection::JsonRejection>,
 ) -> Response {
-    if let Err(response) = authorize(&headers, &state.token) {
+    if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
     let payload = match parse_json_payload(payload) {
         Ok(payload) => payload,
-        Err(response) => return response,
+        Err(error) => return command_error(error),
     };
 
     match state.daemon.get_csv_preview(payload.path, payload.rows) {

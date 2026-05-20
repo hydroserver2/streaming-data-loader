@@ -3,7 +3,7 @@ use chrono::TimeZone;
 
 #[test]
 fn observation_batch_payload_matches_sensorthings_schema() {
-    let observations = vec![
+    let observations = [
         ObservationPayloadRow {
             phenomenon_time: Utc.with_ymd_and_hms(2026, 4, 3, 8, 0, 0).unwrap(),
             result: json!(2.41),

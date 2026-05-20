@@ -150,11 +150,8 @@ fn detect_data_start_row(rows: &[Vec<String>], header_index: Option<usize>) -> O
     let header_index = header_index?;
     let expected_columns = rows.get(header_index).map(Vec::len).unwrap_or_default();
 
-    for index in (header_index + 1)..rows.len() {
-        let row: Vec<String> = rows[index]
-            .iter()
-            .map(|cell| cell.trim().to_string())
-            .collect();
+    for (index, raw_row) in rows.iter().enumerate().skip(header_index + 1) {
+        let row: Vec<String> = raw_row.iter().map(|cell| cell.trim().to_string()).collect();
         if row.len() != expected_columns {
             continue;
         }

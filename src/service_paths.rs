@@ -26,11 +26,11 @@ pub fn active_app_directory_name() -> &'static str {
 pub fn active_shared_service_directory_name() -> &'static str {
     #[cfg(windows)]
     {
-        return if cfg!(debug_assertions) {
+        if cfg!(debug_assertions) {
             WINDOWS_SHARED_DEV_APP_DIRECTORY_NAME
         } else {
             WINDOWS_SHARED_APP_DIRECTORY_NAME
-        };
+        }
     }
 
     #[cfg(not(windows))]
@@ -59,14 +59,14 @@ pub fn default_shared_service_config_dir() -> Result<PathBuf, String> {
     {
         let candidate = PathBuf::from("/Users/Shared").join(active_shared_service_directory_name());
         fs::create_dir_all(&candidate).map_err(|err| err.to_string())?;
-        return Ok(candidate);
+        Ok(candidate)
     }
 
     #[cfg(target_os = "windows")]
     {
         let candidate = windows_program_data_dir().join(active_shared_service_directory_name());
         fs::create_dir_all(&candidate).map_err(|err| err.to_string())?;
-        return Ok(candidate);
+        Ok(candidate)
     }
 
     #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -108,7 +108,7 @@ where
 {
     let mut args = args.into_iter().map(Into::into);
     while let Some(arg) = args.next() {
-        if arg == OsString::from(SERVICE_CONFIG_DIR_FLAG) {
+        if arg == SERVICE_CONFIG_DIR_FLAG {
             return args.next().map(PathBuf::from);
         }
         if let Some(inline_path) = inline_service_config_dir_override(&arg) {

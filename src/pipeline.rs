@@ -516,9 +516,7 @@ impl PipelineService {
         .await;
 
         let running_clear = self.set_job_running(&job.id, false).await;
-        if let Err(error) = running_clear {
-            return Err(error);
-        }
+        running_clear?;
 
         outcome
     }

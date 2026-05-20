@@ -1312,11 +1312,10 @@ Timestamp,Stage_ft,WaterTemp_C
         .expect("load watch plan");
     let normalized_path = normalize_watched_path(&csv_path);
     assert!(
-        first_runtime
+        !first_runtime
             .load_cursor_row_seeds(&first_snapshot)
             .await
-            .get(&normalized_path)
-            .is_none(),
+            .contains_key(&normalized_path),
         "new jobs should not have a row-count seed before any uploads succeed"
     );
 
