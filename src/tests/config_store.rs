@@ -267,7 +267,7 @@ fn record_datastream_failure_preserves_sibling_progress() {
         .and_utc();
     let temp_ts = chrono::NaiveDate::from_ymd_opt(2026, 4, 3)
         .unwrap()
-        .and_hms_opt(8, 05, 0)
+        .and_hms_opt(8, 5, 0)
         .unwrap()
         .and_utc();
     store
