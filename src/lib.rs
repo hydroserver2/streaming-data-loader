@@ -11,21 +11,21 @@ mod models;
 mod observation_queue;
 mod pipeline;
 mod runtime;
-mod service_manager;
+mod service;
 mod service_paths;
 mod service_runtime;
 mod timestamp;
 mod uploader;
-pub use service_manager::maybe_handle_service_management_cli;
-pub use service_runtime::run_daemon;
 pub use logging::init_process_logging_from_args;
+pub use service::maybe_handle_service_management_cli;
+pub use service_runtime::run_daemon;
 
 #[cfg(windows)]
 use tauri::Manager;
 
 #[cfg(windows)]
 use windows::Win32::Graphics::Dwm::{
-    DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR, DwmSetWindowAttribute,
+    DwmSetWindowAttribute, DWMWA_BORDER_COLOR, DWMWA_CAPTION_COLOR,
 };
 
 #[cfg(windows)]
@@ -36,9 +36,9 @@ pub fn run() {
     logging::init_desktop_logging();
 
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(|_app| {
             #[cfg(windows)]
-            if let Some(window) = app.get_webview_window("main") {
+            if let Some(window) = _app.get_webview_window("main") {
                 if let Err(error) = apply_windows_chrome_color(&window) {
                     tracing::warn!(error = %error, "Couldn't apply the Windows chrome color override");
                 }

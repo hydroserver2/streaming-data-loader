@@ -17,6 +17,9 @@
   <key>KeepAlive</key>
   <true/>
 
+  <key>ThrottleInterval</key>
+  <integer>10</integer>
+
   <key>WorkingDirectory</key>
   <string>/Users/Shared/Streaming Data Loader</string>
 

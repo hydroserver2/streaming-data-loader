@@ -5,7 +5,7 @@ use tauri::AppHandle;
 use crate::{
     daemon_launcher,
     models::{ActionResponse, DaemonConnectionInfo, ServiceStatusResponse},
-    service_manager,
+    service,
 };
 
 #[tauri::command]
@@ -14,23 +14,23 @@ pub async fn get_daemon_connection(app: AppHandle) -> Result<DaemonConnectionInf
 }
 
 #[tauri::command]
-pub fn get_service_status(app: AppHandle) -> Result<ServiceStatusResponse, String> {
-    service_manager::get_service_status(&app)
+pub fn get_service_status(_app: AppHandle) -> Result<ServiceStatusResponse, String> {
+    service::get_service_status()
 }
 
 #[tauri::command]
 pub fn install_os_service(app: AppHandle) -> Result<ServiceStatusResponse, String> {
-    service_manager::install_service(&app)
+    service::install_service(&app)
 }
 
 #[tauri::command]
 pub fn restart_os_service(app: AppHandle) -> Result<ServiceStatusResponse, String> {
-    service_manager::restart_service(&app)
+    service::restart_service(&app)
 }
 
 #[tauri::command]
 pub fn uninstall_os_service(app: AppHandle) -> Result<ServiceStatusResponse, String> {
-    service_manager::uninstall_service(&app)
+    service::uninstall_service(&app)
 }
 
 #[tauri::command]

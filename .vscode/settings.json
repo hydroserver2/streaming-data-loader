@@ -32,8 +32,11 @@
   "[json]": {
     "editor.defaultFormatter": "esbenp.prettier-vscode"
   },
-  "python.analysis.exclude": [
-    ".venv/**"
-  ],
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": true,
+    "editor.inlayHints.enabled": "off"
+  },
+  "python.analysis.exclude": [".venv/**"],
   "python.terminal.activateEnvironment": true
 }

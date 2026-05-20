@@ -1,7 +1,4 @@
-use super::{
-    active_shared_service_directory_name, service_config_dir_override_from_args,
-    SERVICE_CONFIG_DIR_FLAG,
-};
+use super::{service_config_dir_override_from_args, SERVICE_CONFIG_DIR_FLAG};
 use std::{ffi::OsString, path::PathBuf};
 
 #[test]
@@ -53,7 +50,10 @@ fn service_config_dir_override_reads_inline_argument_without_quotes() {
         OsString::from(r"--service-config-dir=C:\ProgramData\Streaming"),
     ]);
 
-    assert_eq!(override_path, Some(PathBuf::from(r"C:\ProgramData\Streaming")));
+    assert_eq!(
+        override_path,
+        Some(PathBuf::from(r"C:\ProgramData\Streaming"))
+    );
 }
 
 #[cfg(windows)]

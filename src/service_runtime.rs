@@ -164,7 +164,7 @@ fn acquire_daemon_pid_lock(config_dir: &Path) -> Result<File, String> {
 #[cfg(windows)]
 fn try_run_under_windows_service_manager() -> Option<Result<(), String>> {
     match service_dispatcher::start(
-        crate::service_manager::WINDOWS_SERVICE_NAME,
+        crate::service::WINDOWS_SERVICE_NAME,
         ffi_windows_service_main,
     ) {
         Ok(()) => Some(Ok(())),
@@ -200,11 +200,9 @@ fn run_windows_service() -> Result<(), String> {
         }
     };
 
-    let status_handle = service_control_handler::register(
-        crate::service_manager::WINDOWS_SERVICE_NAME,
-        event_handler,
-    )
-    .map_err(|error| error.to_string())?;
+    let status_handle =
+        service_control_handler::register(crate::service::WINDOWS_SERVICE_NAME, event_handler)
+            .map_err(|error| error.to_string())?;
 
     status_handle
         .set_service_status(ServiceStatus {

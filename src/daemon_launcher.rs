@@ -28,7 +28,7 @@ pub async fn ensure_daemon_connection(
 
     #[cfg(windows)]
     {
-        let service_status = crate::service_manager::get_service_status(app_handle)?;
+        let service_status = crate::service::get_service_status()?;
         if service_status.supported {
             if !service_status.installed {
                 return Err("Install the background service to continue.".to_string());
