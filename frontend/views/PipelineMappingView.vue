@@ -558,6 +558,11 @@ function onDatastreamScroll(event: Event): void {
   datastreamScrollTop.value = target?.scrollTop ?? 0
 }
 
+async function refreshDatastreams(): Promise<void> {
+  await model.loadPipelineDatastreams(true)
+  resetDatastreamScroll()
+}
+
 function selectMappingColumn(csvColumn: string): void {
   activeCsvColumn.value = activeCsvColumn.value === csvColumn ? '' : csvColumn
 }
@@ -738,6 +743,13 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
         <p class="section-copy">
           No datastreams were returned for the connected workspace.
         </p>
+        <button
+          class="btn-ghost mapping-refresh-button"
+          type="button"
+          @click="refreshDatastreams()"
+        >
+          Refresh Datastreams
+        </button>
       </div>
 
       <div v-else-if="mappingRows.length === 0" class="empty-panel">
@@ -831,7 +843,21 @@ function isDatastreamMapped(entry: ConnectorEntry): boolean {
 
         <section class="mapping-connector-panel">
           <header class="mapping-connector-header">
-            <p class="mapping-connector-title">Datastreams</p>
+            <div class="mapping-connector-header-row">
+              <p class="mapping-connector-title">Datastreams</p>
+              <button
+                class="btn-ghost mapping-refresh-button"
+                type="button"
+                :disabled="model.state.pipelineDatastreamsLoading"
+                @click="refreshDatastreams()"
+              >
+                {{
+                  model.state.pipelineDatastreamsLoading
+                    ? 'Refreshing...'
+                    : 'Refresh'
+                }}
+              </button>
+            </div>
             <div class="mapping-filter-grid">
               <label class="mapping-filter-field">
                 <span class="mapping-filter-label">Site filter</span>

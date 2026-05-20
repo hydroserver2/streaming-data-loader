@@ -72,6 +72,12 @@ struct DatastreamPayload {
 }
 
 #[derive(Debug, Deserialize)]
+struct DatastreamsPayload {
+    #[serde(default)]
+    force: bool,
+}
+
+#[derive(Debug, Deserialize)]
 struct CsvPreviewPayload {
     path: String,
     rows: Option<usize>,
@@ -571,12 +577,20 @@ async fn disable_job(
     }
 }
 
-async fn get_datastreams(State(state): State<ApiState>, headers: HeaderMap) -> Response {
+async fn get_datastreams(
+    State(state): State<ApiState>,
+    headers: HeaderMap,
+    payload: Result<Json<DatastreamsPayload>, axum::extract::rejection::JsonRejection>,
+) -> Response {
     if let Some(response) = authorize(&headers, &state.token) {
         return response;
     }
+    let payload = match parse_json_payload(payload) {
+        Ok(payload) => payload,
+        Err(error) => return command_error(error),
+    };
 
-    match state.daemon.get_datastreams().await {
+    match state.daemon.get_datastreams(payload.force).await {
         Ok(response) => Json(response).into_response(),
         Err(error) => command_error(error),
     }

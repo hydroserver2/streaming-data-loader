@@ -122,7 +122,7 @@ export async function loadPipelineDatastreams(force = false): Promise<void> {
   state.pipelineDatastreamsLoading = true
 
   try {
-    state.pipelineDatastreams = sortDatastreams(await getDatastreams())
+    state.pipelineDatastreams = sortDatastreams(await getDatastreams(force))
     syncPipelineMappingDrafts()
   } catch {
     state.pipelineDatastreams = []

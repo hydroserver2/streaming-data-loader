@@ -287,12 +287,12 @@ impl DaemonState {
         })
     }
 
-    pub async fn get_datastreams(&self) -> Result<Vec<DatastreamSummary>, String> {
+    pub async fn get_datastreams(&self, force: bool) -> Result<Vec<DatastreamSummary>, String> {
         let config = self.inner.app.config()?;
         self.inner
             .app
             .hydroserver()
-            .list_datastreams(&config.server)
+            .list_datastreams(&config.server, force)
             .await
             .map_err(|_| "Couldn't load datastreams from HydroServer right now.".to_string())
     }

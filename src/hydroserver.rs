@@ -249,6 +249,7 @@ impl HydroServerService {
     pub async fn list_datastreams(
         &self,
         server: &ServerConfig,
+        force: bool,
     ) -> Result<Vec<DatastreamSummary>, String> {
         if !server.is_configured() {
             return Ok(Vec::new());
@@ -272,8 +273,10 @@ impl HydroServerService {
         }
 
         let cache_key = datastream_cache_key(&normalized, &workspace_id);
-        if let Some(cached) = self.cached_datastreams(&cache_key) {
-            return Ok(cached);
+        if !force {
+            if let Some(cached) = self.cached_datastreams(&cache_key) {
+                return Ok(cached);
+            }
         }
 
         if let Some(datastreams) = self

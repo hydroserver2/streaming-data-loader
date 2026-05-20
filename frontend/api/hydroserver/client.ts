@@ -121,11 +121,19 @@ export function revealFileInFolder(path: string): Promise<ActionResponse> {
   )
 }
 
-export function getDatastreams(): Promise<DatastreamSummary[]> {
+export function getDatastreams(force = false): Promise<DatastreamSummary[]> {
   if (isTauriRuntime()) {
-    return daemonCommand<DatastreamSummary[]>('get-datastreams')
+    return daemonCommand<DatastreamSummary[]>('get-datastreams', { force })
   }
-  return requestJson<DatastreamSummary[]>('/datastreams')
+  return requestJson<DatastreamSummary[]>(
+    '/datastreams',
+    force
+      ? {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' },
+        }
+      : undefined
+  )
 }
 
 export function getDatastreamDetail(

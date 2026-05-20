@@ -1435,6 +1435,10 @@
     @apply font-semibold text-slate-800;
   }
 
+  .mapping-refresh-button {
+    @apply h-8 shrink-0 px-2.5 py-1 text-[0.75rem] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent;
+  }
+
   .mapping-connector-body {
     @apply min-h-0 overflow-hidden px-2 py-2;
   }
