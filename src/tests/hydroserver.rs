@@ -149,3 +149,63 @@ fn resolve_api_key_workspace_returns_none_when_no_workspaces_accessible() {
         "no accessible workspaces should produce None (test_connection surfaces the key-level error)"
     );
 }
+
+fn userpass_server(url: &str, username: &str) -> ServerConfig {
+    ServerConfig {
+        auth_type: AuthType::Userpass,
+        url: url.to_string(),
+        username: username.to_string(),
+        password: "secret".to_string(),
+        ..Default::default()
+    }
+}
+
+fn session_for(cache: &Arc<Mutex<TokenCache>>, url: &str, username: &str) -> HydroServerSession {
+    HydroServerSession::new(Client::new(), userpass_server(url, username), cache.clone())
+}
+
+#[test]
+fn token_cache_key_ignores_trailing_slash_and_surrounding_whitespace() {
+    let cache = Arc::new(Mutex::new(TokenCache::new()));
+    let a = session_for(&cache, "https://hydro.example/", "  user@example.com ");
+    let b = session_for(&cache, "https://hydro.example", "user@example.com");
+    assert_eq!(a.token_cache_key(), b.token_cache_key());
+}
+
+#[test]
+fn cached_token_is_reused_across_sessions_for_the_same_account() {
+    let cache = Arc::new(Mutex::new(TokenCache::new()));
+
+    session_for(&cache, "https://hydro.example", "user@example.com").store_token("tok-123");
+
+    let next = session_for(&cache, "https://hydro.example", "user@example.com");
+    assert_eq!(next.cached_token().as_deref(), Some("tok-123"));
+}
+
+#[test]
+fn cached_token_is_scoped_per_account() {
+    let cache = Arc::new(Mutex::new(TokenCache::new()));
+    session_for(&cache, "https://hydro.example", "alice@example.com").store_token("alice-tok");
+
+    let bob = session_for(&cache, "https://hydro.example", "bob@example.com");
+    assert_eq!(bob.cached_token(), None);
+}
+
+#[test]
+fn invalidate_token_clears_the_shared_cache_for_other_sessions() {
+    let cache = Arc::new(Mutex::new(TokenCache::new()));
+
+    let mut session = session_for(&cache, "https://hydro.example", "user@example.com");
+    session.store_token("stale");
+    assert_eq!(session.cached_token().as_deref(), Some("stale"));
+
+    session.invalidate_token();
+
+    assert_eq!(session.cached_token(), None, "own cache lookup is cleared");
+    let other = session_for(&cache, "https://hydro.example", "user@example.com");
+    assert_eq!(
+        other.cached_token(),
+        None,
+        "the stale token is gone for future sessions too"
+    );
+}

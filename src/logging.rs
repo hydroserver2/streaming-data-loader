@@ -5,8 +5,14 @@ use std::{
 };
 
 use tracing_appender::non_blocking::WorkerGuard;
+use tracing_appender::rolling::{RollingFileAppender, Rotation};
 
 use crate::service_paths::resolve_shared_logs_dir;
+
+/// Number of daily-rotated log files to keep per context before the oldest are
+/// pruned. Two weeks is enough history to investigate an issue without letting
+/// the always-on daemon's logs grow unbounded.
+const MAX_RETAINED_LOG_FILES: usize = 14;
 
 static LOGGING_INIT: Once = Once::new();
 static PANIC_HOOK_INIT: Once = Once::new();
@@ -28,11 +34,13 @@ impl LogContext {
         }
     }
 
-    fn file_name(self) -> &'static str {
+    /// Filename stem for this context's rotating log files. The daily date and a
+    /// `.log` suffix are appended by the rolling appender, e.g. `daemon.2026-05-21.log`.
+    fn file_prefix(self) -> &'static str {
         match self {
-            Self::Desktop => "desktop.log",
-            Self::Daemon => "daemon.log",
-            Self::ServiceManager => "service-manager.log",
+            Self::Desktop => "desktop",
+            Self::Daemon => "daemon",
+            Self::ServiceManager => "service-manager",
         }
     }
 }
@@ -92,8 +100,25 @@ fn init_logging(context: LogContext) {
 
 fn init_file_logging(context: LogContext) -> Result<(), String> {
     let logs_dir = resolve_shared_logs_dir()?;
-    let log_path = logs_dir.join(context.file_name());
-    let file_appender = tracing_appender::rolling::never(&logs_dir, context.file_name());
+    // The macOS LaunchDaemon redirects the daemon's raw stdout/stderr to
+    // `daemon.stdout.log`/`daemon.stderr.log` in `logs_dir`. The rolling
+    // appender prunes any file in its directory whose name shares the configured
+    // prefix and suffix (it skips date validation once both are set), which would
+    // match — and eventually delete — those launchd-owned files. Keep our rotated
+    // logs in a dedicated subdirectory so pruning can only ever touch our own.
+    let rolling_dir = logs_dir.join("rolling");
+    std::fs::create_dir_all(&rolling_dir).map_err(|err| err.to_string())?;
+
+    // Roll daily and retain a bounded number of files. The daemon is an
+    // always-on service, so an unrotated log would grow without limit and
+    // eventually exhaust disk on long-lived installs.
+    let file_appender = RollingFileAppender::builder()
+        .rotation(Rotation::DAILY)
+        .filename_prefix(context.file_prefix())
+        .filename_suffix("log")
+        .max_log_files(MAX_RETAINED_LOG_FILES)
+        .build(&rolling_dir)
+        .map_err(|err| err.to_string())?;
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
     let _ = LOG_GUARD.set(guard);
 
@@ -110,8 +135,9 @@ fn init_file_logging(context: LogContext) -> Result<(), String> {
 
     tracing::info!(
         process = context.as_str(),
-        log_file = %log_path.display(),
-        "persistent file logging initialized"
+        logs_dir = %rolling_dir.display(),
+        retained_files = MAX_RETAINED_LOG_FILES,
+        "persistent file logging initialized with daily rotation"
     );
 
     Ok(())

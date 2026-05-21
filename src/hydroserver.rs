@@ -1,4 +1,8 @@
-use std::{collections::HashMap, sync::Mutex, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+    time::Duration,
+};
 
 use chrono::{DateTime, Utc};
 use reqwest::{
@@ -21,6 +25,9 @@ const DATASTREAM_CACHE_TTL_SECONDS: i64 = 300;
 
 type DatastreamCacheEntry = (DateTime<Utc>, Vec<DatastreamSummary>);
 type DatastreamCache = HashMap<String, DatastreamCacheEntry>;
+/// Cached username/password session tokens keyed by [`token_cache_key`], shared
+/// across the short-lived [`HydroServerSession`]s spun up per request.
+type TokenCache = HashMap<String, String>;
 
 #[derive(Debug, Clone)]
 pub struct ObservationPayloadRow {
@@ -31,6 +38,7 @@ pub struct ObservationPayloadRow {
 pub struct HydroServerService {
     http: Client,
     datastream_cache: Mutex<DatastreamCache>,
+    session_tokens: Arc<Mutex<TokenCache>>,
 }
 
 impl HydroServerService {
@@ -43,7 +51,15 @@ impl HydroServerService {
         Ok(Self {
             http,
             datastream_cache: Mutex::new(HashMap::new()),
+            session_tokens: Arc::new(Mutex::new(HashMap::new())),
         })
+    }
+
+    /// Build a session that shares this service's cached session tokens, so
+    /// username/password auth reuses a bearer token across requests instead of
+    /// logging in afresh for every batch.
+    fn session(&self, server: ServerConfig) -> HydroServerSession {
+        HydroServerSession::new(self.http.clone(), server, self.session_tokens.clone())
     }
 
     pub async fn validate_url(&self, url: &str) -> ServerUrlValidationResponse {
@@ -138,7 +154,7 @@ impl HydroServerService {
             };
         }
 
-        let mut session = HydroServerSession::new(self.http.clone(), server.clone().normalized());
+        let mut session = self.session(server.clone().normalized());
         match session.associated_workspaces().await {
             Ok(workspaces) => {
                 let workspace_count = workspaces.len() as u32;
@@ -256,7 +272,7 @@ impl HydroServerService {
         }
 
         let normalized = server.clone().normalized();
-        let mut session = HydroServerSession::new(self.http.clone(), normalized.clone());
+        let mut session = self.session(normalized.clone());
         let workspace_id = if normalized.workspace_id.is_empty() {
             session
                 .associated_workspace()
@@ -356,7 +372,7 @@ impl HydroServerService {
         }
 
         let normalized = server.clone().normalized();
-        let mut session = HydroServerSession::new(self.http.clone(), normalized.clone());
+        let mut session = self.session(normalized.clone());
         let workspace_id = if normalized.workspace_id.is_empty() {
             session
                 .associated_workspace()
@@ -395,7 +411,7 @@ impl HydroServerService {
         datastream_id: &str,
     ) -> Result<Option<DateTime<Utc>>, RequestError> {
         let normalized = server.clone().normalized();
-        let mut session = HydroServerSession::new(self.http.clone(), normalized.clone());
+        let mut session = self.session(normalized.clone());
 
         let mut params: Vec<(&str, String)> = Vec::new();
         if !normalized.workspace_id.is_empty() {
@@ -424,7 +440,7 @@ impl HydroServerService {
             return Ok(());
         }
 
-        let mut session = HydroServerSession::new(self.http.clone(), server.clone().normalized());
+        let mut session = self.session(server.clone().normalized());
         // The earlier Rust port posted ["timestamp", "value"], which does not match the
         // HydroServer bulk observation schema. The API expects SensorThings field names.
         let body = json!({
@@ -612,14 +628,50 @@ struct HydroServerSession {
     http: Client,
     server: ServerConfig,
     bearer_token: Option<String>,
+    token_cache: Arc<Mutex<TokenCache>>,
 }
 
 impl HydroServerSession {
-    fn new(http: Client, server: ServerConfig) -> Self {
+    fn new(http: Client, server: ServerConfig, token_cache: Arc<Mutex<TokenCache>>) -> Self {
         Self {
             http,
             server,
             bearer_token: None,
+            token_cache,
+        }
+    }
+
+    /// Identity a cached session token belongs to. Username/password tokens are
+    /// scoped to the instance URL and account; the password is deliberately not
+    /// part of the key, since a token minted under an old password simply 401s
+    /// and gets refreshed by [`request_response`].
+    fn token_cache_key(&self) -> String {
+        format!(
+            "{}|{}",
+            self.server.url.trim_end_matches('/'),
+            self.server.username.trim()
+        )
+    }
+
+    fn cached_token(&self) -> Option<String> {
+        self.token_cache
+            .lock()
+            .ok()?
+            .get(&self.token_cache_key())
+            .cloned()
+    }
+
+    fn store_token(&self, token: &str) {
+        if let Ok(mut cache) = self.token_cache.lock() {
+            cache.insert(self.token_cache_key(), token.to_string());
+        }
+    }
+
+    /// Drop the cached token for this account so the next request re-authenticates.
+    fn invalidate_token(&mut self) {
+        self.bearer_token = None;
+        if let Ok(mut cache) = self.token_cache.lock() {
+            cache.remove(&self.token_cache_key());
         }
     }
 
@@ -788,7 +840,11 @@ impl HydroServerSession {
                     StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN
                 )
             {
-                self.bearer_token = None;
+                // The token we used — possibly one cached from an earlier
+                // request — was rejected. Drop it from the shared cache so the
+                // retry (and other sessions) re-authenticate instead of reusing
+                // a known-bad token.
+                self.invalidate_token();
                 continue;
             }
 
@@ -825,6 +881,13 @@ impl HydroServerSession {
     async fn session_token(&mut self) -> Result<String, RequestError> {
         if let Some(token) = &self.bearer_token {
             return Ok(token.clone());
+        }
+
+        // Reuse a token cached by an earlier request for this account before
+        // paying for a fresh login. A stale one is purged on the 401/403 retry.
+        if let Some(token) = self.cached_token() {
+            self.bearer_token = Some(token.clone());
+            return Ok(token);
         }
 
         let payload = json!({
@@ -876,6 +939,7 @@ impl HydroServerSession {
             .to_string();
 
         self.bearer_token = Some(token.clone());
+        self.store_token(&token);
         Ok(token)
     }
 }
