@@ -26,23 +26,74 @@ pub async fn ensure_daemon_connection(
         return Ok(connection);
     }
 
-    #[cfg(windows)]
-    {
-        let service_status = crate::service::get_service_status()?;
-        if service_status.supported {
-            if !service_status.installed {
-                return Err("Install the background service to continue.".to_string());
-            }
-            if !service_status.running {
-                return Err("Restart the background service to continue.".to_string());
-            }
-
-            return wait_for_live_connection(config_dir).await;
+    let service_status = crate::service::get_service_status()?;
+    match connect_strategy(
+        service_status.supported,
+        service_status.installed,
+        service_status.running,
+        cfg!(windows),
+    ) {
+        // The service owns the daemon but hasn't published a reachable endpoint
+        // yet (it may still be starting up after login or a reboot). Wait for it.
+        ConnectStrategy::AwaitService => wait_for_live_connection(config_dir).await,
+        ConnectStrategy::ServiceStopped => {
+            Err("Restart the background service to continue.".to_string())
+        }
+        ConnectStrategy::ServiceRequired => {
+            Err("Install the background service to continue.".to_string())
+        }
+        ConnectStrategy::SpawnAdHoc => {
+            spawn_daemon_process(resolve_service_executable_path()?)?;
+            wait_for_live_connection(config_dir).await
         }
     }
+}
 
-    spawn_daemon_process(resolve_service_executable_path()?)?;
-    wait_for_live_connection(config_dir).await
+/// How to obtain a daemon connection once no live one already exists.
+#[derive(Debug, PartialEq, Eq)]
+enum ConnectStrategy {
+    /// A managed service owns the daemon and is running; wait for its endpoint.
+    AwaitService,
+    /// A managed service is installed but stopped; ask the user to restart it.
+    ServiceStopped,
+    /// The platform mandates the managed service, but it isn't installed.
+    ServiceRequired,
+    /// No managed service is in play; run a daemon ad-hoc for this session.
+    SpawnAdHoc,
+}
+
+/// Decide how to connect given the managed-service status.
+///
+/// When a managed service is installed it is the sole owner of the daemon: the
+/// macOS LaunchDaemon and the Windows service each run it under their own
+/// account and enforce a single instance via a pid lock. Spawning our own daemon
+/// alongside it would race for that lock and the endpoint file, leaving a
+/// user-owned process and the service fighting — and on macOS can wedge the
+/// service into a restart loop. So whenever the service is installed we defer to
+/// it rather than spawning a competitor.
+///
+/// `windows_requires_service` captures the platform rule that Windows has no
+/// ad-hoc daemon mode, so a missing service there is a hard stop; macOS and Linux
+/// fall back to running a daemon ad-hoc when no service is installed.
+fn connect_strategy(
+    supported: bool,
+    installed: bool,
+    running: bool,
+    windows_requires_service: bool,
+) -> ConnectStrategy {
+    if supported && installed {
+        return if running {
+            ConnectStrategy::AwaitService
+        } else {
+            ConnectStrategy::ServiceStopped
+        };
+    }
+
+    if supported && windows_requires_service {
+        return ConnectStrategy::ServiceRequired;
+    }
+
+    ConnectStrategy::SpawnAdHoc
 }
 
 async fn wait_for_live_connection(config_dir: PathBuf) -> Result<DaemonConnectionInfo, String> {
@@ -114,3 +165,7 @@ fn resolve_service_executable_path() -> Result<PathBuf, String> {
 
     std::env::current_exe().map_err(|err| err.to_string())
 }
+
+#[cfg(test)]
+#[path = "tests/daemon_launcher.rs"]
+mod tests;
