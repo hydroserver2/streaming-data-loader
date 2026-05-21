@@ -258,6 +258,28 @@ test("loading a preview falls back to the first column when no timestamp column 
   assert.equal(state.pipelineForm.timestamp.timezoneMode, "embeddedOffset")
 })
 
+test("loading a preview reports macOS protected-folder read errors", async () => {
+  globalThis.fetch = async () =>
+    new Response(JSON.stringify({ detail: "Operation not permitted (os error 1)" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    })
+
+  updatePipelineField("file_path", "/Users/test/Downloads/preview.csv")
+  await loadPipelinePreview("/Users/test/Downloads/preview.csv")
+
+  assert.equal(state.pipelinePreview, null)
+  assert.equal(state.pipelineFieldStates.file_path.state, "invalid")
+  assert.match(
+    state.pipelineFieldStates.file_path.message ?? "",
+    /macOS restricts background access to Downloads, Desktop, and Documents/i
+  )
+  assert.match(
+    state.pipelineFieldStates.file_path.message ?? "",
+    /\/Users\/Shared\/Streaming Data Loader CSVs/
+  )
+})
+
 test("custom timestamp formats default to UTC timezone handling", () => {
   assert.equal(state.pipelineForm.timestamp.format, "ISO8601")
   assert.equal(state.pipelineForm.timestamp.timezoneMode, "embeddedOffset")
