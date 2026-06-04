@@ -1,0 +1,33 @@
+{
+  "name": "streaming-data-loader",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@tauri-apps/api": "^2.8.0",
+    "@tauri-apps/plugin-dialog": "^2.0.0",
+    "vue": "^3.5.32"
+  },
+  "scripts": {
+    "bootstrap:frontend": "node ./scripts/bootstrap-frontend.mjs",
+    "dev": "vite",
+    "dev:tauri": "node ./scripts/tauri-dev.mjs",
+    "build": "npm run tailwind:build && tsc --noEmit -p tsconfig.json && tsc --noEmit -p tsconfig.node.json && vite build",
+    "preview": "vite preview",
+    "test": "npm run test:frontend",
+    "test:frontend": "tsx --test frontend/tests/**/*.test.ts",
+    "tailwind:watch": "tailwindcss -i ./frontend/styles.css -o ./frontend/generated.css --watch",
+    "tailwind:build": "tailwindcss -i ./frontend/styles.css -o ./frontend/generated.css --minify",
+    "tauri": "node ./scripts/run-tauri.mjs"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.1.4",
+    "@tauri-apps/cli": "^2.10.1",
+    "@types/node": "^22.13.10",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "prettier": "^2.8.8",
+    "tailwindcss": "^4.1.4",
+    "tsx": "^4.21.0",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.3"
+  }
+}
