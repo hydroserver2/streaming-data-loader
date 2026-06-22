@@ -720,7 +720,6 @@ export async function browseForCsvPath(): Promise<void> {
     const selection = await dialog.open({
       directory: false,
       multiple: false,
-      filters: [{ name: 'CSV files', extensions: ['csv', 'txt'] }],
     })
 
     if (typeof selection !== 'string' || !selection) return
