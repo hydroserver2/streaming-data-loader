@@ -14,7 +14,7 @@ use crate::models::{
     ServerConfig, ServerUrlValidationResponse,
 };
 
-const BASE_ROUTE: &str = "/api/data";
+const BASE_ROUTE: &str = "/api/ogc/collections";
 const DATASTREAM_PAGE_SIZE: usize = 1000;
 const DATASTREAM_INCLUDE: &str = "monitoringSite,observedProperty,processingLevel,unit,method";
 const DATASTREAM_CACHE_TTL_SECONDS: i64 = 300;
@@ -60,7 +60,7 @@ impl HydroServerService {
             };
         }
 
-        let data_probe_url = format!("{normalized_url}{BASE_ROUTE}/workspaces");
+        let data_probe_url = format!("{normalized_url}{BASE_ROUTE}/workspaces/items");
 
         match self
             .http
@@ -258,9 +258,9 @@ impl HydroServerService {
 
         let datastreams = session
             .fetch_all_collection(
-                &format!("{BASE_ROUTE}/datastreams"),
+                &format!("{BASE_ROUTE}/datastreams/items"),
                 &[
-                    ("workspace_id", workspace_id.clone()),
+                    ("workspaceId", workspace_id.clone()),
                     ("include", DATASTREAM_INCLUDE.to_string()),
                 ],
             )
@@ -284,27 +284,12 @@ impl HydroServerService {
             return Err("Connect to HydroServer before loading datastream metadata.".to_string());
         }
 
-        let normalized = server.clone().normalized();
-        let mut session = self.session(normalized.clone());
-        let workspace_id = if normalized.workspace_id.is_empty() {
-            session
-                .associated_workspace()
-                .await
-                .map_err(|err| err.to_string())?
-                .0
-                .unwrap_or_default()
-        } else {
-            normalized.workspace_id.clone()
-        };
-
+        let mut session = self.session(server.clone().normalized());
         let payload = session
             .request_json(
                 Method::GET,
-                &format!("{BASE_ROUTE}/datastreams/{datastream_id}"),
-                &[
-                    ("workspace_id", workspace_id),
-                    ("include", DATASTREAM_INCLUDE.to_string()),
-                ],
+                &format!("{BASE_ROUTE}/datastreams/items/{datastream_id}"),
+                &[("include", DATASTREAM_INCLUDE.to_string())],
                 None,
             )
             .await
@@ -327,19 +312,12 @@ impl HydroServerService {
         server: &ServerConfig,
         datastream_id: &str,
     ) -> Result<Option<DateTime<Utc>>, RequestError> {
-        let normalized = server.clone().normalized();
-        let mut session = self.session(normalized.clone());
-
-        let mut params: Vec<(&str, String)> = Vec::new();
-        if !normalized.workspace_id.is_empty() {
-            params.push(("workspace_id", normalized.workspace_id.clone()));
-        }
-
+        let mut session = self.session(server.clone().normalized());
         let payload = session
             .request_json(
                 Method::GET,
-                &format!("{BASE_ROUTE}/datastreams/{datastream_id}"),
-                &params,
+                &format!("{BASE_ROUTE}/datastreams/items/{datastream_id}"),
+                &[],
                 None,
             )
             .await?;
@@ -421,8 +399,8 @@ impl HydroServerSession {
     async fn associated_workspaces(&mut self) -> Result<Vec<(String, String)>, RequestError> {
         let items = self
             .fetch_all_collection(
-                &format!("{BASE_ROUTE}/workspaces"),
-                &[("is_associated", "true".to_string())],
+                &format!("{BASE_ROUTE}/workspaces/items"),
+                &[("isAssociated", "true".to_string())],
             )
             .await?;
 
@@ -461,7 +439,7 @@ impl HydroServerSession {
                 })?
                 .clone();
             let total_count = payload
-                .pointer("/meta/totalCount")
+                .pointer("/meta/numberMatched")
                 .and_then(Value::as_u64)
                 .ok_or_else(|| {
                     RequestError::Other(
@@ -730,7 +708,7 @@ async fn looks_like_hydroserver_data_response(response: Response) -> bool {
         return false;
     };
     payload.get("data").and_then(Value::as_array).is_some()
-        && ["limit", "offset", "totalCount"].iter().all(|key| {
+        && ["limit", "offset", "numberMatched"].iter().all(|key| {
             payload
                 .get("meta")
                 .and_then(|meta| meta.get(key))

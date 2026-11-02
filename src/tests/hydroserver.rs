@@ -204,7 +204,7 @@ impl Drop for TestServer {
 }
 
 fn collection(items: Value, offset: u64, total: u64) -> Value {
-    json!({"data": items, "meta": {"offset": offset, "limit": 1, "totalCount": total}})
+    json!({"data": items, "meta": {"offset": offset, "limit": 1, "numberMatched": total}})
 }
 
 fn query(request: &RecordedRequest, name: &str) -> Option<String> {
@@ -222,7 +222,7 @@ async fn validates_v2_instance_with_no_public_workspaces() {
     assert!(service.validate_url(&format!("{}/", server.url)).await.ok);
     let requests = server.requests.lock().unwrap();
     assert_eq!(requests.len(), 1);
-    assert_eq!(requests[0].url.path(), "/api/data/workspaces");
+    assert_eq!(requests[0].url.path(), "/api/ogc/collections/workspaces/items");
     assert_eq!(query(&requests[0], "limit").as_deref(), Some("1"));
     assert!(!requests[0].headers.contains_key("authorization"));
 }
@@ -274,7 +274,7 @@ async fn api_key_connection_reads_all_workspace_pages() {
     for (index, request) in requests.iter().enumerate() {
         assert_eq!(request.headers["x-api-key"], "test-key");
         assert!(!request.headers.contains_key("authorization"));
-        assert_eq!(query(request, "is_associated").as_deref(), Some("true"));
+        assert_eq!(query(request, "isAssociated").as_deref(), Some("true"));
         assert_eq!(query(request, "offset"), Some(index.to_string()));
         assert_eq!(query(request, "limit").as_deref(), Some("1000"));
         assert_eq!(query(request, "page"), None);
@@ -319,7 +319,7 @@ async fn username_password_uses_basic_auth_without_session_login() {
     );
     assert!(requests
         .iter()
-        .all(|r| r.method == Method::GET && r.url.path() == "/api/data/workspaces"));
+        .all(|r| r.method == Method::GET && r.url.path() == "/api/ogc/collections/workspaces/items"));
 }
 
 fn datastream_item() -> Value {
@@ -396,13 +396,13 @@ async fn datastream_pages_resolve_included_metadata_and_cache_results() {
     let requests = server.requests.lock().unwrap();
     assert_eq!(requests.len(), 3);
     for request in requests.iter() {
-        assert_eq!(request.url.path(), "/api/data/datastreams");
+        assert_eq!(request.url.path(), "/api/ogc/collections/datastreams/items");
         assert_eq!(
             query(request, "include").as_deref(),
             Some(DATASTREAM_INCLUDE)
         );
         assert_eq!(
-            query(request, "workspace_id").as_deref(),
+            query(request, "workspaceId").as_deref(),
             Some("workspace-1")
         );
         assert_eq!(query(request, "expand_related"), None);
@@ -454,11 +454,12 @@ async fn datastream_detail_maps_v2_metadata_into_existing_ui_fields() {
     assert_eq!(detail.unit.symbol, "m");
     assert_eq!(detail.observed_property.code, "STAGE");
     let requests = server.requests.lock().unwrap();
-    assert_eq!(requests[0].url.path(), "/api/data/datastreams/ds-1");
+    assert_eq!(requests[0].url.path(), "/api/ogc/collections/datastreams/items/ds-1");
     assert_eq!(
         query(&requests[0], "include").as_deref(),
         Some(DATASTREAM_INCLUDE)
     );
+    assert_eq!(requests[0].url.query_pairs().count(), 1);
 }
 
 #[tokio::test]
@@ -523,6 +524,12 @@ async fn reads_conflict_watermark_from_item_envelope() {
         .fetch_phenomenon_end_time(&server.config(), "ds-1")
         .await
         .is_err());
+    let requests = server.requests.lock().unwrap();
+    assert_eq!(
+        requests[0].url.path(),
+        "/api/ogc/collections/datastreams/items/ds-1"
+    );
+    assert_eq!(requests[0].url.query(), None);
 }
 
 #[tokio::test]
@@ -564,7 +571,7 @@ async fn uploads_to_v2_bulk_endpoint_and_preserves_insert_conflicts() {
     let requests = server.requests.lock().unwrap();
     assert_eq!(requests.len(), 2);
     assert_eq!(requests[0].method, Method::POST);
-    assert_eq!(requests[0].url.path(), "/api/data/observations/bulk-create");
+    assert_eq!(requests[0].url.path(), "/api/ogc/collections/observations/bulk-create");
     assert_eq!(query(&requests[0], "mode").as_deref(), Some("insert"));
     assert_eq!(requests[0].headers["x-api-key"], "test-key");
     assert_eq!(
