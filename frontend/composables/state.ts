@@ -100,7 +100,7 @@ export const PREVIEW_PAGE_SIZE = 100;
 export const PREVIEW_PAGE_INCREMENT = PREVIEW_PAGE_SIZE;
 export const APP_NAME = "HydroServer Streaming Data Loader";
 export const API_KEY_DOCS_URL =
-  "https://hydroserver2.github.io/hydroserver/tutorials/creating-your-first-orchestration-system#create-an-api-key";
+  "https://hydroserver.org/user-guides/tutorials/hydroserver-101/part-3-sdl-setup#create-an-api-key";
 
 export function emptyServerConfig(): ServerConfig {
   return {

@@ -38,8 +38,8 @@ impl TestObservationServer {
     }
 
     /// Spawn a mock that pops `statuses` once per request. Successful responses
-    /// to GET requests return `get_body` (used to serve `phenomenonEndTime` for
-    /// conflict-reconciliation tests); successful POSTs return `{}`.
+    /// to GET requests wrap `get_body` in the v2 item envelope (used to serve
+    /// `phenomenonEndTime` for conflict reconciliation); successful POSTs return `{}`.
     async fn spawn_with_get_body(statuses: Vec<u16>, get_body: String) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
@@ -72,9 +72,11 @@ impl TestObservationServer {
 
                             let status = statuses.lock().await.pop_front().unwrap_or(200);
                             let payload = if status >= 400 {
-                                json!({ "detail": "temporary outage" }).to_string()
+                                json!({ "message": "temporary outage" }).to_string()
                             } else if method == "GET" {
-                                get_body.clone()
+                                let data: serde_json::Value =
+                                    serde_json::from_str(&get_body).expect("valid item");
+                                json!({ "data": data }).to_string()
                             } else {
                                 "{}".to_string()
                             };
